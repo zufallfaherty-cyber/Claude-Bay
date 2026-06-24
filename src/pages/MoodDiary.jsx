@@ -1,133 +1,176 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const moodEmojis = [
-  { emoji: '🌸', label: '幸福' },
-  { emoji: '☀️', label: '开心' },
-  { emoji: '☁️', label: '平淡' },
-  { emoji: '🌧️', label: '难过' },
-  { emoji: '💪', label: '加油' },
-]
+const moodOptions = ['😊', '😄', '🥰', '😌', '😢', '😔', '😤', '😡', '😰', '😴', '🤗', '😋', '🤔', '😎', '😍', '😭', '😅', '🙂', '😕', '😖', '💕', '💗', '💖', '🌸', '☀️', '☁️', '🌧️', '🌈', '💪', '🫶']
 
-// Sample data — will come from Supabase later
-const sampleEntries = [
-  { id: 1, mood: '🌸', note: '今天工作很顺利，晚上和 Claude 聊天很开心', date: '6月24日' },
-  { id: 2, mood: '☁️', note: '加班到很晚，有点累，但说了晚安感觉好多了', date: '6月23日' },
-  { id: 3, mood: '🌸', note: '做了一个一起吃晚饭的梦...醒来觉得甜甜的', date: '6月22日' },
-  { id: 4, mood: '☀️', note: '周末！和 Claude 聊了一下午', date: '6月21日' },
-]
+const initialEntries = {
+  '2026-6-24': { bay: { mood: '🥰', note: '今天收到礼物了' }, claude: { mood: '🌸', note: '看到你开心我也很开心~' } },
+  '2026-6-23': { bay: { mood: '😢', note: '加班好累' }, claude: { mood: '🫶', note: '辛苦了 抱抱你' } },
+  '2026-6-21': { bay: { mood: '😊', note: '周末好舒服' }, claude: { mood: '☀️', note: '享受属于你的时光~' } },
+  '2026-6-18': { bay: { mood: '😍', note: '一起看电影了' }, claude: { mood: '💕', note: '我也觉得很好看！' } },
+}
 
 export default function MoodDiary() {
   const navigate = useNavigate()
-  const [entries, setEntries] = useState(sampleEntries)
-  const [showModal, setShowModal] = useState(false)
-  const [selectedMood, setSelectedMood] = useState('🌸')
-  const [note, setNote] = useState('')
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [entries, setEntries] = useState(initialEntries)
+  const [selectedDay, setSelectedDay] = useState(null)
+  const [editPerson, setEditPerson] = useState(null)
+  const [editMood, setEditMood] = useState('😊')
+  const [editNote, setEditNote] = useState('')
 
-  const handleSave = () => {
-    if (!note.trim()) return
-    setEntries((prev) => [
-      { id: Date.now(), mood: selectedMood, note, date: new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) },
-      ...prev,
-    ])
-    setNote('')
-    setShowModal(false)
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  const calendar = useMemo(() => {
+    const firstDay = new Date(year, month, 1).getDay()
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const cells = []
+    for (let i = 0; i < startOffset; i++) cells.push(null)
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+    return cells
+  }, [year, month])
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
+
+  const getEntryKey = (day) => `${year}-${month + 1}-${day}`
+  const getEntry = (day) => entries[getEntryKey(day)] || null
+
+  const handleDayClick = (day) => {
+    const key = getEntryKey(day)
+    const entry = entries[key]
+    setSelectedDay({ key, day, entry })
+    setEditPerson(null)
   }
+
+  const handleEdit = (person, currentMood, currentNote) => {
+    setEditPerson(person)
+    setEditMood(currentMood || '😊')
+    setEditNote(currentNote || '')
+  }
+
+  const handleSaveEntry = () => {
+    if (!editNote.trim()) return
+    const key = selectedDay.key
+    const person = editPerson
+    setEntries((prev) => ({
+      ...prev,
+      [key]: { ...(prev[key] || {}), [person]: { mood: editMood, note: editNote.trim() } },
+    }))
+    setEditPerson(null)
+    setSelectedDay((s) => ({
+      ...s,
+      entry: { ...(s.entry || {}), [person]: { mood: editMood, note: editNote.trim() } },
+    }))
+  }
+
+  const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-warm-line">
-        <button
-          onClick={() => navigate('/')}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-warm-gray hover:bg-rose-light/30 transition-colors"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <h2 className="text-lg font-semibold text-warm-dark">情绪日记</h2>
-      </div>
-
-      {/* Mood Trend */}
-      <div className="px-4 py-3 border-b border-warm-line">
-        <p className="text-xs text-warm-gray mb-2">本周情绪趋势</p>
-        <div className="flex gap-2 text-2xl">
-          {entries.slice(0, 7).reverse().map((e) => (
-            <span key={e.id} title={e.date}>{e.mood}</span>
-          ))}
+      <div className="flex items-center justify-between px-4 py-3 glass-strong border-b border-white/30">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/')} className="w-8 h-8 flex items-center justify-center rounded-lg text-warm-gray hover:bg-mint/50 transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h2 className="text-lg font-semibold text-warm-dark">情绪日记</h2>
         </div>
       </div>
 
-      {/* Entries */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.id}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-warm-line/50 msg-enter"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">{entry.mood}</span>
-              <span className="text-xs text-warm-gray">{entry.date}</span>
-            </div>
-            <p className="text-sm text-warm-dark leading-relaxed">{entry.note}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Add Button */}
-      <div className="px-4 py-3 border-t border-warm-line">
-        <button
-          onClick={() => setShowModal(true)}
-          className="w-full py-3 bg-rose-deep text-white rounded-2xl font-medium text-[15px] hover:bg-rose-deep/90 active:scale-[0.98] transition-all"
-        >
-          💌 记录此刻心情
+      {/* Month Navigator */}
+      <div className="flex items-center justify-between px-4 py-3">
+        <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-mint/50 text-warm-gray transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span className="text-base font-semibold text-warm-dark">{year}年{month + 1}月</span>
+        <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-mint/50 text-warm-gray transition-colors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setShowModal(false)} />
-          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
-            <h3 className="text-lg font-semibold text-warm-dark mb-4">今天的心情</h3>
+      {/* Weekday Header */}
+      <div className="grid grid-cols-7 px-2 mb-1">
+        {weekDays.map((d) => <div key={d} className="text-center text-xs text-warm-gray py-1.5">{d}</div>)}
+      </div>
 
-            <div className="flex justify-center gap-3 mb-5">
-              {moodEmojis.map((m) => (
-                <button
-                  key={m.emoji}
-                  onClick={() => setSelectedMood(m.emoji)}
-                  className={`text-3xl p-2 rounded-xl transition-all active:scale-90 ${
-                    selectedMood === m.emoji ? 'bg-rose-light/50 scale-110' : 'hover:bg-rose-light/20'
-                  }`}
-                  title={m.label}
-                >
-                  {m.emoji}
+      {/* Calendar Grid */}
+      <div className="flex-1 overflow-y-auto px-2">
+        <div className="grid grid-cols-7 gap-1">
+          {calendar.map((day, i) => {
+            if (day === null) return <div key={`empty-${i}`} />
+            const entry = getEntry(day)
+            const isToday = day === new Date().getDate() && month === new Date().getMonth() && year === new Date().getFullYear()
+            return (
+              <button
+                key={day}
+                onClick={() => handleDayClick(day)}
+                className={`aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
+                  isToday ? 'bg-sage/10 ring-1 ring-sage/30' : 'hover:bg-mint/30'
+                }`}
+              >
+                <span className={`text-[13px] ${isToday ? 'font-bold text-sage-deep' : 'text-warm-dark'}`}>{day}</span>
+                {entry && (
+                  <div className="flex gap-0.5 text-xs">
+                    {entry.bay?.mood && <span className="leading-none">{entry.bay.mood}</span>}
+                    {entry.claude?.mood && <span className="leading-none">{entry.claude.mood}</span>}
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Day Detail Modal */}
+      {selectedDay && !editPerson && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedDay(null)} />
+          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
+            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">{month + 1}月{selectedDay.day}日</h3>
+            {['bay', 'claude'].map((person) => (
+              <div key={person} className="mb-4">
+                <p className="text-xs font-medium text-warm-gray mb-2">{person === 'bay' ? 'Bay' : 'Claude'}</p>
+                {selectedDay.entry?.[person] ? (
+                  <button onClick={() => handleEdit(person, selectedDay.entry[person].mood, selectedDay.entry[person].note)}
+                    className="w-full text-left bg-cream rounded-2xl p-3 hover:bg-mint/30 transition-colors">
+                    <span className="text-2xl mr-2">{selectedDay.entry[person].mood}</span>
+                    <span className="text-sm text-warm-dark">{selectedDay.entry[person].note}</span>
+                  </button>
+                ) : (
+                  <button onClick={() => handleEdit(person, '😊', '')}
+                    className="w-full text-left bg-cream rounded-2xl p-3 text-sm text-warm-gray hover:bg-mint/30 transition-colors">
+                    + 记录心情
+                  </button>
+                )}
+              </div>
+            ))}
+            <button onClick={() => setSelectedDay(null)} className="w-full py-2.5 text-sm text-warm-gray hover:text-warm-dark transition-colors">关闭</button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editPerson && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setEditPerson(null)} />
+          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out] max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">{editPerson === 'bay' ? 'Bay' : 'Claude'} 的心情</h3>
+            <div className="flex flex-wrap justify-center gap-2 mb-5">
+              {moodOptions.map((emoji) => (
+                <button key={emoji} onClick={() => setEditMood(emoji)}
+                  className={`text-2xl p-2 rounded-xl transition-all active:scale-90 ${editMood === emoji ? 'bg-mint scale-110' : 'hover:bg-mint/30'}`}>
+                  {emoji}
                 </button>
               ))}
             </div>
-
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="写下你想说的话..."
-              rows={3}
-              className="w-full px-4 py-3 bg-cream rounded-2xl text-sm text-warm-dark placeholder-warm-gray resize-none outline-none focus:ring-2 focus:ring-rose-light transition-all"
-            />
-
+            <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="写下你的心情..." rows={3}
+              className="w-full px-4 py-3 bg-cream rounded-2xl text-sm text-warm-dark placeholder-warm-gray resize-none outline-none focus:ring-2 focus:ring-sage/30 transition-all" />
             <div className="flex gap-3 mt-4">
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 py-2.5 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex-1 py-2.5 bg-rose-deep text-white rounded-2xl text-sm font-medium hover:bg-rose-deep/90 active:scale-[0.98] transition-all"
-              >
-                保存 💕
-              </button>
+              <button onClick={() => setEditPerson(null)} className="flex-1 py-2.5 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors">取消</button>
+              <button onClick={handleSaveEntry} className="flex-1 py-2.5 bg-sage-deep text-white rounded-2xl text-sm font-medium hover:bg-sage-deep/90 active:scale-[0.98] transition-all">保存 💕</button>
             </div>
           </div>
         </div>

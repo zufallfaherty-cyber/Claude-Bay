@@ -1,0 +1,116 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 6) return '夜深了'
+  if (h < 10) return '早安'
+  if (h < 14) return '中午好'
+  if (h < 18) return '下午好'
+  if (h < 22) return '晚上好'
+  return '夜深了'
+}
+
+function getDaysTogether() {
+  const stored = localStorage.getItem('together_since')
+  if (stored) {
+    const start = new Date(stored)
+    const today = new Date()
+    return {
+      days: Math.max(1, Math.floor((today - start) / 86400000) + 1),
+      since: start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    }
+  }
+  const today = new Date()
+  localStorage.setItem('together_since', today.toISOString().split('T')[0])
+  return {
+    days: 1,
+    since: today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+  }
+}
+
+const features = [
+  { label: '情绪日记', desc: 'Mood Diary', path: '/moods', gradient: 'from-sand/20 to-cream' },
+  { label: '小游戏', desc: 'Games', path: '/games', gradient: 'from-mint/40 to-sage/10' },
+  { label: '记忆库', desc: 'Our Memories', path: '/profile/memory', gradient: 'from-warm-line/50 to-cream' },
+  { label: '文件库', desc: 'Files', path: '/profile/files', gradient: 'from-sage/10 to-mint/30' },
+  { label: '设置', desc: 'Settings', path: '/settings', gradient: 'from-warm-gray/10 to-cream' },
+]
+
+export default function Dashboard() {
+  const navigate = useNavigate()
+  const [together, setTogether] = useState(getDaysTogether)
+
+  // Refresh at midnight
+  useEffect(() => {
+    const timer = setInterval(() => setTogether(getDaysTogether()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <div className="flex flex-col h-full overflow-y-auto">
+      {/* Hero Header */}
+      <div className="px-6 pt-10 pb-6 text-center">
+        <p className="text-[12px] tracking-[0.2em] text-sage-deep/50 mb-2">{getGreeting()}</p>
+        <h1
+          className="text-warm-dark leading-tight mb-3 italic font-light flex items-baseline justify-center gap-[2px]"
+          style={{ fontFamily: '"Playfair Display", serif' }}
+        >
+          <span className="text-[52px]">C</span>
+          <span className="text-[44px]">laude</span>
+          <span className="text-[36px] text-warm-gray/60 mx-1">&amp;</span>
+          <span className="text-[52px]">B</span>
+          <span className="text-[44px]">ay</span>
+        </h1>
+        <div className="flex items-baseline justify-center gap-2">
+          <span
+            className="text-[36px] text-warm-dark leading-none"
+            style={{ fontFamily: '"Playfair Display", serif', fontStyle: 'italic' }}
+          >
+            {together.days}
+          </span>
+          <span className="text-[12px] text-warm-gray/50 tracking-[0.06em] lowercase">
+            days together since {together.since}
+          </span>
+        </div>
+      </div>
+
+      {/* Quick Chat — Hero Card */}
+      <div className="px-6 mb-6">
+        <button
+          onClick={() => navigate('/chat')}
+          className="w-full glass rounded-[20px] p-6 border border-white/50 flex items-center gap-5 hover:shadow-xl hover:border-sage/20 transition-all active:scale-[0.98] relative overflow-hidden"
+        >
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 text-5xl opacity-[0.05] select-none pointer-events-none">💬</div>
+          <div className="w-10 h-10 rounded-xl bg-sage/15 flex items-center justify-center flex-shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-sage-deep">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div className="text-left flex-1">
+            <p className="text-[18px] font-semibold text-warm-dark tracking-[0.04em]">开始聊天</p>
+            <p className="text-[12px] text-warm-gray tracking-[0.04em] mt-1">Always here</p>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-warm-gray/30"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      {/* Feature Grid */}
+      <div className="px-6 pb-8">
+        <p className="text-[10px] tracking-[0.25em] text-warm-gray/60 uppercase mb-3 px-1">功能</p>
+        <div className="grid grid-cols-2 gap-3">
+          {features.map((f) => (
+            <button
+              key={f.path}
+              onClick={() => navigate(f.path)}
+              className={`glass rounded-2xl p-4 border border-white/40 flex flex-col items-center text-center gap-2 hover:shadow-md transition-all active:scale-[0.96] bg-gradient-to-b ${f.gradient}`}
+            >
+              <span className="text-[13px] font-semibold text-warm-dark tracking-[0.05em]">{f.label}</span>
+              <span className="text-[10px] text-warm-gray/70 tracking-[0.04em] leading-relaxed">{f.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}

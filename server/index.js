@@ -12,7 +12,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// ── Chat endpoint (streaming via SSE) ──
+// ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
   const { messages, systemPrompt, temperature = 0.8, maxTokens = 4096 } = req.body
 
@@ -20,37 +20,41 @@ app.post('/api/chat', async (req, res) => {
     return res.status(400).json({ error: 'messages array is required' })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = process.env.API_KEY
+  const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
+  const model = process.env.MODEL || '[按量]claude-opus-4-6'
+
   if (!apiKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured on server' })
+    return res.status(500).json({ error: 'API_KEY not configured on server' })
   }
 
-  // Build the messages array for Claude API
-  const apiMessages = messages.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }))
+  // Build OpenAI-compatible messages array
+  const apiMessages = []
+  if (systemPrompt) {
+    apiMessages.push({ role: 'system', content: systemPrompt })
+  }
+  messages.forEach((m) => {
+    apiMessages.push({ role: m.role, content: m.content })
+  })
 
-  // Set up SSE headers
+  // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',  // Latest Sonnet — good balance of speed & quality
-        max_tokens: maxTokens,
-        temperature: temperature,
-        system: systemPrompt || '你是一个温柔、细腻的AI伙伴。',
+        model,
         messages: apiMessages,
+        temperature,
+        max_tokens: maxTokens,
         stream: true,
       }),
     })
@@ -62,7 +66,6 @@ app.post('/api/chat', async (req, res) => {
       return
     }
 
-    // Stream the SSE events from Claude
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -76,29 +79,23 @@ app.post('/api/chat', async (req, res) => {
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6)
-          if (data === '[DONE]') continue
+        if (!line.startsWith('data: ')) continue
+        const data = line.slice(6).trim()
+        if (!data || data === '[DONE]') continue
 
-          try {
-            const parsed = JSON.parse(data)
+        try {
+          const parsed = JSON.parse(data)
+          const delta = parsed.choices?.[0]?.delta
+          const finishReason = parsed.choices?.[0]?.finish_reason
 
-            if (parsed.type === 'content_block_delta') {
-              const text = parsed.delta?.text || ''
-              if (text) {
-                res.write(`data: ${JSON.stringify({ type: 'text', text })}\n\n`)
-              }
-            } else if (parsed.type === 'content_block_start') {
-              // Forward content block start for tracking
-              res.write(`data: ${JSON.stringify({ type: 'block_start', content_block: parsed.content_block })}\n\n`)
-            } else if (parsed.type === 'message_stop') {
-              res.write(`data: ${JSON.stringify({ type: 'stop' })}\n\n`)
-            } else if (parsed.type === 'error') {
-              res.write(`data: ${JSON.stringify({ type: 'error', error: parsed.error?.message || 'Unknown error' })}\n\n`)
-            }
-          } catch {
-            // Skip unparseable lines
+          if (delta?.content) {
+            res.write(`data: ${JSON.stringify({ type: 'text', text: delta.content })}\n\n`)
           }
+          if (finishReason) {
+            res.write(`data: ${JSON.stringify({ type: 'stop' })}\n\n`)
+          }
+        } catch {
+          // skip
         }
       }
     }
@@ -114,4 +111,6 @@ app.post('/api/chat', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`🐰 Bunny Chat server running on http://localhost:${PORT}`)
+  console.log(`   API Base: ${process.env.API_BASE || 'https://api.jiushi.xin/v1'}`)
+  console.log(`   Model: ${process.env.MODEL || '[按量]claude-opus-4-6'}`)
 })
