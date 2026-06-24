@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* ── Rose Gold Dawn Palette ── */
+@theme {
+  --color-cream: #FDF8F4;
+  --color-rose: #E8B4B8;
+  --color-rose-light: #F2D5D3;
+  --color-rose-deep: #C97B84;
+  --color-rose-heart: #D4848C;
+  --color-warm-dark: #3D2C2E;
+  --color-warm-gray: #9B8E8E;
+  --color-warm-line: #F0E4E0;
+}
+
+/* ── Base ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, -apple-system, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-warm-dark);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* prevent pull-to-refresh on mobile */
+  overscroll-behavior: none;
+}
+
+/* ── Custom Scrollbar ── */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-rose-light);
+  border-radius: 999px;
+}
+
+/* ── Typing Dots Animation ── */
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+.dot-bounce:nth-child(1) { animation-delay: 0s; }
+.dot-bounce:nth-child(2) { animation-delay: 0.16s; }
+.dot-bounce:nth-child(3) { animation-delay: 0.32s; }
+
+/* ── Message Entrance ── */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg-enter {
+  animation: messageIn 0.35s ease-out both;
+}
+
+/* ── Heart Beat ── */
+@keyframes heartBeat {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.15); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.1); }
+  60% { transform: scale(1); }
+}
+.heart-beat:hover {
+  animation: heartBeat 0.8s ease-in-out;
+}
+
+/* ── Slide In (Drawer) ── */
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* ── Slide Up (Modal) ── */
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+/* ── Shimmer Loading ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #F0E4E0 25%, #FDF8F4 50%, #F0E4E0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}

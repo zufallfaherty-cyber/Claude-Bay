@@ -1,0 +1,22 @@
+{
+  "name": "Claude&Bay",
+  "short_name": "Claude&Bay",
+  "description": "一个温柔细腻的 AI 伙伴，随时陪你聊聊天",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FDF8F4",
+  "theme_color": "#C97B84",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

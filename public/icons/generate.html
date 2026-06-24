@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Icon Generator</title></head>
+<body style="text-align:center;font-family:sans-serif;padding:40px;">
+  <h2>PWA 图标生成器</h2>
+  <p>打开此页面后，会自动下载两个图标文件</p>
+  <p>把它们放到 <code>public/icons/</code> 目录下</p>
+  <canvas id="c" width="512" height="512" style="display:none"></canvas>
+  <div id="status"></div>
+  <script>
+    const heart = new Path2D('M256 435 C102 333 25 256 25 164 C25 92 92 41 154 41 C205 41 241 77 256 112 C271 77 307 41 358 41 C420 41 487 92 487 164 C487 256 410 333 256 435Z')
+    const sizes = [192, 512]
+    sizes.forEach(s => {
+      const canvas = document.createElement('canvas')
+      canvas.width = s; canvas.height = s
+      const ctx = canvas.getContext('2d')
+      // Background
+      ctx.fillStyle = '#FDF8F4'
+      ctx.fillRect(0, 0, s, s)
+      // Heart
+      ctx.save()
+      ctx.scale(s / 512, s / 512)
+      const grad = ctx.createLinearGradient(0, 0, 512, 512)
+      grad.addColorStop(0, '#E8B4B8')
+      grad.addColorStop(1, '#C97B84')
+      ctx.fillStyle = grad
+      ctx.fill(heart)
+      ctx.restore()
+      // Download
+      const a = document.createElement('a')
+      a.download = 'icon-' + s + '.png'
+      a.href = canvas.toDataURL('image/png')
+      a.click()
+      document.getElementById('status').innerHTML += '<p>✅ 已下载 icon-' + s + '.png</p>'
+    })
+  </script>
+</body></html>
