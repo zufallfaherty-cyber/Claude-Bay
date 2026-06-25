@@ -137,10 +137,14 @@ app.post('/api/remember', async (req, res) => {
 })
 
 // ── AI Nudge: proactive messaging check ──
-app.post('/api/nudge', async (req, res) => {
+app.all('/api/nudge', async (req, res) => {
   try {
     const now = new Date()
-    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    const hour = now.getHours()
+    if (hour >= 1 && hour < 5) {
+      return res.json({ nudged: false, reason: '深夜不打扰', time: `${hour}点` })
+    }
+    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
     // Get recent memories
     let memoryContext = ''
