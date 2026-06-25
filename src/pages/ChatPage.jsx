@@ -29,7 +29,7 @@ function saveSessions(sessions) {
 
 // ── SSE stream ──
 async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }) {
-  const response = await fetch('/api/chat', {
+  const response = await fetch('https://bayapi.zeabur.app/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }),
@@ -259,7 +259,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const roundCount = messagesRef.current.filter(m => m.role === 'user').length
     if (content && !content.startsWith('❌') && (isPersonal || roundCount % 5 === 0)) {
       const memoryText = `Bay: ${text}\nClaude: ${content.slice(0, 500)}`
-      fetch('/api/remember', {
+      fetch('https://bayapi.zeabur.app/api/remember', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: memoryText }),

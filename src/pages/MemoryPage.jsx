@@ -24,7 +24,7 @@ export default function MemoryPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/memories')
+    fetch('https://bayapi.zeabur.app/api/memories')
       .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
       .then((data) => setMemories(data.buckets || []))
       .catch((err) => setError(err.message))

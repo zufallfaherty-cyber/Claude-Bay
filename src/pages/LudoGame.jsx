@@ -5,7 +5,7 @@ const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxx
 
 // ── SSE stream (same as ChatPage) ──
 async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }) {
-  const response = await fetch('/api/chat', {
+  const response = await fetch('https://bayapi.zeabur.app/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }),
