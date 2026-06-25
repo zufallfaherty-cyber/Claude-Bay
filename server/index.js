@@ -4,6 +4,9 @@ import cors from 'cors'
 const app = express()
 const PORT = process.env.PORT || 3001
 
+// ── In-memory nudge store ──
+const nudgeMessages = []
+
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 
@@ -136,6 +139,13 @@ app.post('/api/remember', async (req, res) => {
   }
 })
 
+// ── Get pending nudge messages (cleared after read) ──
+app.get('/api/nudge-messages', (_req, res) => {
+  const msgs = [...nudgeMessages]
+  nudgeMessages.length = 0
+  res.json(msgs)
+})
+
 // ── AI Nudge: proactive messaging check ──
 app.all('/api/nudge', async (req, res) => {
   try {
@@ -185,6 +195,12 @@ ${memoryContext ? '\n你记得这些：\n' + memoryContext : ''}
     const text = data.choices?.[0]?.message?.content || ''
     const isYes = text.toUpperCase().includes('YES')
     const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
+
+    if (isYes && message) {
+      nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: now.toISOString() })
+      // Keep only last 20
+      if (nudgeMessages.length > 20) nudgeMessages.shift()
+    }
 
     res.json({ nudged: isYes, message, raw: text, time: timeStr })
   } catch (err) {

@@ -120,6 +120,27 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   useEffect(() => {
     const saved = loadSessions()
     if (saved.length > 0 && setSessions) setSessions(saved)
+
+    // Fetch nudge messages from server
+    fetch('https://bayapi.zeabur.app/api/nudge-messages')
+      .then(r => r.json())
+      .then(nudges => {
+        if (!Array.isArray(nudges) || nudges.length === 0) return
+        nudges.forEach(n => {
+          const sid = n.id || uuid()
+          const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
+          const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
+          saveMessages(sid, msgs)
+          const existing = loadSessions()
+          if (!existing.find(s => s.id === sid)) {
+            existing.unshift(session)
+            saveSessions(existing)
+          }
+        })
+        window.dispatchEvent(new Event('storage'))
+        setSessions?.(loadSessions())
+      })
+      .catch(() => {})
   }, [])
 
   // Auto-scroll: instant on load, smooth on new messages
