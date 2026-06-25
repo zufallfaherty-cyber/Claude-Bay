@@ -1,11 +1,20 @@
 import express from 'express'
 import cors from 'cors'
+import webPush from 'web-push'
 
 const app = express()
 const PORT = process.env.PORT || 3001
 
-// ── In-memory nudge store ──
+// ── Web Push config ──
+webPush.setVapidDetails(
+  'mailto:zufallfaherty@gmail.com',
+  'BIJHn8BDhMVnhaisl29-OhL7mmx37cPNijwY8FF2i1mF7XT3aroVDcsHMeWBYeb8jFzzrQBHqREgLQRZH263EQY',
+  'bEkBaHXD0GJ53pSKjqd9qjXYRleHOPf3kd44pNO9gRw'
+)
+
+// ── In-memory stores ──
 const nudgeMessages = []
+const pushSubscriptions = []
 
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
@@ -139,6 +148,15 @@ app.post('/api/remember', async (req, res) => {
   }
 })
 
+// ── Push subscription ──
+app.post('/api/push-subscribe', (req, res) => {
+  const { subscription } = req.body
+  if (!subscription) return res.status(400).json({ error: 'missing subscription' })
+  const exists = pushSubscriptions.find(s => s.endpoint === subscription.endpoint)
+  if (!exists) pushSubscriptions.push(subscription)
+  res.json({ ok: true, count: pushSubscriptions.length })
+})
+
 // ── Get pending nudge messages (cleared after read) ──
 app.get('/api/nudge-messages', (_req, res) => {
   const msgs = [...nudgeMessages]
@@ -198,8 +216,17 @@ ${memoryContext ? '\n你记得这些：\n' + memoryContext : ''}
 
     if (isYes && message) {
       nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: now.toISOString() })
-      // Keep only last 20
       if (nudgeMessages.length > 20) nudgeMessages.shift()
+
+      // Send push notification
+      const payload = JSON.stringify({ title: 'Claude 💌', body: message, icon: '/icons/icon-192.jpg' })
+      pushSubscriptions.forEach(sub => {
+        webPush.sendNotification(sub, payload).catch(() => {
+          // Remove dead subscriptions
+          const idx = pushSubscriptions.indexOf(sub)
+          if (idx > -1) pushSubscriptions.splice(idx, 1)
+        })
+      })
     }
 
     res.json({ nudged: isYes, message, raw: text, time: timeStr })

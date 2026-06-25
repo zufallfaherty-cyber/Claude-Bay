@@ -52,3 +52,37 @@ self.addEventListener('fetch', (event) => {
     })
   )
 })
+
+// ── Push Notifications ──
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+  try {
+    const data = event.data.json()
+    event.waitUntil(
+      self.registration.showNotification(data.title || 'Claude', {
+        body: data.body || '',
+        icon: '/icons/icon-192.jpg',
+        badge: '/icons/icon-192.jpg',
+        vibrate: [200, 100, 200],
+        tag: 'claude-nudge',
+        renotify: true,
+      })
+    )
+  } catch { /* ignore */ }
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes('/chat') && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/chat')
+      }
+    })
+  )
+})
