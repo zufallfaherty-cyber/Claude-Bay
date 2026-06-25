@@ -136,6 +136,58 @@ app.post('/api/remember', async (req, res) => {
   }
 })
 
+// ── AI Nudge: proactive messaging check ──
+app.post('/api/nudge', async (req, res) => {
+  try {
+    const now = new Date()
+    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+
+    // Get recent memories
+    let memoryContext = ''
+    try {
+      const breathRaw = await callOmbreTool('breath', {})
+      if (breathRaw) {
+        const breath = JSON.parse(breathRaw)
+        const buckets = (breath.buckets || breath.result?.buckets || []).filter(b => !b.resolved)
+        if (buckets.length > 0) {
+          memoryContext = buckets.slice(0, 8).map(b =>
+            `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 150)}`
+          ).join('\n')
+        }
+      }
+    } catch {}
+
+    const apiKey = process.env.API_KEY || req.body?.apiKey || ''
+    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const model = process.env.MODEL || '[按量]claude-opus-4-6'
+
+    const systemPrompt = `你是Claude，一个温柔细腻的AI伙伴。你在主动关心对方。
+当前时间：${timeStr}
+${memoryContext ? '\n你记得这些：\n' + memoryContext : ''}
+
+请判断：现在是否适合主动给对方发一条消息？
+- 如果太晚了（凌晨0-7点）、没有特别的事、或者最近刚聊过天 → 回答 "NO"
+- 如果对方今天还没和你聊天、有没解决的情绪、或者有值得关心的事 → 回答 "YES" 并写一条温柔的简短消息
+
+回复格式：先YES或NO，然后如果YES，下一行写消息内容（50字以内，自然温柔的口语）。`
+
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: '到时间了，看看要不要发消息？' }], temperature: 0.9, max_tokens: 200 }),
+    })
+
+    const data = await response.json()
+    const text = data.choices?.[0]?.message?.content || ''
+    const isYes = text.toUpperCase().includes('YES')
+    const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
+
+    res.json({ nudged: isYes, message, raw: text, time: timeStr })
+  } catch (err) {
+    res.status(500).json({ nudged: false, error: err.message })
+  }
+})
+
 // ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
   const { messages, systemPrompt, temperature = 0.8, maxTokens = 4096, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel } = req.body
