@@ -27,6 +27,21 @@ export default function MoodDiary() {
   const [editMood, setEditMood] = useState('😊')
   const [editNote, setEditNote] = useState('')
 
+  // Auto-generate Claude's mood for today if missing
+  useEffect(() => {
+    const todayKey = `${new Date().getFullYear()}-${new Date().getMonth()+1}-${new Date().getDate()}`
+    if (entries[todayKey]?.claude) return
+    fetch('https://bayapi.zeabur.app/api/claude-mood', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        setEntries(prev => ({
+          ...prev,
+          [todayKey]: { ...(prev[todayKey] || {}), claude: { mood: data.mood, note: data.note } },
+        }))
+      })
+      .catch(() => {})
+  }, [])
+
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
 

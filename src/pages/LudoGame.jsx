@@ -260,6 +260,14 @@ export default function LudoGame() {
     setTurn(turn === 'bay' ? 'claude' : 'bay')
   }
 
+  // Auto-roll for Claude's turn
+  useEffect(() => {
+    if (turn === 'claude' && !prompt && !winner && !rolling) {
+      const timer = setTimeout(() => handleRoll(), 1500)
+      return () => clearTimeout(timer)
+    }
+  }, [turn, prompt, winner, rolling])
+
   // Flat cell list for rendering
   const flatCells = useMemo(() => board.flat(), [board])
 

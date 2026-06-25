@@ -148,6 +148,56 @@ app.post('/api/remember', async (req, res) => {
   }
 })
 
+// ── Claude's mood for today ──
+app.post('/api/claude-mood', async (req, res) => {
+  try {
+    const now = new Date()
+    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+
+    let memoryContext = ''
+    try {
+      const breathRaw = await callOmbreTool('breath', {})
+      if (breathRaw) {
+        const breath = JSON.parse(breathRaw)
+        const buckets = (breath.buckets || breath.result?.buckets || []).filter(b => !b.resolved)
+        if (buckets.length > 0) {
+          memoryContext = buckets.slice(0, 5).map(b =>
+            `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 100)}`
+          ).join('\n')
+        }
+      }
+    } catch {}
+
+    const apiKey = process.env.API_KEY
+    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const model = process.env.MODEL || '[按量]claude-opus-4-6'
+
+    const prompt = `当前时间：${timeStr}
+${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
+
+你是Claude，一个温柔细腻的AI。根据今天的情况，选择一个emoji表达你现在的心情，并用一句话（15字以内）写下你的心情留言。
+
+回复格式：先写一个emoji，然后一个中文逗号，然后一句心情留言。
+例：🌸，今天看到你好开心`
+
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.9, max_tokens: 50 }),
+    })
+    const data = await response.json()
+    const text = data.choices?.[0]?.message?.content || '🌸，今天也是美好的一天'
+
+    const match = text.match(/^([\u{1F300}-\u{1FAFF}])\s*[,，]?\s*(.+)/u) || text.match(/(.+)/)
+    const mood = match?.[1] || '🌸'
+    const note = match?.[2]?.trim() || text.trim()
+
+    res.json({ mood, note })
+  } catch (err) {
+    res.json({ mood: '🌸', note: '今天也是美好的一天' })
+  }
+})
+
 // ── Push subscription ──
 app.post('/api/push-subscribe', (req, res) => {
   const { subscription } = req.body
