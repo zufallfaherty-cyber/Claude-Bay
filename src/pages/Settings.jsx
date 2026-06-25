@@ -1,10 +1,45 @@
-import { useState, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 export default function Settings() {
   const navigate = useNavigate()
   const bayFileRef = useRef(null)
   const claudeFileRef = useRef(null)
+
+  const [pushOn, setPushOn] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+    navigator.serviceWorker?.ready.then(async (reg) => {
+      const sub = await reg.pushManager?.getSubscription()
+      setPushOn(!!sub)
+    })
+  }, [])
+
+  const togglePush = async () => {
+    setPushLoading(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      if (pushOn) {
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) { await sub.unsubscribe(); setPushOn(false) }
+      } else {
+        const key = 'BIJHn8BDhMVnhaisl29-OhL7mmx37cPNijwY8FF2i1mF7XT3aroVDcsHMeWBYeb8jFzzrQBHqREgLQRZH263EQY'
+        const pad = key.padEnd(key.length + (4 - key.length % 4) % 4, '=')
+        const raw = atob(pad.replace(/-/g, '+').replace(/_/g, '/'))
+        const appKey = new Uint8Array([...raw].map(c => c.charCodeAt(0)))
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey })
+        await fetch('https://bayapi.zeabur.app/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub }),
+        })
+        setPushOn(true)
+      }
+    } catch {}
+    setPushLoading(false)
+  }
 
   const [prompt, setPrompt] = useState(() =>
     localStorage.getItem('system_prompt') ||
@@ -157,6 +192,23 @@ export default function Settings() {
                 placeholder="[按量]claude-opus-4-6"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="glass rounded-2xl p-5 border border-white/40">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-warm-dark">消息通知</p>
+              <p className="text-[11px] text-warm-gray/60 mt-0.5">Claude 想你的时候会收到提醒</p>
+            </div>
+            <button
+              onClick={togglePush}
+              disabled={pushLoading}
+              className={`w-12 h-7 rounded-full transition-all relative ${pushOn ? 'bg-sage-deep' : 'bg-warm-line/50'}`}
+            >
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-1 transition-all shadow-sm ${pushOn ? 'left-6' : 'left-1'}`} />
+            </button>
           </div>
         </div>
 

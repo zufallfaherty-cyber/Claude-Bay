@@ -110,26 +110,6 @@ function App() {
   const isHome = location.pathname === '/'
   const quote = getDailyQuote()
 
-  // ── Push notification subscription ──
-  useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-    navigator.serviceWorker.ready.then(async (reg) => {
-      const existing = await reg.pushManager.getSubscription()
-      if (existing) return // already subscribed
-      try {
-        const sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: 'BIJHn8BDhMVnhaisl29-OhL7mmx37cPNijwY8FF2i1mF7XT3aroVDcsHMeWBYeb8jFzzrQBHqREgLQRZH263EQY',
-        })
-        await fetch('https://bayapi.zeabur.app/api/push-subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub }),
-        })
-      } catch { /* user denied or not supported */ }
-    })
-  }, [])
-
   return (
     <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative overflow-hidden">
       <main className="flex-1 overflow-hidden">
