@@ -1,14 +1,38 @@
 import { useState } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import BottomNav from './components/BottomNav'
 import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
 import MoodDiary from './pages/MoodDiary'
 import GamesPage from './pages/GamesPage'
+import LudoGame from './pages/LudoGame'
 import ProfilePage from './pages/ProfilePage'
 import MemoryPage from './pages/MemoryPage'
 import FilesPage from './pages/FilesPage'
 import Settings from './pages/Settings'
+
+// ── Page transition wrapper ──
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -6 },
+}
+
+function PageWrapper({ children }) {
+  return (
+    <motion.div
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      transition={{ duration: 0.28, ease: [0.32, 0, 0.23, 1] }}
+      className="h-full"
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 // Daily quote — same pool as Dashboard, used here for fixed position
 const quotes = [
@@ -89,26 +113,31 @@ function App() {
   return (
     <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative overflow-hidden">
       <main className="flex-1 overflow-hidden">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route
-            path="/chat"
-            element={
-              <ChatPage
-                currentSessionId={currentSessionId}
-                setCurrentSessionId={setCurrentSessionId}
-                sessions={sessions}
-                setSessions={setSessions}
-              />
-            }
-          />
-          <Route path="/moods" element={<MoodDiary />} />
-          <Route path="/games" element={<GamesPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/profile/memory" element={<MemoryPage />} />
-          <Route path="/profile/files" element={<FilesPage />} />
-          <Route path="/settings" element={<Settings />} />
-        </Routes>
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
+            <Route
+              path="/chat"
+              element={
+                <PageWrapper>
+                  <ChatPage
+                    currentSessionId={currentSessionId}
+                    setCurrentSessionId={setCurrentSessionId}
+                    sessions={sessions}
+                    setSessions={setSessions}
+                  />
+                </PageWrapper>
+              }
+            />
+            <Route path="/moods" element={<PageWrapper><MoodDiary /></PageWrapper>} />
+            <Route path="/games" element={<PageWrapper><GamesPage /></PageWrapper>} />
+            <Route path="/games/ludo" element={<PageWrapper><LudoGame /></PageWrapper>} />
+            <Route path="/profile" element={<PageWrapper><ProfilePage /></PageWrapper>} />
+            <Route path="/profile/memory" element={<PageWrapper><MemoryPage /></PageWrapper>} />
+            <Route path="/profile/files" element={<PageWrapper><FilesPage /></PageWrapper>} />
+            <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
+          </Routes>
+        </AnimatePresence>
       </main>
 
       {/* Daily Quote — only on home, fixed above nav */}

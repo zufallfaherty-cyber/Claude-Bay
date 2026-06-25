@@ -3,16 +3,21 @@ import { useNavigate } from 'react-router-dom'
 import ChatBubble from '../components/ChatBubble'
 import ChatInput from '../components/ChatInput'
 
+// ── UUID polyfill ──
+const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:r&0x3|0x8).toString(16) })
+
 // ── localStorage persistence ──
 const MSG_PREFIX = 'bunny_msgs_'
 const SESS_KEY = 'bunny_sessions'
+const MAX_STORED_MSGS = 300
 
 function loadMessages(sessionId) {
   try { return JSON.parse(localStorage.getItem(MSG_PREFIX + sessionId) || '[]') }
   catch { return [] }
 }
 function saveMessages(sessionId, msgs) {
-  localStorage.setItem(MSG_PREFIX + sessionId, JSON.stringify(msgs))
+  const trimmed = msgs.length > MAX_STORED_MSGS ? msgs.slice(-MAX_STORED_MSGS) : msgs
+  localStorage.setItem(MSG_PREFIX + sessionId, JSON.stringify(trimmed))
 }
 function loadSessions() {
   try { return JSON.parse(localStorage.getItem(SESS_KEY) || '[]') }
@@ -23,11 +28,11 @@ function saveSessions(sessions) {
 }
 
 // ── SSE stream ──
-async function* streamChat(messages, { systemPrompt, temperature, maxTokens }) {
+async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }) {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens }),
+    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }),
   })
   if (!response.ok) {
     const err = await response.text()
@@ -60,6 +65,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [streaming, setStreaming] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const bottomRef = useRef(null)
 
   // Refs to avoid any closure issues
@@ -104,6 +110,73 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
   }, [streaming, currentSessionId, messages])
 
+  const getTimeAware = (basePrompt) => {
+    const n = new Date()
+    return basePrompt + `\n\n[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]`
+  }
+
+  const handleRegenerate = useCallback(async () => {
+    if (streamingRef.current || regenerating) return
+    const msgs = messagesRef.current
+    if (msgs.length < 2) return
+
+    // Find and remove last assistant message
+    let cutIdx = msgs.length - 1
+    while (cutIdx >= 0 && msgs[cutIdx].role !== 'assistant') cutIdx--
+    if (cutIdx < 0) return
+
+    const trimmed = msgs.slice(0, cutIdx)
+    messagesRef.current = trimmed
+    setMessages(trimmed)
+    streamingRef.current = true
+    setRegenerating(true)
+
+    const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
+    const recentMsgs = trimmed.slice(-maxRounds * 2)
+    const apiMessages = recentMsgs.map(m => ({ role: m.role, content: m.content }))
+
+    const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
+      '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。')
+
+    const assistantId = uuid()
+    messagesRef.current = [...trimmed, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]
+    setMessages(messagesRef.current)
+
+    let content = ''
+    try {
+      const stream = streamChat(apiMessages, {
+        systemPrompt,
+        temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
+        maxTokens: 4096,
+        apiBase: localStorage.getItem('api_base') || '',
+        apiKey: localStorage.getItem('api_key') || '',
+        apiModel: localStorage.getItem('api_model') || '',
+      })
+      for await (const chunk of stream) {
+        if (chunk.type === 'text') {
+          content += chunk.text
+          messagesRef.current = messagesRef.current.map(m =>
+            m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
+          )
+          setMessages(messagesRef.current)
+        } else if (chunk.type === 'error') {
+          content += `❌ 出错了：${chunk.error}`
+          break
+        }
+      }
+    } catch (err) {
+      content += `❌ 连接失败：${err.message}`
+    }
+
+    messagesRef.current = messagesRef.current.map(m =>
+      m.id === assistantId ? { ...m, content } : m
+    )
+    setMessages(messagesRef.current)
+    saveMessages(sidRef.current, messagesRef.current)
+    streamingRef.current = false
+    setRegenerating(false)
+  }, [regenerating])
+
   const handleSend = useCallback(async (text, attachments = []) => {
     // Guard: no double-tap
     if (streamingRef.current) return
@@ -115,7 +188,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     // Session
     let sid = sidRef.current
     if (!sid) {
-      sid = crypto.randomUUID()
+      sid = uuid()
       sidRef.current = sid
       const newSession = { id: sid, name: text.slice(0, 20), updated_at: new Date().toLocaleDateString('zh-CN') }
       setSessionsRef.current?.((prev) => {
@@ -126,7 +199,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
 
     // User message
-    const userMsg = { id: crypto.randomUUID(), role: 'user', content: text, attachments, timestamp: Date.now() }
+    const userMsg = { id: uuid(), role: 'user', content: text, attachments, timestamp: Date.now() }
     const updatedMsgs = [...messagesRef.current, userMsg]
     messagesRef.current = updatedMsgs
     setMessages(updatedMsgs)
@@ -137,11 +210,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
     const apiMessages = recentMessages.map((m) => ({ role: m.role, content: m.content }))
 
-    const systemPrompt = localStorage.getItem('system_prompt') ||
-      '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。'
+    const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
+      '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。')
 
     // Assistant placeholder
-    const assistantId = crypto.randomUUID()
+    const assistantId = uuid()
     messagesRef.current = [...updatedMsgs, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]
     setMessages(messagesRef.current)
 
@@ -151,6 +224,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         systemPrompt,
         temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
         maxTokens: 4096,
+        apiBase: localStorage.getItem('api_base') || '',
+        apiKey: localStorage.getItem('api_key') || '',
+        apiModel: localStorage.getItem('api_model') || '',
       })
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
@@ -176,6 +252,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     saveMessages(sid, messagesRef.current)
     streamingRef.current = false
     setStreaming(false)
+
+    // Feed to Ombre-Brain memory (only every 5 rounds, or if user shares personal info)
+    const personalKeywords = ['我喜欢', '我讨厌', '我害怕', '我想', '我记得', '我小时候', '我最', '我不喜欢', '我告诉', '我的']
+    const isPersonal = personalKeywords.some(k => text.includes(k))
+    const roundCount = messagesRef.current.filter(m => m.role === 'user').length
+    if (content && !content.startsWith('❌') && (isPersonal || roundCount % 5 === 0)) {
+      const memoryText = `Bay: ${text}\nClaude: ${content.slice(0, 500)}`
+      fetch('/api/remember', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: memoryText }),
+      }).catch(() => {})
+    }
   }, []) // empty deps — everything is via refs
 
   return (
@@ -191,7 +280,6 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           <div className="w-7 h-7 rounded-full bg-mint flex items-center justify-center text-sm">🌿</div>
           <span className="font-medium text-[15px] text-warm-dark">Claude</span>
         </div>
-        <div className="w-2 h-2 rounded-full bg-green-400 ring-2 ring-green-100" title="在线" />
       </header>
 
       {/* Messages */}
@@ -207,15 +295,20 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
               </p>
             </div>
           ) : (
-            messages.map((msg) => (
-              <ChatBubble
-                key={msg.id}
-                role={msg.role}
-                content={msg.content}
-                attachments={msg.attachments}
-                timestamp={msg.timestamp}
-              />
-            ))
+            messages.map((msg, i) => {
+              const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
+              return (
+                <ChatBubble
+                  key={msg.id}
+                  role={msg.role}
+                  content={msg.content}
+                  attachments={msg.attachments}
+                  timestamp={msg.timestamp}
+                  canRegenerate={isLastAssistant && !streaming && !regenerating}
+                  onRegenerate={handleRegenerate}
+                />
+              )
+            })
           )}
           <div ref={bottomRef} />
         </div>

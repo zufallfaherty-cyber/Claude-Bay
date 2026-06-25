@@ -58,7 +58,7 @@ export default function FilesPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 glass-strong border-b border-white/30">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="w-8 h-8 flex items-center justify-center rounded-lg text-warm-gray hover:bg-mint/50 transition-colors">
+          <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-warm-gray hover:bg-mint/50 transition-colors">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <h2 className="text-lg font-semibold text-warm-dark">文件库</h2>
@@ -163,11 +163,13 @@ function _getFiles() {
   catch { return [] }
 }
 
+const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:r&0x3|0x8).toString(16) })
+
 export function saveFile(name, content) {
   const files = _getFiles()
   const ext = (name || 'file.txt').split('.').pop().toLowerCase()
   const file = {
-    id: crypto.randomUUID(),
+    id: uuid(),
     name: name || 'untitled.txt',
     type: ['html', 'css', 'js', 'json', 'txt'].includes(ext) ? ext : 'txt',
     content,

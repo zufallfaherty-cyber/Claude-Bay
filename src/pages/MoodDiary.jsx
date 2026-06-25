@@ -1,6 +1,14 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+function Avatar({ person, className }) {
+  const src = localStorage.getItem(`avatar_${person}`) || ''
+  if (src?.startsWith('data:')) {
+    return <img src={src} alt="" className={className} />
+  }
+  return <span className={className}>{src || (person === 'bay' ? '💗' : '🌿')}</span>
+}
+
 const moodOptions = ['😊', '😄', '🥰', '😌', '😢', '😔', '😤', '😡', '😰', '😴', '🤗', '😋', '🤔', '😎', '😍', '😭', '😅', '🙂', '😕', '😖', '💕', '💗', '💖', '🌸', '☀️', '☁️', '🌧️', '🌈', '💪', '🫶']
 
 const initialEntries = {
@@ -15,7 +23,7 @@ export default function MoodDiary() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [entries, setEntries] = useState(initialEntries)
   const [selectedDay, setSelectedDay] = useState(null)
-  const [editPerson, setEditPerson] = useState(null)
+  const [editing, setEditing] = useState(false)
   const [editMood, setEditMood] = useState('😊')
   const [editNote, setEditNote] = useState('')
 
@@ -42,27 +50,26 @@ export default function MoodDiary() {
     const key = getEntryKey(day)
     const entry = entries[key]
     setSelectedDay({ key, day, entry })
-    setEditPerson(null)
+    setEditing(false)
   }
 
-  const handleEdit = (person, currentMood, currentNote) => {
-    setEditPerson(person)
+  const handleStartEdit = (currentMood, currentNote) => {
     setEditMood(currentMood || '😊')
     setEditNote(currentNote || '')
+    setEditing(true)
   }
 
   const handleSaveEntry = () => {
     if (!editNote.trim()) return
     const key = selectedDay.key
-    const person = editPerson
     setEntries((prev) => ({
       ...prev,
-      [key]: { ...(prev[key] || {}), [person]: { mood: editMood, note: editNote.trim() } },
+      [key]: { ...(prev[key] || {}), bay: { mood: editMood, note: editNote.trim() } },
     }))
-    setEditPerson(null)
+    setEditing(false)
     setSelectedDay((s) => ({
       ...s,
-      entry: { ...(s.entry || {}), [person]: { mood: editMood, note: editNote.trim() } },
+      entry: { ...(s.entry || {}), bay: { mood: editMood, note: editNote.trim() } },
     }))
   }
 
@@ -125,39 +132,65 @@ export default function MoodDiary() {
       </div>
 
       {/* Day Detail Modal */}
-      {selectedDay && !editPerson && (
+      {selectedDay && !editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedDay(null)} />
           <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out]">
-            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">{month + 1}月{selectedDay.day}日</h3>
-            {['bay', 'claude'].map((person) => (
-              <div key={person} className="mb-4">
-                <p className="text-xs font-medium text-warm-gray mb-2">{person === 'bay' ? 'Bay' : 'Claude'}</p>
-                {selectedDay.entry?.[person] ? (
-                  <button onClick={() => handleEdit(person, selectedDay.entry[person].mood, selectedDay.entry[person].note)}
-                    className="w-full text-left bg-cream rounded-2xl p-3 hover:bg-mint/30 transition-colors">
-                    <span className="text-2xl mr-2">{selectedDay.entry[person].mood}</span>
-                    <span className="text-sm text-warm-dark">{selectedDay.entry[person].note}</span>
-                  </button>
-                ) : (
-                  <button onClick={() => handleEdit(person, '😊', '')}
-                    className="w-full text-left bg-cream rounded-2xl p-3 text-sm text-warm-gray hover:bg-mint/30 transition-colors">
-                    + 记录心情
-                  </button>
-                )}
+            <h3 className="text-lg font-semibold text-warm-dark mb-5 text-center">{month + 1}月{selectedDay.day}日</h3>
+
+            {/* Bay's mood — editable */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-sage-deep flex items-center justify-center text-[10px] text-white font-medium overflow-hidden">
+                  <Avatar person="bay" className="w-full h-full object-cover text-[10px]" />
+                </div>
+                <p className="text-xs font-medium text-warm-gray">我</p>
               </div>
-            ))}
+              {selectedDay.entry?.bay ? (
+                <button onClick={() => handleStartEdit(selectedDay.entry.bay.mood, selectedDay.entry.bay.note)}
+                  className="w-full text-left bg-cream rounded-2xl p-4 hover:bg-mint/30 transition-colors">
+                  <span className="text-2xl mr-3">{selectedDay.entry.bay.mood}</span>
+                  <span className="text-sm text-warm-dark">{selectedDay.entry.bay.note}</span>
+                </button>
+              ) : (
+                <button onClick={() => handleStartEdit('😊', '')}
+                  className="w-full text-left bg-cream rounded-2xl p-4 text-sm text-warm-gray/60 hover:bg-mint/30 transition-colors border border-dashed border-warm-line/50">
+                  + 记录今天的心情
+                </button>
+              )}
+            </div>
+
+            {/* Claude's mood — read only */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full bg-white border border-warm-line flex items-center justify-center text-[10px] overflow-hidden">
+                  <Avatar person="claude" className="w-full h-full object-cover text-[10px]" />
+                </div>
+                <p className="text-xs font-medium text-warm-gray">Claude</p>
+              </div>
+              {selectedDay.entry?.claude ? (
+                <div className="w-full text-left bg-cream rounded-2xl p-4 opacity-80">
+                  <span className="text-2xl mr-3">{selectedDay.entry.claude.mood}</span>
+                  <span className="text-sm text-warm-dark">{selectedDay.entry.claude.note}</span>
+                </div>
+              ) : (
+                <div className="w-full text-left bg-cream/50 rounded-2xl p-4 text-sm text-warm-gray/40 italic">
+                  Claude 还没记录今天的心情
+                </div>
+              )}
+            </div>
+
             <button onClick={() => setSelectedDay(null)} className="w-full py-2.5 text-sm text-warm-gray hover:text-warm-dark transition-colors">关闭</button>
           </div>
         </div>
       )}
 
-      {/* Edit Modal */}
-      {editPerson && (
+      {/* Edit Modal — Bay only */}
+      {editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setEditPerson(null)} />
+          <div className="absolute inset-0 bg-black/30" onClick={() => setEditing(false)} />
           <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out] max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">{editPerson === 'bay' ? 'Bay' : 'Claude'} 的心情</h3>
+            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">今天的心情</h3>
             <div className="flex flex-wrap justify-center gap-2 mb-5">
               {moodOptions.map((emoji) => (
                 <button key={emoji} onClick={() => setEditMood(emoji)}
@@ -169,7 +202,7 @@ export default function MoodDiary() {
             <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="写下你的心情..." rows={3}
               className="w-full px-4 py-3 bg-cream rounded-2xl text-sm text-warm-dark placeholder-warm-gray resize-none outline-none focus:ring-2 focus:ring-sage/30 transition-all" />
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setEditPerson(null)} className="flex-1 py-2.5 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors">取消</button>
+              <button onClick={() => setEditing(false)} className="flex-1 py-2.5 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors">取消</button>
               <button onClick={handleSaveEntry} className="flex-1 py-2.5 bg-sage-deep text-white rounded-2xl text-sm font-medium hover:bg-sage-deep/90 active:scale-[0.98] transition-all">保存 💕</button>
             </div>
           </div>

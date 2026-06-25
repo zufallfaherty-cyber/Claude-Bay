@@ -152,10 +152,31 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'API_KEY not configured on server' })
   }
 
+  // Fetch memories from Ombre-Brain and inject into system prompt
+  let enrichedPrompt = systemPrompt || ''
+  try {
+    const breathRaw = await callOmbreTool('breath', {})
+    if (breathRaw) {
+      let breath = {}
+      try { breath = JSON.parse(breathRaw) } catch { /* raw text */ }
+      const buckets = breath.buckets || breath.result?.buckets || []
+      if (buckets.length > 0) {
+        const memoriesText = buckets
+          .filter(b => !b.resolved)
+          .slice(0, 10)
+          .map(b => `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`)
+          .join('\n')
+        if (memoriesText) {
+          enrichedPrompt += `\n\n[你记得这些关于对方的事（自然地在对话中提及，不要刻意）]\n${memoriesText}`
+        }
+      }
+    }
+  } catch { /* silent */ }
+
   // Build OpenAI-compatible messages array
   const apiMessages = []
-  if (systemPrompt) {
-    apiMessages.push({ role: 'system', content: systemPrompt })
+  if (enrichedPrompt) {
+    apiMessages.push({ role: 'system', content: enrichedPrompt })
   }
   messages.forEach((m) => {
     apiMessages.push({ role: m.role, content: m.content })
