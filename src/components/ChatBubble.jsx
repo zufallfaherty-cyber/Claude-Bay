@@ -87,7 +87,7 @@ export default function ChatBubble({ role, content, attachments, timestamp, canR
 
         {/* Text bubble */}
         {hasDisplayContent && (
-          <div className={`min-w-[60px] px-6 py-3.5 text-[14px] leading-[1.8] whitespace-pre-wrap break-words ${
+          <div className={`min-w-[60px] px-6 py-3.5 text-[14px] leading-[1.8] whitespace-pre-wrap break-words transition-all duration-150 ${
             isUser
               ? 'bg-sage/70 text-white rounded-2xl rounded-tr-md backdrop-blur-sm'
               : 'bg-white/70 text-warm-dark rounded-2xl rounded-tl-md shadow-sm border border-white/40 backdrop-blur-sm'
