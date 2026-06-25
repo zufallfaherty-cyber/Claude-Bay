@@ -17,7 +17,10 @@ export default function ChatBubble({ role, content, attachments, timestamp, canR
   const [saved, setSaved] = useState(false)
 
   const codeBlocks = !isUser && content ? parseCodeBlocks(content) : []
-  const hasContent = content && content.trim()
+  const displayContent = codeBlocks.length > 0
+    ? content.replace(/```[\s\S]*?```/g, '').trim()
+    : content
+  const hasDisplayContent = displayContent && displayContent.trim()
   const bayAvatar = localStorage.getItem('avatar_bay') || ''
   const claudeAvatar = localStorage.getItem('avatar_claude') || ''
 
@@ -83,18 +86,18 @@ export default function ChatBubble({ role, content, attachments, timestamp, canR
         )}
 
         {/* Text bubble */}
-        {hasContent && (
+        {hasDisplayContent && (
           <div className={`min-w-[60px] px-6 py-3.5 text-[14px] leading-[1.8] whitespace-pre-wrap break-words ${
             isUser
               ? 'bg-sage/70 text-white rounded-2xl rounded-tr-md backdrop-blur-sm'
               : 'bg-white/70 text-warm-dark rounded-2xl rounded-tl-md shadow-sm border border-white/40 backdrop-blur-sm'
           }`}>
-            {content}
+            {displayContent}
           </div>
         )}
 
         {/* Streaming dots (no content yet) */}
-        {!hasContent && !(attachments && attachments.length > 0) && (
+        {!hasDisplayContent && !(attachments && attachments.length > 0) && (
           <div className="px-4 py-2.5 bg-white rounded-2xl rounded-tl-md shadow-sm border border-warm-line/50">
             <span className="inline-flex gap-1 items-center">
               <span className="w-1.5 h-1.5 bg-sage rounded-full dot-bounce animate-[dotBounce_1.4s_infinite]" />

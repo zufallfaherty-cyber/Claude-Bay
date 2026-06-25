@@ -73,22 +73,37 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const messagesRef = useRef([])
   const sidRef = useRef(null)
   const setSessionsRef = useRef(setSessions)
+  const setSidRef = useRef(setCurrentSessionId)
 
   // Keep refs in sync
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { sidRef.current = currentSessionId }, [currentSessionId])
   useEffect(() => { setSessionsRef.current = setSessions }, [setSessions])
+  useEffect(() => { setSidRef.current = setCurrentSessionId }, [setCurrentSessionId])
 
-  // Load messages when switching to an existing session
+  // Load messages on mount or session switch
   const loadedSessionRef = useRef(null)
   useEffect(() => {
-    if (currentSessionId && currentSessionId !== loadedSessionRef.current) {
-      loadedSessionRef.current = currentSessionId
-      const existing = loadMessages(currentSessionId)
-      if (existing.length > 0) setMessages(existing)
-    } else if (!currentSessionId) {
+    if (!currentSessionId) {
+      // Try to restore last session
+      const sessions = loadSessions()
+      if (sessions.length > 0) {
+        const lastSid = sessions[0].id
+        const existing = loadMessages(lastSid)
+        if (existing.length > 0) {
+          setMessages(existing)
+          setSidRef.current?.(lastSid)
+          loadedSessionRef.current = lastSid
+          sidRef.current = lastSid
+          return
+        }
+      }
       loadedSessionRef.current = null
       setMessages([])
+    } else if (currentSessionId !== loadedSessionRef.current) {
+      loadedSessionRef.current = currentSessionId
+      const existing = loadMessages(currentSessionId)
+      setMessages(existing.length > 0 ? existing : [])
     }
   }, [currentSessionId])
 
@@ -98,9 +113,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (saved.length > 0 && setSessions) setSessions(saved)
   }, [])
 
-  // Auto-scroll
+  // Auto-scroll: instant on load, smooth on new messages
+  const isFirstRender = useRef(true)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({ behavior: isFirstRender.current ? 'instant' : 'smooth' })
+    if (messages.length > 0) isFirstRender.current = false
   }, [messages])
 
   // Persist messages after streaming completes
@@ -190,6 +207,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!sid) {
       sid = uuid()
       sidRef.current = sid
+      setSidRef.current?.(sid)
       const newSession = { id: sid, name: text.slice(0, 20), updated_at: new Date().toLocaleDateString('zh-CN') }
       setSessionsRef.current?.((prev) => {
         const updated = [newSession, ...prev]
