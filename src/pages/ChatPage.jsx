@@ -28,16 +28,25 @@ function saveSessions(sessions) {
 }
 
 // ── SSE stream ──
-async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }) {
+async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }, useStream = false) {
   const response = await fetch('https://bayapi.zeabur.app/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }),
+    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, stream: useStream }),
   })
   if (!response.ok) {
     const err = await response.text()
     throw new Error(`Server error: ${err}`)
   }
+
+  // Non-streaming: return full response at once
+  if (!useStream) {
+    const data = await response.json()
+    yield { type: 'text', text: data.content || '' }
+    return
+  }
+
+  // Streaming mode
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
@@ -160,8 +169,6 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
-    let renderBuffer = ''
-    let lastFlush = Date.now()
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -170,29 +177,15 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         apiBase: localStorage.getItem('api_base') || '',
         apiKey: localStorage.getItem('api_key') || '',
         apiModel: localStorage.getItem('api_model') || '',
-      })
+      }, false)
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
-          renderBuffer += chunk.text
-          const now = Date.now()
-          if (now - lastFlush > 60 || renderBuffer.length > 6) {
-            messagesRef.current = messagesRef.current.map(m =>
-              m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-            )
-            setMessages(messagesRef.current)
-            renderBuffer = ''
-            lastFlush = now
-          }
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
         }
       }
-      messagesRef.current = messagesRef.current.map(m =>
-        m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-      )
-      setMessages(messagesRef.current)
     } catch (err) {
       content += `❌ 连接失败：${err.message}`
     }
@@ -249,8 +242,6 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
-    let renderBuffer = ''
-    let lastFlush = Date.now()
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -259,31 +250,15 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         apiBase: localStorage.getItem('api_base') || '',
         apiKey: localStorage.getItem('api_key') || '',
         apiModel: localStorage.getItem('api_model') || '',
-      })
+      }, false)
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
-          renderBuffer += chunk.text
-          // Flush every ~60ms for smooth appearance
-          const now = Date.now()
-          if (now - lastFlush > 60 || renderBuffer.length > 6) {
-            messagesRef.current = messagesRef.current.map((m) =>
-              m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-            )
-            setMessages(messagesRef.current)
-            renderBuffer = ''
-            lastFlush = now
-          }
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
         }
       }
-      // Final flush
-      messagesRef.current = messagesRef.current.map((m) =>
-        m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-      )
-      setMessages(messagesRef.current)
     } catch (err) {
       content += `❌ 连接失败：${err.message}`
     }

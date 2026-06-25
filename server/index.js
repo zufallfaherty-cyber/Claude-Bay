@@ -190,7 +190,7 @@ ${memoryContext ? '\n你记得这些：\n' + memoryContext : ''}
 
 // ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
-  const { messages, systemPrompt, temperature = 0.8, maxTokens = 4096, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel } = req.body
+  const { messages, systemPrompt, temperature = 0.8, maxTokens = 4096, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true } = req.body
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array is required' })
@@ -234,6 +234,23 @@ app.post('/api/chat', async (req, res) => {
     apiMessages.push({ role: m.role, content: m.content })
   })
 
+  // ── Non-streaming mode: generate full response then return ──
+  if (!isStream) {
+    try {
+      const response = await fetch(`${apiBase}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify({ model, messages: apiMessages, temperature, max_tokens: maxTokens }),
+      })
+      const data = await response.json()
+      const text = data.choices?.[0]?.message?.content || ''
+      return res.json({ content: text })
+    } catch (err) {
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
+  // ── Streaming mode ──
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache')
