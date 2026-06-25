@@ -137,7 +137,7 @@ export default function ChatBubble({ role, content, attachments, timestamp, canR
         )}
 
         {/* Regenerate button */}
-        {canRegenerate && onRegenerate && hasContent && (
+        {canRegenerate && onRegenerate && hasDisplayContent && (
           <button
             onClick={onRegenerate}
             className="flex items-center gap-1 mt-1.5 ml-1 text-[10px] text-warm-gray/50 hover:text-sage-deep transition-colors active:scale-95"
