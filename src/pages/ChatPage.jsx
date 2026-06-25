@@ -160,6 +160,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
+    let renderBuffer = ''
+    let lastFlush = Date.now()
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -172,15 +174,25 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
-          messagesRef.current = messagesRef.current.map(m =>
-            m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-          )
-          setMessages(messagesRef.current)
+          renderBuffer += chunk.text
+          const now = Date.now()
+          if (now - lastFlush > 60 || renderBuffer.length > 6) {
+            messagesRef.current = messagesRef.current.map(m =>
+              m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
+            )
+            setMessages(messagesRef.current)
+            renderBuffer = ''
+            lastFlush = now
+          }
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
         }
       }
+      messagesRef.current = messagesRef.current.map(m =>
+        m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
+      )
+      setMessages(messagesRef.current)
     } catch (err) {
       content += `❌ 连接失败：${err.message}`
     }
@@ -237,6 +249,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
+    let renderBuffer = ''
+    let lastFlush = Date.now()
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -249,15 +263,27 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
-          messagesRef.current = messagesRef.current.map((m) =>
-            m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
-          )
-          setMessages(messagesRef.current)
+          renderBuffer += chunk.text
+          // Flush every ~60ms for smooth appearance
+          const now = Date.now()
+          if (now - lastFlush > 60 || renderBuffer.length > 6) {
+            messagesRef.current = messagesRef.current.map((m) =>
+              m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
+            )
+            setMessages(messagesRef.current)
+            renderBuffer = ''
+            lastFlush = now
+          }
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
         }
       }
+      // Final flush
+      messagesRef.current = messagesRef.current.map((m) =>
+        m.id === assistantId ? { ...m, content, timestamp: Date.now() } : m
+      )
+      setMessages(messagesRef.current)
     } catch (err) {
       content += `❌ 连接失败：${err.message}`
     }
