@@ -317,7 +317,13 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           </svg>
         </button>
         <div className="flex items-center gap-2 flex-1">
-          <div className="w-7 h-7 rounded-full bg-mint flex items-center justify-center text-sm">🌿</div>
+          {(() => {
+            const src = localStorage.getItem('avatar_claude') || ''
+            if (src?.startsWith('data:')) {
+              return <img src={src} alt="" className="w-7 h-7 rounded-full object-cover" />
+            }
+            return <div className="w-7 h-7 rounded-full bg-mint flex items-center justify-center text-sm">{src || '🌿'}</div>
+          })()}
           <span className="font-medium text-[15px] text-warm-dark">Claude</span>
         </div>
       </header>
