@@ -63,11 +63,11 @@ async function dualWriteSessions(sb, sessionsArr) {
     } catch { /* ignore */ }
   }
 }
-async function dualWriteMessages(sb, sessionId, msgs) {
+async function dualWriteMessages(sb, sessionId, msgs, userId) {
   saveMessagesLocal(sessionId, msgs)
   if (!sb || msgs.length === 0) return
   try {
-    await insertMessages(sb, sessionId, msgs)
+    await insertMessages(sb, sessionId, msgs, userId)
   } catch { /* ignore */ }
 }
 
@@ -116,7 +116,7 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
 
 export default function ChatPage({ currentSessionId, setCurrentSessionId, sessions, setSessions }) {
   const navigate = useNavigate()
-  const { supabase } = useAuth()
+  const { supabase, user } = useAuth()
   const [messages, setMessages] = useState([])
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
@@ -229,7 +229,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!streaming && currentSessionId && messages.length > 0) {
       const sb = supabaseRef.current
       saveMessagesLocal(currentSessionId, messages)
-      if (sb) insertMessages(sb, currentSessionId, messages).catch(() => {})
+      if (sb && user?.id) insertMessages(sb, currentSessionId, messages, user.id).catch(() => {})
     }
   }, [streaming, currentSessionId, messages])
 

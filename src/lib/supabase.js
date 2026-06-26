@@ -71,11 +71,12 @@ export async function insertMessage(supabase, sessionId, msg) {
   return data
 }
 
-export async function insertMessages(supabase, sessionId, msgs) {
+export async function insertMessages(supabase, sessionId, msgs, userId) {
   if (!supabase || msgs.length === 0) return
   const rows = msgs.map(m => ({
     id: m.id,
     session_id: sessionId,
+    user_id: userId,
     role: m.role,
     content: m.content || '',
     attachments: m.attachments || [],
