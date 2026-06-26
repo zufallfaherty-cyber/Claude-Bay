@@ -111,34 +111,48 @@ app.get('/api/memories', async (_req, res) => {
     if (breathRaw) {
       // Split by bucket_id markers
       const sections = breathRaw.split(/\[bucket_id:([^\]]+)\]/)
-      // sections[0] = text before first bucket, then alternating [id, content, id, content, ...]
       for (let i = 1; i < sections.length; i += 2) {
         const id = sections[i].trim()
-        const content = (sections[i + 1] || '').trim()
-        // Extract first meaningful line as snippet
-        const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'))
-        const snippet = lines[0]?.replace(/^[-*•]\s*/, '').trim().slice(0, 200) || content.slice(0, 200)
-        // Detect pinned
-        const pinned = content.includes('📌') || content.includes('[核心准则]')
-        // Detect resolved
-        const resolved = content.includes('[已释怀]') || content.includes('[resolved]')
-        // Extract tags from content (e.g. #tag1 #tag2)
-        const tagMatch = content.match(/#(\S+)/g)
-        const tags = tagMatch ? tagMatch.map(t => t.replace(/^#/, '')) : []
+        const block = (sections[i + 1] || '').trim()
+
+        // Parse metadata from header line: [权重:8.86] [主题:xxx] [情感:V0.5/A0.3] ...
+        const weightMatch = block.match(/\[权重:([\d.]+)\]/)
+        const topicMatch = block.match(/\[主题:([^\]]+)\]/)
+        const emotionMatch = block.match(/\[情感:V([\d.]+)\/A([\d.]+)\]/)
+        const dateMatch = block.match(/记忆桶:\s*(\d{4}-\d{2}-\d{2}\s*\d{2}-\d{2}-\d{2})/)
+
+        // Extract actual content (skip metadata header line)
+        const lines = block.split('\n')
+        const bodyLines = lines.filter(l => {
+          const t = l.trim()
+          return t && !t.startsWith('[') && !t.startsWith('#') && !t.startsWith('=') && !t.startsWith('---')
+        })
+        const snippet = bodyLines[0]?.replace(/^[-*•]\s*/, '').trim().slice(0, 200) || ''
+
+        // Pinned: only [核心准则], not just 📌
+        const pinned = block.includes('[核心准则]')
+        const resolved = block.includes('[已释怀]') || block.includes('[resolved]')
+
+        // Tags from topic
+        const topic = topicMatch ? topicMatch[1].trim() : ''
+        const tags = topic && topic !== '未分类' ? [topic] : []
+
+        // Derive name from topic, date, or id
+        const name = topic && topic !== '未分类' ? topic : (dateMatch ? dateMatch[1].replace(/-/g, '/') : id.slice(0, 8))
 
         buckets.push({
           id,
-          name: id.slice(0, 8),
-          content,
-          snippet,
-          valence: null,
-          arousal: null,
-          weight: null,
+          name,
+          content: block,
+          snippet: snippet || block.slice(0, 200),
+          valence: emotionMatch ? parseFloat(emotionMatch[1]) : null,
+          arousal: emotionMatch ? parseFloat(emotionMatch[2]) : null,
+          weight: weightMatch ? parseFloat(weightMatch[1]) : null,
           pinned,
           resolved,
           tags,
-          created: null,
-          score: pinned ? 100 : 50 - i,
+          created: dateMatch ? dateMatch[1] : null,
+          score: weightMatch ? parseFloat(weightMatch[1]) * 10 : 50,
         })
       }
     }
