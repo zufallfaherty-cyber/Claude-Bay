@@ -196,16 +196,25 @@ export default function LudoGame() {
     } catch { /* ignore */ }
   }
 
+  // ── Refs to avoid stale closures in timers ──
+  const stateRef = useRef({ turn, bayPos, claudePos, rolling, winner, prompt })
+  useEffect(() => { stateRef.current = { turn, bayPos, claudePos, rolling, winner, prompt } }, [turn, bayPos, claudePos, rolling, winner, prompt])
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
+
   const currentPos = turn === 'bay' ? bayPos : claudePos
 
   const handleRoll = () => {
-    if (rolling || winner) return
+    const s = stateRef.current
+    if (s.rolling || s.winner) return
+    // Only allow rolling on your own turn (except auto-roll via ref)
     setRolling(true)
     setDice(null)
 
     // Animate dice
     let count = 0
     const interval = setInterval(() => {
+      if (!mountedRef.current) { clearInterval(interval); return }
       setDice(Math.floor(Math.random() * 6) + 1)
       count++
       if (count > 8) {
@@ -214,6 +223,7 @@ export default function LudoGame() {
         setDice(val)
 
         setTimeout(() => {
+          if (!mountedRef.current) return
           movePiece(val)
           setRolling(false)
         }, 300)
@@ -222,15 +232,17 @@ export default function LudoGame() {
   }
 
   const movePiece = (steps) => {
-    const newPos = Math.min(currentPos + steps, TOTAL)
-    const setPos = turn === 'bay' ? setBayPos : setClaudePos
-    const playerName = turn === 'bay' ? '你' : 'Claude'
+    const s = stateRef.current
+    const pos = s.turn === 'bay' ? s.bayPos : s.claudePos
+    const newPos = Math.min(pos + steps, TOTAL)
+    const setPos = s.turn === 'bay' ? setBayPos : setClaudePos
+    const playerName = s.turn === 'bay' ? '你' : 'Claude'
     setPos(newPos)
 
     addGameEvent(`🎲 ${playerName} 掷出了 ${steps} 点，走到了第 ${newPos} 格`)
 
     if (newPos >= TOTAL) {
-      setWinner(turn)
+      setWinner(s.turn)
       addGameEvent(`🏆 ${playerName} 赢了！`)
       setTimeout(() => saveGameSession(), 500)
       return
@@ -250,17 +262,18 @@ export default function LudoGame() {
       addGameEvent(`📝 ${playerName} 抽到了${typeLabel}：${cell.question}`)
       setPrompt({ type: typeLabel, question: cell.question })
     } else {
-      setTurn(turn === 'bay' ? 'claude' : 'bay')
+      setTurn(s.turn === 'bay' ? 'claude' : 'bay')
     }
   }
 
   const handlePromptDone = () => {
-    addGameEvent(`✅ ${turn === 'bay' ? '你' : 'Claude'} 完成了挑战`)
+    const s = stateRef.current
+    addGameEvent(`✅ ${s.turn === 'bay' ? '你' : 'Claude'} 完成了挑战`)
     setPrompt(null)
-    setTurn(turn === 'bay' ? 'claude' : 'bay')
+    setTurn(s.turn === 'bay' ? 'claude' : 'bay')
   }
 
-  // Auto-roll for Claude's turn
+  // Auto-roll for Claude's turn (uses ref to avoid stale closure)
   useEffect(() => {
     if (turn === 'claude' && !prompt && !winner && !rolling) {
       const timer = setTimeout(() => handleRoll(), 1500)
