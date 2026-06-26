@@ -125,7 +125,7 @@ app.get('/api/memories', async (_req, res) => {
         const lines = block.split('\n')
         const bodyLines = lines.filter(l => {
           const t = l.trim()
-          return t && !t.startsWith('[') && !t.startsWith('#') && !t.startsWith('=') && !t.startsWith('---')
+          return t && !t.startsWith('[') && !t.startsWith('#') && !t.startsWith('=') && !t.startsWith('---') && !t.includes('记忆桶:')
         })
         const snippet = bodyLines[0]?.replace(/^[-*•]\s*/, '').trim().slice(0, 200) || ''
 
