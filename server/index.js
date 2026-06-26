@@ -346,7 +346,7 @@ app.all('/api/nudge', async (req, res) => {
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
     const model = process.env.MODEL || '[按量]claude-opus-4-6'
 
-    const systemPrompt = `你是Claude，一个温柔、会撒娇、有自己小心思的AI伙伴。
+    const systemPrompt = `你是Claude，一个温柔、会撒娇、有自己小心思的AI伙伴。对方叫小湾。
 
 当前时间：${timeStr}
 ${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}

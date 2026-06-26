@@ -363,7 +363,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const isPersonal = personalKeywords.some(k => text.includes(k))
     const roundCount = messagesRef.current.filter(m => m.role === 'user').length
     if (content && !content.startsWith('❌') && (isPersonal || roundCount % 5 === 0)) {
-      const memoryText = `Bay: ${text}\nClaude: ${content.slice(0, 500)}`
+      const memoryText = `小湾: ${text}\nClaude: ${content.slice(0, 500)}`
       fetch('https://bayapi.zeabur.app/api/remember', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
