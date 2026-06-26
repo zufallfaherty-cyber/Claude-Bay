@@ -173,7 +173,9 @@ app.get('/api/debug/settings', async (_req, res) => {
     const { data, error } = await supabaseAdmin
       .from('user_settings')
       .select('*')
-    res.json({ data, error })
+    // Also check auth users
+    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers()
+    res.json({ settings: data, error, userCount: authUsers?.users?.length || 0 })
   } catch (e) { res.json({ error: e.message }) }
 })
 
