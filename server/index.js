@@ -155,6 +155,20 @@ app.post('/api/forget', async (req, res) => {
   res.json({ deleted: true, bucket_id, result })
 })
 
+// ── Save user settings (server-side, bypasses RLS) ──
+app.post('/api/save-settings', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { user_id, ...settings } = req.body
+    if (!user_id) return res.json({ ok: false, error: 'missing user_id' })
+    const { error } = await supabaseAdmin
+      .from('user_settings')
+      .upsert({ user_id, ...settings, updated_at: new Date().toISOString() }, { onConflict: 'user_id' })
+    if (error) return res.json({ ok: false, error: error.message })
+    res.json({ ok: true })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
+})
+
 // ── Debug: check Supabase data ──
 app.get('/api/debug/sessions', async (_req, res) => {
   if (!supabaseAdmin) return res.json({ error: 'no supabase' })
