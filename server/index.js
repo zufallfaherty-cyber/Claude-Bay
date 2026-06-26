@@ -165,9 +165,15 @@ app.post('/api/save-chat', async (req, res) => {
     const { user_id, session_id, session_name, messages } = req.body
     if (!user_id || !session_id) return res.json({ ok: false, error: 'missing params' })
 
+    // Ensure valid UUID for session_id (frontend might pass non-UUID from nudge)
+    let sid = session_id
+    if (typeof sid !== 'string' || sid.length < 30 || !sid.includes('-')) {
+      sid = crypto.randomUUID()
+    }
+
     // Upsert session
     const { error: sessErr } = await supabaseAdmin.from('chat_sessions').upsert({
-      id: session_id, user_id, name: session_name || '新对话',
+      id: sid, user_id, name: session_name || '新对话',
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' })
     if (sessErr) {
