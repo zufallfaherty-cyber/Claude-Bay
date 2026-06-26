@@ -8,7 +8,6 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const supabase = useMemo(() => {
@@ -20,30 +19,25 @@ export function AuthProvider({ children }) {
     if (!supabase) { setLoading(false); return }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
       setUser(session?.user ?? null)
     })
     return () => subscription.unsubscribe()
   }, [supabase])
 
-  const signIn = async (email) => {
+  const signUp = async (email, password) => {
     if (!supabase) throw new Error('Supabase not configured')
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin + '/chat' },
-    })
+    const { error } = await supabase.auth.signUp({ email, password })
     if (error) throw error
   }
 
-  const verifyOtp = async (email, token) => {
+  const signIn = async (email, password) => {
     if (!supabase) throw new Error('Supabase not configured')
-    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
@@ -53,7 +47,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, supabase, signIn, verifyOtp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, supabase, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )
