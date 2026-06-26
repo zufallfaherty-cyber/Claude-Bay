@@ -49,7 +49,7 @@ async function initOmbreSession() {
     ombreSessionId = res.headers.get('mcp-session-id')
     await fetch(`${OMBRE_BRAIN_URL}/mcp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     })
     console.log('Ombre-Brain MCP session initialized')
@@ -67,7 +67,7 @@ async function callOmbreTool(toolName, args = {}, retry = true) {
     if (!ombreSessionId) { const ok = await initOmbreSession(); if (!ok) return null }
     const res = await fetch(`${OMBRE_BRAIN_URL}/mcp`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: toolName, arguments: args }, id: ++ombreCallId }),
     })
     const text = await res.text()
