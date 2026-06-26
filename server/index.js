@@ -61,7 +61,7 @@ async function initOmbreSession() {
   }
 }
 
-async function callOmbreTool(toolName, args = {}) {
+async function callOmbreTool(toolName, args = {}, retry = true) {
   if (!OMBRE_BRAIN_URL) return null
   try {
     if (!ombreSessionId) { const ok = await initOmbreSession(); if (!ok) return null }
@@ -75,10 +75,17 @@ async function callOmbreTool(toolName, args = {}) {
     if (parsed?.result?.content) {
       return parsed.result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
     }
+    // Detect expired session and retry once
+    const errStr = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+    if (retry && (errStr.includes('Session not found') || errStr.includes('session'))) {
+      ombreSessionId = null
+      return callOmbreTool(toolName, args, false)
+    }
     return parsed ? JSON.stringify(parsed) : null
   } catch (err) {
     console.error(`Ombre ${toolName} error:`, err.message)
     ombreSessionId = null
+    if (retry) return callOmbreTool(toolName, args, false)
     return null
   }
 }
