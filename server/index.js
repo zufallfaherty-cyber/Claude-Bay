@@ -171,8 +171,8 @@ app.post('/api/save-chat', async (req, res) => {
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' })
     if (sessErr) {
-      console.error('Session upsert error:', sessErr)
-      return res.json({ ok: false, error: 'session upsert failed: ' + sessErr.message })
+      console.error('Session upsert error:', JSON.stringify(sessErr))
+      return res.json({ ok: false, error: 'session upsert failed: ' + JSON.stringify(sessErr) })
     }
 
     // Upsert messages
@@ -186,8 +186,8 @@ app.post('/api/save-chat', async (req, res) => {
       for (let i = 0; i < rows.length; i += 50) {
         const { error: msgErr } = await supabaseAdmin.from('chat_messages').upsert(rows.slice(i, i + 50), { onConflict: 'id' })
         if (msgErr) {
-          console.error('Message upsert error:', msgErr)
-          return res.json({ ok: false, error: 'message upsert failed: ' + msgErr.message })
+          console.error('Message upsert error:', JSON.stringify(msgErr))
+          return res.json({ ok: false, error: 'message upsert failed: ' + JSON.stringify(msgErr) })
         }
       }
     }
