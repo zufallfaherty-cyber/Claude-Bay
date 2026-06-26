@@ -508,7 +508,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         </div>
       </div>
 
-      <ChatInput onSend={handleSend} disabled={streaming} />
+      <ChatInput onSend={handleSend} disabled={false} disableSend={streaming} />
     </div>
   )
 }

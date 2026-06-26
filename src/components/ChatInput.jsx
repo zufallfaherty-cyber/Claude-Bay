@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 
-export default function ChatInput({ onSend, disabled }) {
+export default function ChatInput({ onSend, disabled, disableSend }) {
   const [text, setText] = useState('')
   const [listening, setListening] = useState(false)
   const [attachments, setAttachments] = useState([])
@@ -149,9 +149,9 @@ export default function ChatInput({ onSend, disabled }) {
         {/* Send */}
         <button
           onClick={handleSubmit}
-          disabled={(!text.trim() && attachments.length === 0) || disabled}
+          disabled={(!text.trim() && attachments.length === 0) || disableSend}
           className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-            (text.trim() || attachments.length > 0) && !disabled
+            (text.trim() || attachments.length > 0) && !disableSend
               ? 'bg-sage-deep text-white'
               : 'bg-warm-line/50 text-warm-gray cursor-not-allowed'
           }`}
