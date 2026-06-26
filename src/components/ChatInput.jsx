@@ -124,7 +124,7 @@ export default function ChatInput({ onSend, disabled }) {
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="说点什么吧..."
+          placeholder=""
           rows={1}
           disabled={disabled}
           className="flex-1 resize-none outline-none text-[15px] text-warm-dark placeholder-warm-gray py-1.5 max-h-[120px] bg-transparent"
