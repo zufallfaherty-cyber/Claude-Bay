@@ -197,7 +197,7 @@ app.post('/api/save-chat', async (req, res) => {
         }
       }
     }
-    res.json({ ok: true })
+    res.json({ ok: true, session_id: sid })
   } catch (e) { res.json({ ok: false, error: e.message }) }
 })
 

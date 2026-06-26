@@ -240,6 +240,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
             session_name: s?.name || '新对话',
             messages,
           }),
+        }).then(r => r.json()).then(data => {
+          if (data.session_id && data.session_id !== currentSessionId) {
+            sidRef.current = data.session_id
+            setCurrentSessionId(data.session_id)
+          }
         }).catch(() => {})
       }
     }
