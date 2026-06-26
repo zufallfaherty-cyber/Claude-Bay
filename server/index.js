@@ -90,6 +90,14 @@ async function callOmbreTool(toolName, args = {}, retry = true) {
   }
 }
 
+// ── Cleanup bad buckets ──
+app.post('/api/forget', async (req, res) => {
+  const { bucket_id } = req.body
+  if (!bucket_id) return res.json({ deleted: false, reason: 'missing bucket_id' })
+  const result = await callOmbreTool('trace', { bucket_id, delete: true })
+  res.json({ deleted: true, bucket_id, result })
+})
+
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
