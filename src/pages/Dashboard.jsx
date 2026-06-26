@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useAuth } from '../contexts/AuthContext'
+import { upsertSettings } from '../lib/supabase'
 
 // ── Animation variants ──
 const fadeUp = {
@@ -45,7 +47,15 @@ const features = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const { supabase } = useAuth()
   const [together, setTogether] = useState(getDaysTogether)
+
+  // Sync together_since to Supabase
+  useEffect(() => {
+    if (!supabase) return
+    const stored = localStorage.getItem('together_since')
+    if (stored) upsertSettings(supabase, { together_since: stored }).catch(() => {})
+  }, [supabase])
 
   // Refresh at midnight
   useEffect(() => {

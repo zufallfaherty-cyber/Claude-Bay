@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { upsertSettings } from '../lib/supabase'
 
 export default function Settings() {
   const navigate = useNavigate()
+  const { supabase } = useAuth()
   const bayFileRef = useRef(null)
   const claudeFileRef = useRef(null)
 
@@ -80,6 +83,11 @@ export default function Settings() {
         setAvatarClaude(dataUrl)
         localStorage.setItem('avatar_claude', dataUrl)
       }
+      // Sync avatar to Supabase
+      if (supabase) {
+        const updates = person === 'bay' ? { avatar_bay_url: dataUrl } : { avatar_claude_url: dataUrl }
+        upsertSettings(supabase, updates).catch(() => {})
+      }
     }
     reader.readAsDataURL(file)
   }
@@ -91,6 +99,19 @@ export default function Settings() {
     localStorage.setItem('api_base', apiBase)
     localStorage.setItem('api_key', apiKey)
     localStorage.setItem('api_model', apiModel)
+    // Sync to Supabase
+    if (supabase) {
+      upsertSettings(supabase, {
+        system_prompt: prompt,
+        temperature,
+        max_context_rounds: maxRounds,
+        api_base: apiBase,
+        api_key: apiKey,
+        api_model: apiModel,
+        avatar_bay_url: avatarBay,
+        avatar_claude_url: avatarClaude,
+      }).catch(() => {})
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
