@@ -484,8 +484,32 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
 
     if (isYes && message) {
       const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
-      nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: chinaISO })
+      const nudgeId = Date.now().toString(36)
+      nudgeMessages.push({ id: nudgeId, text: message, time: timeStr, timestamp: chinaISO })
       if (nudgeMessages.length > 20) nudgeMessages.shift()
+
+      // Write nudge directly to Supabase (bypasses frontend localStorage)
+      if (supabaseAdmin) {
+        try {
+          const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+          const uid = settings?.user_id
+          if (uid) {
+            const sessionId = crypto.randomUUID()
+            const msgId = crypto.randomUUID()
+            await supabaseAdmin.from('chat_sessions').upsert({
+              id: sessionId, user_id: uid,
+              name: `💌 Claude · ${timeStr.slice(-5)}`,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'id' })
+            await supabaseAdmin.from('chat_messages').upsert({
+              id: msgId, session_id: sessionId, user_id: uid,
+              role: 'assistant', content: message,
+              attachments: [],
+              created_at: chinaISO
+            }, { onConflict: 'id' })
+          }
+        } catch (e) { console.error('Nudge Supabase write failed:', e.message) }
+      }
 
       // Send via Pushover (if configured)
       if (PUSHOVER_USER && PUSHOVER_TOKEN) {

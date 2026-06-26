@@ -185,10 +185,29 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
   }, [currentSessionId])
 
-  // Load sessions on mount
+  // Load sessions on mount — Supabase first, localStorage as fallback
   useEffect(() => {
-    const saved = loadSessionsLocal()
-    if (saved.length > 0 && setSessions) setSessions(saved)
+    const sb = supabaseRef.current
+    if (sb) {
+      // Try Supabase first
+      fetchSessions(sb).then(sbSessions => {
+        if (sbSessions.length > 0) {
+          const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
+          saveSessionsLocal(local)
+          setSessions?.(local)
+        } else {
+          // Fallback to localStorage
+          const saved = loadSessionsLocal()
+          if (saved.length > 0 && setSessions) setSessions(saved)
+        }
+      }).catch(() => {
+        const saved = loadSessionsLocal()
+        if (saved.length > 0 && setSessions) setSessions(saved)
+      })
+    } else {
+      const saved = loadSessionsLocal()
+      if (saved.length > 0 && setSessions) setSessions(saved)
+    }
 
     // Fetch nudge messages from server (poll every 3 minutes)
     const fetchNudges = () => {
