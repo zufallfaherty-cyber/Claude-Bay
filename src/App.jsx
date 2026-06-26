@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useAuth } from './contexts/AuthContext'
+import { migrateLocalToSupabase } from './lib/migrate'
 import BottomNav from './components/BottomNav'
+import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
 import MoodDiary from './pages/MoodDiary'
@@ -104,11 +107,40 @@ const quotes = [
 const getDailyQuote = () => quotes[Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / 86400000) % quotes.length]
 
 function App() {
+  const { user, loading, supabase } = useAuth()
   const [sessions, setSessions] = useState([])
   const [currentSessionId, setCurrentSessionId] = useState(null)
+  const [migrated, setMigrated] = useState(false)
+  const migrationRun = useRef(false)
   const location = useLocation()
   const isHome = location.pathname === '/'
   const quote = getDailyQuote()
+
+  // Run migration once after auth
+  useEffect(() => {
+    if (user && supabase && !migrationRun.current) {
+      migrationRun.current = true
+      migrateLocalToSupabase(supabase).then(r => {
+        console.log('Migration result:', r)
+        setMigrated(true)
+      })
+    }
+  }, [user, supabase])
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-cream">
+        <div className="flex flex-col items-center gap-4">
+          <div className="text-4xl animate-pulse">🌿</div>
+          <p className="text-sm text-warm-gray">加载中...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage />
+  }
 
   return (
     <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative overflow-hidden">

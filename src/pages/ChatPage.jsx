@@ -1,30 +1,55 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { fetchSessions, createSession, updateSession, fetchMessages, insertMessages } from '../lib/supabase'
 import ChatBubble from '../components/ChatBubble'
 import ChatInput from '../components/ChatInput'
 
 // ── UUID polyfill ──
 const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:r&0x3|0x8).toString(16) })
 
-// ── localStorage persistence ──
+// ── localStorage fallback (used when Supabase unavailable or during migration) ──
 const MSG_PREFIX = 'bunny_msgs_'
 const SESS_KEY = 'bunny_sessions'
 const MAX_STORED_MSGS = 300
 
-function loadMessages(sessionId) {
+function loadMessagesLocal(sessionId) {
   try { return JSON.parse(localStorage.getItem(MSG_PREFIX + sessionId) || '[]') }
   catch { return [] }
 }
-function saveMessages(sessionId, msgs) {
+function saveMessagesLocal(sessionId, msgs) {
   const trimmed = msgs.length > MAX_STORED_MSGS ? msgs.slice(-MAX_STORED_MSGS) : msgs
   localStorage.setItem(MSG_PREFIX + sessionId, JSON.stringify(trimmed))
 }
-function loadSessions() {
+function loadSessionsLocal() {
   try { return JSON.parse(localStorage.getItem(SESS_KEY) || '[]') }
   catch { return [] }
 }
-function saveSessions(sessions) {
+function saveSessionsLocal(sessions) {
   localStorage.setItem(SESS_KEY, JSON.stringify(sessions))
+}
+
+// ── Settings helpers ──
+function getSetting(key, fallback) {
+  return localStorage.getItem(key) || fallback
+}
+
+// ── Dual-write helpers (localStorage + Supabase) ──
+async function dualWriteSessions(sb, sessionsArr) {
+  saveSessionsLocal(sessionsArr)
+  if (!sb) return
+  for (const s of sessionsArr) {
+    try {
+      await sb.from('chat_sessions').upsert({ id: s.id, name: s.name, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+    } catch { /* ignore */ }
+  }
+}
+async function dualWriteMessages(sb, sessionId, msgs) {
+  saveMessagesLocal(sessionId, msgs)
+  if (!sb || msgs.length === 0) return
+  try {
+    await insertMessages(sb, sessionId, msgs)
+  } catch { /* ignore */ }
 }
 
 // ── SSE stream ──
@@ -72,6 +97,7 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
 
 export default function ChatPage({ currentSessionId, setCurrentSessionId, sessions, setSessions }) {
   const navigate = useNavigate()
+  const { supabase } = useAuth()
   const [messages, setMessages] = useState([])
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
@@ -83,22 +109,24 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const sidRef = useRef(null)
   const setSessionsRef = useRef(setSessions)
   const setSidRef = useRef(setCurrentSessionId)
+  const supabaseRef = useRef(supabase)
 
   // Keep refs in sync
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { sidRef.current = currentSessionId }, [currentSessionId])
   useEffect(() => { setSessionsRef.current = setSessions }, [setSessions])
   useEffect(() => { setSidRef.current = setCurrentSessionId }, [setCurrentSessionId])
+  useEffect(() => { supabaseRef.current = supabase }, [supabase])
 
   // Load messages on mount or session switch
   const loadedSessionRef = useRef(null)
   useEffect(() => {
     if (!currentSessionId) {
       // Try to restore last session
-      const sessions = loadSessions()
+      const sessions = loadSessionsLocal()
       if (sessions.length > 0) {
         const lastSid = sessions[0].id
-        const existing = loadMessages(lastSid)
+        const existing = loadMessagesLocal(lastSid)
         if (existing.length > 0) {
           setMessages(existing)
           setSidRef.current?.(lastSid)
@@ -107,18 +135,40 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           return
         }
       }
+      // If localStorage is empty, try Supabase (new device after migration)
+      const sb = supabaseRef.current
+      if (sb && sessions.length === 0) {
+        fetchSessions(sb).then(sbSessions => {
+          if (sbSessions.length > 0) {
+            // Restore sessions to localStorage
+            const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
+            saveSessionsLocal(local)
+            setSessions?.(local)
+            const lastSid = sbSessions[0].id
+            fetchMessages(sb, lastSid).then(sbMsgs => {
+              if (sbMsgs.length > 0) {
+                saveMessagesLocal(lastSid, sbMsgs)
+                setMessages(sbMsgs)
+                setSidRef.current?.(lastSid)
+                loadedSessionRef.current = lastSid
+                sidRef.current = lastSid
+              }
+            })
+          }
+        }).catch(() => {})
+      }
       loadedSessionRef.current = null
       setMessages([])
     } else if (currentSessionId !== loadedSessionRef.current) {
       loadedSessionRef.current = currentSessionId
-      const existing = loadMessages(currentSessionId)
+      const existing = loadMessagesLocal(currentSessionId)
       setMessages(existing.length > 0 ? existing : [])
     }
   }, [currentSessionId])
 
   // Load sessions on mount
   useEffect(() => {
-    const saved = loadSessions()
+    const saved = loadSessionsLocal()
     if (saved.length > 0 && setSessions) setSessions(saved)
 
     // Fetch nudge messages from server
@@ -130,15 +180,15 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           const sid = n.id || uuid()
           const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
           const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
-          saveMessages(sid, msgs)
-          const existing = loadSessions()
+          saveMessagesLocal(sid, msgs)
+          const existing = loadSessionsLocal()
           if (!existing.find(s => s.id === sid)) {
             existing.unshift(session)
-            saveSessions(existing)
+            saveSessionsLocal(existing)
           }
         })
         window.dispatchEvent(new Event('storage'))
-        setSessions?.(loadSessions())
+        setSessions?.(loadSessionsLocal())
       })
       .catch(() => {})
   }, [])
@@ -153,9 +203,24 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   // Persist messages after streaming completes
   useEffect(() => {
     if (!streaming && currentSessionId && messages.length > 0) {
-      saveMessages(currentSessionId, messages)
+      const sb = supabaseRef.current
+      saveMessagesLocal(currentSessionId, messages)
+      if (sb) insertMessages(sb, currentSessionId, messages).catch(() => {})
     }
   }, [streaming, currentSessionId, messages])
+
+  // Sync sessions to Supabase whenever they change
+  useEffect(() => {
+    const sb = supabaseRef.current
+    if (sb && sessions.length > 0) {
+      for (const s of sessions) {
+        sb.from('chat_sessions').upsert({
+          id: s.id, name: s.name || '新对话',
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' }).then(() => {}).catch(() => {})
+      }
+    }
+  }, [sessions])
 
   const getTimeAware = (basePrompt) => {
     const n = new Date()
@@ -215,7 +280,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       m.id === assistantId ? { ...m, content } : m
     )
     setMessages(messagesRef.current)
-    saveMessages(sidRef.current, messagesRef.current)
+    saveMessagesLocal(sidRef.current, messagesRef.current)
     streamingRef.current = false
     setRegenerating(false)
   }, [regenerating])
@@ -237,7 +302,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       const newSession = { id: sid, name: text.slice(0, 20), updated_at: new Date().toLocaleDateString('zh-CN') }
       setSessionsRef.current?.((prev) => {
         const updated = [newSession, ...prev]
-        saveSessions(updated)
+        saveSessionsLocal(updated)
         return updated
       })
     }
@@ -247,7 +312,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const updatedMsgs = [...messagesRef.current, userMsg]
     messagesRef.current = updatedMsgs
     setMessages(updatedMsgs)
-    saveMessages(sid, updatedMsgs)
+    saveMessagesLocal(sid, updatedMsgs)
 
     // Context window truncation
     const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
@@ -289,7 +354,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       m.id === assistantId ? { ...m, content } : m
     )
     setMessages(messagesRef.current)
-    saveMessages(sid, messagesRef.current)
+    saveMessagesLocal(sid, messagesRef.current)
     streamingRef.current = false
     setStreaming(false)
 
