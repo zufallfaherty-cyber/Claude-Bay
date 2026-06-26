@@ -54,7 +54,7 @@
 - Supabase 数据：✅ 聊天 + 设置 + nudge 全部入库
 
 ### 已知问题
-1. **Vercel 不自动部署**：所有前端改动推了但未生效。用户无法访问 Vercel 网站。建议调查 Git Integration 是否断连，或考虑前端也迁到 Zeabur
+1. **Vercel 不自动部署**：6月26日全天所有前端改动（UUID 修复、Supabase 优先加载、输入框解锁、气泡优化等）推了但 PWA 未生效。用户无法访问 Vercel 网站。6月27日第一优先级修这个。建议调查 Git Integration 是否断连，或考虑前端也迁到 Zeabur
 2. **聊天记录被 nudge 覆盖**：localStorage 仍有竞态风险。已做 Supabase 优先加载 + Nudge 服务端直接写，但前端旧代码可能还在跑
 3. **中文记忆编码乱码**：Ombre-Brain 存中文内容时 UTF-8 损坏，英文正常。需修 Ombre-Brain Python 代码
 4. **Embedding 向量化失败**：`OMBRE_EMBED_API_KEY` 的 AQ key 不兼容。暂时不影响关键词匹配
