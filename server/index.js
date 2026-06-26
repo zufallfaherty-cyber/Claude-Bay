@@ -155,10 +155,13 @@ app.post('/api/forget', async (req, res) => {
   res.json({ deleted: true, bucket_id, result })
 })
 
+let saveChatCount = 0
+
 // ── Save chat messages (server-side, bypasses RLS) ──
 app.post('/api/save-chat', async (req, res) => {
   if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
   try {
+    saveChatCount++
     const { user_id, session_id, session_name, messages } = req.body
     if (!user_id || !session_id) return res.json({ ok: false, error: 'missing params' })
 
@@ -222,6 +225,8 @@ app.get('/api/debug/settings', async (_req, res) => {
     res.json({ settings: data, error, userCount: authUsers?.users?.length || 0, sampleMessages: msgs })
   } catch (e) { res.json({ error: e.message }) }
 })
+
+app.get('/api/debug/chat-saves', (_req, res) => res.json({ saveCalls: saveChatCount }))
 
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
