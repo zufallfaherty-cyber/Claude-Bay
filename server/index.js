@@ -167,6 +167,16 @@ app.get('/api/debug/sessions', async (_req, res) => {
   } catch (e) { res.json({ error: e.message }) }
 })
 
+app.get('/api/debug/settings', async (_req, res) => {
+  if (!supabaseAdmin) return res.json({ error: 'no supabase' })
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_settings')
+      .select('*')
+    res.json({ data, error })
+  } catch (e) { res.json({ error: e.message }) }
+})
+
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
