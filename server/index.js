@@ -308,8 +308,10 @@ app.get('/api/nudge-messages', (_req, res) => {
 // ── AI Nudge: proactive messaging check ──
 app.all('/api/nudge', async (req, res) => {
   try {
-    const now = new Date()
-    const hour = now.getHours()
+    // Use China timezone (UTC+8)
+    const utcNow = new Date()
+    const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
+    const hour = now.getUTCHours()
     if (hour >= 1 && hour < 6) {
       return res.json({ nudged: false, reason: '深夜不打扰', time: `${hour}点` })
     }
