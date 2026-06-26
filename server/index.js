@@ -418,7 +418,8 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
     const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
 
     if (isYes && message) {
-      nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: now.toISOString() })
+      const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
+      nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: chinaISO })
       if (nudgeMessages.length > 20) nudgeMessages.shift()
 
       // Send via Pushover (if configured)
