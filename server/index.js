@@ -97,41 +97,55 @@ app.get('/api/health', (_req, res) => {
 
 // ── Ombre-Brain test ──
 app.get('/api/ombre-test', async (_req, res) => {
-  const result = await callOmbreTool('pulse', {})
+  const result = await callOmbreTool('breath', { max_results: 50 })
   res.json({ connected: !!result, ombre_url: OMBRE_BRAIN_URL || '(not set)', result })
 })
 
 // ── Memories ──
 app.get('/api/memories', async (_req, res) => {
   try {
-    const pulseRaw = await callOmbreTool('pulse', {})
-    const breathRaw = await callOmbreTool('breath', {})
+    const breathRaw = await callOmbreTool('breath', { max_results: 50 })
 
-    let pulse = {}
-    try { pulse = JSON.parse(pulseRaw || '{}') } catch { pulse = { raw: pulseRaw } }
+    // Parse markdown breath response: extract [bucket_id:xxx] entries
+    const buckets = []
+    if (breathRaw) {
+      // Split by bucket_id markers
+      const sections = breathRaw.split(/\[bucket_id:([^\]]+)\]/)
+      // sections[0] = text before first bucket, then alternating [id, content, id, content, ...]
+      for (let i = 1; i < sections.length; i += 2) {
+        const id = sections[i].trim()
+        const content = (sections[i + 1] || '').trim()
+        // Extract first meaningful line as snippet
+        const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('#'))
+        const snippet = lines[0]?.replace(/^[-*•]\s*/, '').trim().slice(0, 200) || content.slice(0, 200)
+        // Detect pinned
+        const pinned = content.includes('📌') || content.includes('[核心准则]')
+        // Detect resolved
+        const resolved = content.includes('[已释怀]') || content.includes('[resolved]')
+        // Extract tags from content (e.g. #tag1 #tag2)
+        const tagMatch = content.match(/#(\S+)/g)
+        const tags = tagMatch ? tagMatch.map(t => t.replace(/^#/, '')) : []
 
-    let breath = {}
-    try { breath = JSON.parse(breathRaw || '{}') } catch { breath = { raw: breathRaw } }
-
-    // Extract buckets from breath response
-    const surfaced = breath.buckets || breath.result?.buckets || []
+        buckets.push({
+          id,
+          name: id.slice(0, 8),
+          content,
+          snippet,
+          valence: null,
+          arousal: null,
+          weight: null,
+          pinned,
+          resolved,
+          tags,
+          created: null,
+          score: pinned ? 100 : 50 - i,
+        })
+      }
+    }
 
     res.json({
-      total: pulse.total_buckets || pulse.bucket_count || surfaced.length,
-      buckets: surfaced.map((b) => ({
-        id: b.id || b.name || '',
-        name: (b.name || b.id || '').replace(/\.md$/, ''),
-        content: b.content || '',
-        snippet: (b.content || b.snippet || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 200),
-        valence: b.valence ?? b.metadata?.valence,
-        arousal: b.arousal ?? b.metadata?.arousal,
-        weight: b.weight ?? b.metadata?.weight,
-        pinned: b.pinned ?? b.metadata?.pinned,
-        resolved: b.resolved ?? b.metadata?.resolved,
-        tags: b.tags || [],
-        created: b.created || b.metadata?.created,
-        score: b.score,
-      })),
+      total: buckets.length,
+      buckets,
     })
   } catch (err) {
     console.error('Memories error:', err)
