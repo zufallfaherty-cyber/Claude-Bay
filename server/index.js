@@ -166,10 +166,14 @@ app.post('/api/save-chat', async (req, res) => {
     if (!user_id || !session_id) return res.json({ ok: false, error: 'missing params' })
 
     // Upsert session
-    await supabaseAdmin.from('chat_sessions').upsert({
+    const { error: sessErr } = await supabaseAdmin.from('chat_sessions').upsert({
       id: session_id, user_id, name: session_name || '新对话',
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' })
+    if (sessErr) {
+      console.error('Session upsert error:', sessErr)
+      return res.json({ ok: false, error: 'session upsert failed: ' + sessErr.message })
+    }
 
     // Upsert messages
     if (messages && messages.length > 0) {
@@ -180,7 +184,11 @@ app.post('/api/save-chat', async (req, res) => {
         created_at: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString(),
       }))
       for (let i = 0; i < rows.length; i += 50) {
-        await supabaseAdmin.from('chat_messages').upsert(rows.slice(i, i + 50), { onConflict: 'id' })
+        const { error: msgErr } = await supabaseAdmin.from('chat_messages').upsert(rows.slice(i, i + 50), { onConflict: 'id' })
+        if (msgErr) {
+          console.error('Message upsert error:', msgErr)
+          return res.json({ ok: false, error: 'message upsert failed: ' + msgErr.message })
+        }
       }
     }
     res.json({ ok: true })
