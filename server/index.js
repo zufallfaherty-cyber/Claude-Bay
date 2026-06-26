@@ -142,6 +142,10 @@ app.post('/api/remember', async (req, res) => {
       content: content.trim(),
       tags: 'conversation',
     })
+    // callOmbreTool returns error string on failure, not throw
+    if (!result || result.includes('"error"')) {
+      return res.json({ stored: false, error: result || 'no response from Ombre-Brain' })
+    }
     res.json({ stored: true, result })
   } catch (err) {
     res.status(500).json({ stored: false, error: err.message })
