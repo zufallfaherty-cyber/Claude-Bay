@@ -214,6 +214,29 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
   }, [streaming, currentSessionId, messages])
 
+  // Pull sessions from Supabase and merge with localStorage (recovery)
+  useEffect(() => {
+    const sb = supabaseRef.current
+    if (!sb) return
+    fetchSessions(sb).then(sbSessions => {
+      if (sbSessions.length === 0) return
+      const local = loadSessionsLocal()
+      const merged = [...local]
+      let changed = false
+      for (const s of sbSessions) {
+        if (!merged.find(m => m.id === s.id)) {
+          merged.push({ id: s.id, name: s.name, updated_at: s.updated_at })
+          changed = true
+        }
+      }
+      if (changed) {
+        saveSessionsLocal(merged)
+        setSessions?.(merged)
+        window.dispatchEvent(new Event('storage'))
+      }
+    }).catch(() => {})
+  }, [supabase])
+
   // Sync sessions to Supabase whenever they change
   useEffect(() => {
     const sb = supabaseRef.current
