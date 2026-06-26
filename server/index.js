@@ -90,6 +90,26 @@ async function callOmbreTool(toolName, args = {}, retry = true) {
   }
 }
 
+// ── Parse breath markdown response into bucket objects ──
+function parseBreathResponse(text) {
+  if (!text) return []
+  const buckets = []
+  const sections = text.split(/\[bucket_id:([^\]]+)\]/)
+  for (let i = 1; i < sections.length; i += 2) {
+    const id = sections[i].trim()
+    const block = (sections[i + 1] || '').trim()
+    const lines = block.split('\n').filter(l => {
+      const t = l.trim()
+      return t && !t.startsWith('[') && !t.startsWith('#') && !t.startsWith('=') && !t.startsWith('---') && !t.includes('记忆桶:')
+    })
+    const content = lines.join('\n').trim()
+    const pinned = block.includes('[核心准则]')
+    const resolved = block.includes('[已释怀]')
+    buckets.push({ id, content, pinned, resolved })
+  }
+  return buckets
+}
+
 // ── Cleanup bad buckets ──
 app.post('/api/forget', async (req, res) => {
   const { bucket_id } = req.body
@@ -205,11 +225,10 @@ app.post('/api/claude-mood', async (req, res) => {
     try {
       const breathRaw = await callOmbreTool('breath', {})
       if (breathRaw) {
-        const breath = JSON.parse(breathRaw)
-        const buckets = (breath.buckets || breath.result?.buckets || []).filter(b => !b.resolved)
+        const buckets = parseBreathResponse(breathRaw).filter(b => !b.resolved)
         if (buckets.length > 0) {
           memoryContext = buckets.slice(0, 5).map(b =>
-            `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 100)}`
+            `- ${(b.content || '').slice(0, 100)}`
           ).join('\n')
         }
       }
@@ -276,11 +295,10 @@ app.all('/api/nudge', async (req, res) => {
     try {
       const breathRaw = await callOmbreTool('breath', {})
       if (breathRaw) {
-        const breath = JSON.parse(breathRaw)
-        const buckets = (breath.buckets || breath.result?.buckets || []).filter(b => !b.resolved)
+        const buckets = parseBreathResponse(breathRaw).filter(b => !b.resolved)
         if (buckets.length > 0) {
           memoryContext = buckets.slice(0, 8).map(b =>
-            `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 150)}`
+            `- ${(b.content || '').slice(0, 150)}`
           ).join('\n')
         }
       }
@@ -353,9 +371,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     const breathRaw = await callOmbreTool('breath', {})
     if (breathRaw) {
-      let breath = {}
-      try { breath = JSON.parse(breathRaw) } catch { /* raw text */ }
-      const buckets = breath.buckets || breath.result?.buckets || []
+      const buckets = parseBreathResponse(breathRaw)
       if (buckets.length > 0) {
         const memoriesText = buckets
           .filter(b => !b.resolved)
