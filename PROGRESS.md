@@ -1,8 +1,79 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年6月25日
+## 最后更新：2026年6月27日 凌晨
 
 ---
+
+## 2026.6.26 今日完成
+
+### Bug 修复
+- ✅ MoodDiary 崩溃修复：补了缺失的 `useEffect` import
+- ✅ LudoGame 闭包过期修复：引入 `stateRef` 统一管理状态，避免 setTimeout 中 stale closure
+- ✅ 聊天页 Claude 头像跟随自定义设置
+- ✅ 聊天气泡 padding 加大、placeholder 删除、AI 打字时不锁输入框
+- ✅ 时区修复：nudge 从 UTC 改为中国时间（UTC+8）
+- ✅ Nudge 记忆存储改为「小湾」而非「Bay」
+
+### 记忆系统（Ombre-Brain）
+- ✅ OAuth 认证关闭（`OMBRE_MCP_REQUIRE_AUTH=false`）
+- ✅ 脱水压缩 API 从 Google AQ key 改为 DeepSeek API
+- ✅ `OMBRE_COMPRESS_FORMAT=force_openai` 绕过 AQ key 自动检测
+- ✅ Embedding 同样 `OMBRE_EMBED_FORMAT=force_openai`
+- ✅ 记忆库页面改为日期命名、分类标签显示
+- ✅ **breath 返回 markdown 不是 JSON**：写了 `parseBreathResponse()` 解析
+- ✅ 聊天时注入记忆：`getUserPersonality()` 从 Supabase 读自定义设定
+
+### Supabase 数据库 + 登录
+- ✅ Supabase 项目创建（`dfiztbhylghncyangdlm`）
+- ✅ 邮箱密码登录（AuthContext + LoginPage）
+- ✅ 建表：chat_sessions, chat_messages, mood_entries, user_files, user_settings
+- ✅ RLS 策略 + service_role 权限
+- ✅ Settings 页面保存到 Supabase（`/api/save-settings`）
+- ✅ **聊天存 Supabase**：`/api/save-chat` 服务端写（绕开 RLS）
+- ✅ **UUID 格式 bug**：nudge 用 `Date.now().toString(36)` 生成短 ID，被 UUID 列拒绝（`22P02`）。后端加自动转换 + 前端改用 `uuid()`
+- ✅ **Nudge 直接写 Supabase**：服务端生成 nudge 的同时 INSERT 进表，不经过 localStorage
+- ✅ ChatPage 启动**优先 Supabase 加载**，localStorage 降级为缓存
+
+### 推送通知
+- ✅ Pushover 集成（`PUSHOVER_USER` + `PUSHOVER_TOKEN` 环境变量）
+- ✅ Nudge 消息推送成功到达手机
+- ✅ Nudge 强化上下文：**记忆库 + 最近5条聊天 + 自定义性格**
+- ✅ Nudge 每小时多次 → 改 45 分钟
+
+---
+
+## 当前状态
+
+### 正常运行
+- 前端 Vercel：https://claude-bay-two.vercel.app
+- 后端 Zeabur bayapi：https://bayapi.zeabur.app
+- 记忆引擎 baymemory：https://baymemory.zeabur.app
+- Pushover 推送：✅ 手机能收到
+- 记忆系统：✅ 存、读、标签、检索全链路通
+- Nudge 每 45 分钟：✅ cron-job.org
+- Supabase 数据：✅ 聊天 + 设置 + nudge 全部入库
+
+### 已知问题
+1. **Vercel 不自动部署**：所有前端改动推了但未生效。用户无法访问 Vercel 网站。建议调查 Git Integration 是否断连，或考虑前端也迁到 Zeabur
+2. **聊天记录被 nudge 覆盖**：localStorage 仍有竞态风险。已做 Supabase 优先加载 + Nudge 服务端直接写，但前端旧代码可能还在跑
+3. **中文记忆编码乱码**：Ombre-Brain 存中文内容时 UTF-8 损坏，英文正常。需修 Ombre-Brain Python 代码
+4. **Embedding 向量化失败**：`OMBRE_EMBED_API_KEY` 的 AQ key 不兼容。暂时不影响关键词匹配
+5. **Safari 登录密码不对**：用户无法用 Safari 打开 App，只能 PWA
+
+### 明天要做
+1. 解决 Vercel 部署问题（或迁到 Zeabur）
+2. 确认 ChatPage Supabase 优先加载在前端生效
+3. 清理 nudge 前端轮询逻辑（服务端已直接写 Supabase，前端轮询可简化）
+4. 修复中文记忆编码（Ombre-Brain）
+5. 修复 Embedding 向量化
+
+---
+
+## 今天关键教训
+- **`JSON.parse` 炸了三次**：breath 返回 markdown；Rust 后端返回文本；nudge 返回 JSON 字符串。每次都静默吞错
+- **RLS 权限是头号杀手**：前端 upsert 因缺 `user_id` + 缺 `WITH CHECK` 全被拦下，错误被 `.catch(() => {})` 吞掉
+- **UUID 格式**：`Date.now().toString(36)` ≠ UUID。一个字符集不同直接卡死整个写入链路
+- **Vercel 不可靠**：后端改动 Zeabur 自动部署很稳，前端 Vercel 要注意
 
 ## 项目概况
 
