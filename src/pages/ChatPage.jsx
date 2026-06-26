@@ -26,7 +26,26 @@ function loadSessionsLocal() {
   catch { return [] }
 }
 function saveSessionsLocal(sessions) {
+  // Keep a backup in case of corruption
+  try {
+    const prev = localStorage.getItem(SESS_KEY)
+    if (prev && prev !== '[]') localStorage.setItem(SESS_KEY + '_backup', prev)
+  } catch {}
   localStorage.setItem(SESS_KEY, JSON.stringify(sessions))
+  // If we just saved an empty array, restore from backup
+  if (sessions.length === 0) {
+    try {
+      const backup = localStorage.getItem(SESS_KEY + '_backup')
+      if (backup) {
+        const restored = JSON.parse(backup)
+        if (restored.length > 0) {
+          localStorage.setItem(SESS_KEY, backup)
+          return restored
+        }
+      }
+    } catch {}
+  }
+  return sessions
 }
 
 // ── Settings helpers ──
