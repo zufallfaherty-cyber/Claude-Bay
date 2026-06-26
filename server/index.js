@@ -12,6 +12,10 @@ webPush.setVapidDetails(
   'bEkBaHXD0GJ53pSKjqd9qjXYRleHOPf3kd44pNO9gRw'
 )
 
+// ── Pushover config ──
+const PUSHOVER_USER = process.env.PUSHOVER_USER || ''
+const PUSHOVER_TOKEN = process.env.PUSHOVER_TOKEN || ''
+
 // ── In-memory stores ──
 const nudgeMessages = []
 const pushSubscriptions = []
@@ -333,11 +337,24 @@ ${memoryContext ? '\n你记得这些：\n' + memoryContext : ''}
       nudgeMessages.push({ id: Date.now().toString(36), text: message, time: timeStr, timestamp: now.toISOString() })
       if (nudgeMessages.length > 20) nudgeMessages.shift()
 
-      // Send push notification
+      // Send via Pushover (if configured)
+      if (PUSHOVER_USER && PUSHOVER_TOKEN) {
+        fetch('https://api.pushover.net/1/messages.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: PUSHOVER_TOKEN,
+            user: PUSHOVER_USER,
+            title: 'Claude 💌',
+            message: message,
+          }),
+        }).catch(() => {})
+      }
+
+      // Also try Web Push as fallback
       const payload = JSON.stringify({ title: 'Claude 💌', body: message, icon: '/icons/icon-192.jpg' })
       pushSubscriptions.forEach(sub => {
         webPush.sendNotification(sub, payload).catch(() => {
-          // Remove dead subscriptions
           const idx = pushSubscriptions.indexOf(sub)
           if (idx > -1) pushSubscriptions.splice(idx, 1)
         })
