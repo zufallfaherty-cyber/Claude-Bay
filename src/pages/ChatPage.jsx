@@ -197,7 +197,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         .then(nudges => {
           if (!Array.isArray(nudges) || nudges.length === 0) return
           nudges.forEach(n => {
-            const sid = n.id || uuid()
+            const sid = uuid()
             const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
             const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
             saveMessagesLocal(sid, msgs)
