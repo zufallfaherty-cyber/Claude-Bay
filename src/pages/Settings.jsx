@@ -5,7 +5,7 @@ import { upsertSettings } from '../lib/supabase'
 
 export default function Settings() {
   const navigate = useNavigate()
-  const { supabase } = useAuth()
+  const { supabase, user } = useAuth()
   const bayFileRef = useRef(null)
   const claudeFileRef = useRef(null)
 
@@ -86,7 +86,7 @@ export default function Settings() {
       // Sync avatar to Supabase
       if (supabase) {
         const updates = person === 'bay' ? { avatar_bay_url: dataUrl } : { avatar_claude_url: dataUrl }
-        upsertSettings(supabase, updates).catch(() => {})
+        upsertSettings(supabase, { user_id: user?.id, ...updates }).catch(() => {})
       }
     }
     reader.readAsDataURL(file)
@@ -102,6 +102,7 @@ export default function Settings() {
     // Sync to Supabase
     if (supabase) {
       upsertSettings(supabase, {
+        user_id: user?.id,
         system_prompt: prompt,
         temperature,
         max_context_rounds: maxRounds,

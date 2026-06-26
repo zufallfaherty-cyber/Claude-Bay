@@ -171,26 +171,31 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const saved = loadSessionsLocal()
     if (saved.length > 0 && setSessions) setSessions(saved)
 
-    // Fetch nudge messages from server
-    fetch('https://bayapi.zeabur.app/api/nudge-messages')
-      .then(r => r.json())
-      .then(nudges => {
-        if (!Array.isArray(nudges) || nudges.length === 0) return
-        nudges.forEach(n => {
-          const sid = n.id || uuid()
-          const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
-          const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
-          saveMessagesLocal(sid, msgs)
-          const existing = loadSessionsLocal()
-          if (!existing.find(s => s.id === sid)) {
-            existing.unshift(session)
-            saveSessionsLocal(existing)
-          }
+    // Fetch nudge messages from server (poll every 3 minutes)
+    const fetchNudges = () => {
+      fetch('https://bayapi.zeabur.app/api/nudge-messages')
+        .then(r => r.json())
+        .then(nudges => {
+          if (!Array.isArray(nudges) || nudges.length === 0) return
+          nudges.forEach(n => {
+            const sid = n.id || uuid()
+            const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
+            const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
+            saveMessagesLocal(sid, msgs)
+            const existing = loadSessionsLocal()
+            if (!existing.find(s => s.id === sid)) {
+              existing.unshift(session)
+              saveSessionsLocal(existing)
+            }
+          })
+          window.dispatchEvent(new Event('storage'))
+          setSessions?.(loadSessionsLocal())
         })
-        window.dispatchEvent(new Event('storage'))
-        setSessions?.(loadSessionsLocal())
-      })
-      .catch(() => {})
+        .catch(() => {})
+    }
+    fetchNudges()
+    const interval = setInterval(fetchNudges, 3 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // Auto-scroll: instant on load, smooth on new messages
