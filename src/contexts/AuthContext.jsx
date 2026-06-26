@@ -34,7 +34,10 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email) => {
     if (!supabase) throw new Error('Supabase not configured')
-    const { error } = await supabase.auth.signInWithOtp({ email })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin + '/chat' },
+    })
     if (error) throw error
   }
 
