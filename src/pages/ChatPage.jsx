@@ -229,7 +229,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!streaming && currentSessionId && messages.length > 0) {
       const sb = supabaseRef.current
       saveMessagesLocal(currentSessionId, messages)
-      if (sb && user?.id) insertMessages(sb, currentSessionId, messages, user.id).catch(() => {})
+      if (user?.id) {
+        const s = sessions.find(s => s.id === currentSessionId)
+        fetch('https://bayapi.zeabur.app/api/save-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user.id,
+            session_id: currentSessionId,
+            session_name: s?.name || '新对话',
+            messages,
+          }),
+        }).catch(() => {})
+      }
     }
   }, [streaming, currentSessionId, messages])
 

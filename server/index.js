@@ -155,6 +155,35 @@ app.post('/api/forget', async (req, res) => {
   res.json({ deleted: true, bucket_id, result })
 })
 
+// ── Save chat messages (server-side, bypasses RLS) ──
+app.post('/api/save-chat', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { user_id, session_id, session_name, messages } = req.body
+    if (!user_id || !session_id) return res.json({ ok: false, error: 'missing params' })
+
+    // Upsert session
+    await supabaseAdmin.from('chat_sessions').upsert({
+      id: session_id, user_id, name: session_name || '新对话',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' })
+
+    // Upsert messages
+    if (messages && messages.length > 0) {
+      const rows = messages.map(m => ({
+        id: m.id, session_id, user_id,
+        role: m.role, content: m.content || '',
+        attachments: m.attachments || [],
+        created_at: m.timestamp ? new Date(m.timestamp).toISOString() : new Date().toISOString(),
+      }))
+      for (let i = 0; i < rows.length; i += 50) {
+        await supabaseAdmin.from('chat_messages').upsert(rows.slice(i, i + 50), { onConflict: 'id' })
+      }
+    }
+    res.json({ ok: true })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
+})
+
 // ── Save user settings (server-side, bypasses RLS) ──
 app.post('/api/save-settings', async (req, res) => {
   if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
