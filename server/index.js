@@ -155,6 +155,18 @@ app.post('/api/forget', async (req, res) => {
   res.json({ deleted: true, bucket_id, result })
 })
 
+// ── Debug: check Supabase data ──
+app.get('/api/debug/sessions', async (_req, res) => {
+  if (!supabaseAdmin) return res.json({ error: 'no supabase' })
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('chat_sessions')
+      .select('id, name, updated_at')
+      .order('updated_at', { ascending: false })
+    res.json({ data, error })
+  } catch (e) { res.json({ error: e.message }) }
+})
+
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
