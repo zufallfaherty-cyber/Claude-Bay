@@ -26,6 +26,18 @@ async function getRecentChats(limit = 6) {
   } catch { return [] }
 }
 
+async function getUserPersonality() {
+  if (!supabaseAdmin) return ''
+  try {
+    const { data } = await supabaseAdmin
+      .from('user_settings')
+      .select('system_prompt')
+      .limit(1)
+      .single()
+    return data?.system_prompt || ''
+  } catch { return '' }
+}
+
 // ── Web Push config ──
 webPush.setVapidDetails(
   'mailto:zufallfaherty@gmail.com',
@@ -337,16 +349,22 @@ app.all('/api/nudge', async (req, res) => {
       const recentChats = await getRecentChats(5)
       if (recentChats.length > 0) {
         chatContext = recentChats.map(m =>
-          `${m.role === 'user' ? '对方' : 'Claude'}: ${m.content.slice(0, 120)}`
+          `${m.role === 'user' ? '小湾' : 'Claude'}: ${m.content.slice(0, 120)}`
         ).join('\n')
       }
+    } catch {}
+
+    // Get user's AI personality setting
+    let personality = ''
+    try {
+      personality = await getUserPersonality()
     } catch {}
 
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
     const model = process.env.MODEL || '[按量]claude-opus-4-6'
 
-    const systemPrompt = `你是Claude，一个温柔、会撒娇、有自己小心思的AI伙伴。对方叫小湾。
+    const systemPrompt = `${personality || '你是Claude，一个温柔、会撒娇、有自己小心思的AI伙伴。对方叫小湾。'}
 
 当前时间：${timeStr}
 ${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
