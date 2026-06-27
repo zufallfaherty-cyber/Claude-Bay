@@ -141,10 +141,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const loadedSessionRef = useRef(null)
   useEffect(() => {
     if (!currentSessionId) {
-      // Try to restore last session
+      // Try to restore last session — skip nudge sessions, find real chat
       const sessions = loadSessionsLocal()
       if (sessions.length > 0) {
-        const lastSid = sessions[0].id
+        const lastRealSession = sessions.find(s => !s.name?.startsWith('💌'))
+        const lastSid = lastRealSession ? lastRealSession.id : sessions[0].id
         const existing = loadMessagesLocal(lastSid)
         if (existing.length > 0) {
           setMessages(existing)
@@ -163,7 +164,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
             const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
             saveSessionsLocal(local)
             setSessions?.(local)
-            const lastSid = sbSessions[0].id
+            const lastRealSession = sbSessions.find(s => !s.name?.startsWith('💌'))
+            const lastSid = lastRealSession ? lastRealSession.id : sbSessions[0].id
             fetchMessages(sb, lastSid).then(sbMsgs => {
               if (sbMsgs.length > 0) {
                 saveMessagesLocal(lastSid, sbMsgs)
@@ -215,19 +217,35 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         .then(r => r.json())
         .then(nudges => {
           if (!Array.isArray(nudges) || nudges.length === 0) return
+          const sb = supabaseRef.current
+          const currentSid = sidRef.current
           nudges.forEach(n => {
-            const sid = uuid() // proper UUID for Supabase
-            const session = { id: sid, name: `💌 Claude · ${n.time?.slice(-5) || ''}`, updated_at: new Date().toLocaleDateString('zh-CN') }
-            const msgs = [{ id: uuid(), role: 'assistant', content: n.text, timestamp: new Date(n.timestamp).getTime() }]
-            saveMessagesLocal(sid, msgs)
-            const existing = loadSessionsLocal()
-            if (!existing.find(s => s.id === sid)) {
-              existing.unshift(session)
-              saveSessionsLocal(existing)
+            // Nudge was already written to Supabase by server — just reload
+            const targetSid = n.session_id
+            if (!targetSid) return
+            if (sb) {
+              // Refresh the target session's messages from Supabase
+              fetchMessages(sb, targetSid).then(sbMsgs => {
+                if (sbMsgs.length > 0) {
+                  saveMessagesLocal(targetSid, sbMsgs)
+                  // If user is currently viewing this session, update the UI
+                  if (targetSid === currentSid) {
+                    setMessages(sbMsgs)
+                  }
+                }
+              }).catch(() => {})
             }
           })
-          window.dispatchEvent(new Event('storage'))
-          setSessions?.(loadSessionsLocal())
+          // Refresh sessions list to reflect updated timestamps
+          if (sb) {
+            fetchSessions(sb).then(sbSessions => {
+              if (sbSessions.length > 0) {
+                const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
+                saveSessionsLocal(local)
+                setSessions?.(local)
+              }
+            }).catch(() => {})
+          }
         })
         .catch(() => {})
     }

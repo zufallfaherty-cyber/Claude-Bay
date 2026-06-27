@@ -485,31 +485,53 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
     if (isYes && message) {
       const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
       const nudgeId = Date.now().toString(36)
-      nudgeMessages.push({ id: nudgeId, text: message, time: timeStr, timestamp: chinaISO })
-      if (nudgeMessages.length > 20) nudgeMessages.shift()
 
-      // Write nudge directly to Supabase (bypasses frontend localStorage)
+      // Write nudge into the most recent REAL chat session (not a nudge session)
+      let targetSessionId = null
       if (supabaseAdmin) {
         try {
           const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
           const uid = settings?.user_id
           if (uid) {
-            const sessionId = crypto.randomUUID()
+            // Find the most recent non-nudge chat session
+            const { data: recentSessions } = await supabaseAdmin
+              .from('chat_sessions')
+              .select('id, name')
+              .eq('user_id', uid)
+              .not('name', 'ilike', '💌%')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+
+            if (recentSessions && recentSessions.length > 0) {
+              targetSessionId = recentSessions[0].id
+              // Touch the session's updated_at so it stays at top of the list
+              await supabaseAdmin.from('chat_sessions')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', targetSessionId)
+            } else {
+              // No real chat session yet — create one
+              targetSessionId = crypto.randomUUID()
+              await supabaseAdmin.from('chat_sessions').insert({
+                id: targetSessionId, user_id: uid,
+                name: '新对话',
+                updated_at: new Date().toISOString()
+              })
+            }
+
+            // Insert nudge message into the target session
             const msgId = crypto.randomUUID()
-            await supabaseAdmin.from('chat_sessions').upsert({
-              id: sessionId, user_id: uid,
-              name: `💌 Claude · ${timeStr.slice(-5)}`,
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'id' })
-            await supabaseAdmin.from('chat_messages').upsert({
-              id: msgId, session_id: sessionId, user_id: uid,
+            await supabaseAdmin.from('chat_messages').insert({
+              id: msgId, session_id: targetSessionId, user_id: uid,
               role: 'assistant', content: message,
               attachments: [],
               created_at: chinaISO
-            }, { onConflict: 'id' })
+            })
           }
         } catch (e) { console.error('Nudge Supabase write failed:', e.message) }
       }
+
+      nudgeMessages.push({ id: nudgeId, text: message, time: timeStr, timestamp: chinaISO, session_id: targetSessionId })
+      if (nudgeMessages.length > 20) nudgeMessages.shift()
 
       // Send via Pushover (if configured)
       if (PUSHOVER_USER && PUSHOVER_TOKEN) {
