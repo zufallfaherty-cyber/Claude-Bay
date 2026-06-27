@@ -4,7 +4,18 @@
 
 // ── Sessions ──
 
-export async function fetchSessions(supabase) {
+const API_BASE = 'https://bayapi.zeabur.app'
+
+export async function fetchSessions(supabase, userId) {
+  // Prefer server API (bypasses RLS issues)
+  if (userId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/load-sessions?user_id=${encodeURIComponent(userId)}`)
+      const json = await res.json()
+      return json.data || []
+    } catch (e) { console.error('fetchSessions via API:', e) }
+  }
+  // Fallback to direct Supabase
   if (!supabase) return []
   const { data, error } = await supabase
     .from('chat_sessions')
@@ -36,7 +47,24 @@ export async function updateSession(supabase, id, updates) {
 
 // ── Messages ──
 
-export async function fetchMessages(supabase, sessionId) {
+export async function fetchMessages(supabase, sessionId, userId) {
+  // Prefer server API (bypasses RLS issues)
+  if (userId && sessionId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/load-messages?user_id=${encodeURIComponent(userId)}&session_id=${encodeURIComponent(sessionId)}`)
+      const json = await res.json()
+      if (json.data) {
+        return json.data.map(m => ({
+          id: m.id,
+          role: m.role,
+          content: m.content || '',
+          attachments: m.attachments || [],
+          timestamp: new Date(m.created_at).getTime(),
+        }))
+      }
+    } catch (e) { console.error('fetchMessages via API:', e) }
+  }
+  // Fallback to direct Supabase
   if (!supabase) return []
   const { data, error } = await supabase
     .from('chat_messages')
@@ -92,7 +120,16 @@ export async function insertMessages(supabase, sessionId, msgs, userId) {
 
 // ── Settings ──
 
-export async function fetchSettings(supabase) {
+export async function fetchSettings(supabase, userId) {
+  // Prefer server API (bypasses RLS issues)
+  if (userId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/load-settings?user_id=${encodeURIComponent(userId)}`)
+      const data = await res.json()
+      if (data && data.user_id) return data
+    } catch (e) { console.error('fetchSettings via API:', e) }
+  }
+  // Fallback to direct Supabase
   if (!supabase) return null
   const { data, error } = await supabase
     .from('user_settings')

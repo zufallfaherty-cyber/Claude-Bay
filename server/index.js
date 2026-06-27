@@ -215,6 +215,55 @@ app.post('/api/save-settings', async (req, res) => {
   } catch (e) { res.json({ ok: false, error: e.message }) }
 })
 
+// ── Load sessions (server-side, bypasses RLS) ──
+app.get('/api/load-sessions', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ data: [] })
+  const { user_id } = req.query
+  if (!user_id) return res.json({ data: [] })
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('chat_sessions')
+      .select('*')
+      .eq('user_id', user_id)
+      .order('updated_at', { ascending: false })
+    if (error) return res.json({ data: [], error: error.message })
+    res.json({ data })
+  } catch (e) { res.json({ data: [], error: e.message }) }
+})
+
+// ── Load messages (server-side, bypasses RLS) ──
+app.get('/api/load-messages', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ data: [] })
+  const { user_id, session_id } = req.query
+  if (!user_id || !session_id) return res.json({ data: [] })
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('chat_messages')
+      .select('*')
+      .eq('user_id', user_id)
+      .eq('session_id', session_id)
+      .order('created_at', { ascending: true })
+    if (error) return res.json({ data: [], error: error.message })
+    res.json({ data })
+  } catch (e) { res.json({ data: [], error: e.message }) }
+})
+
+// ── Load settings (server-side, bypasses RLS) ──
+app.get('/api/load-settings', async (req, res) => {
+  if (!supabaseAdmin) return res.json(null)
+  const { user_id } = req.query
+  if (!user_id) return res.json(null)
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('user_settings')
+      .select('*')
+      .eq('user_id', user_id)
+      .single()
+    if (error) return res.json(null)
+    res.json(data)
+  } catch (e) { res.json(null) }
+})
+
 // ── Debug: check Supabase data ──
 app.get('/api/debug/sessions', async (_req, res) => {
   if (!supabaseAdmin) return res.json({ error: 'no supabase' })

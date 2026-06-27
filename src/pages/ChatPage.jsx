@@ -158,7 +158,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       // If localStorage is empty, try Supabase (new device after migration)
       const sb = supabaseRef.current
       if (sb && sessions.length === 0) {
-        fetchSessions(sb).then(sbSessions => {
+        fetchSessions(sb, user?.id).then(sbSessions => {
           if (sbSessions.length > 0) {
             // Restore sessions to localStorage
             const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
@@ -166,7 +166,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
             setSessions?.(local)
             const lastRealSession = sbSessions.find(s => !s.name?.startsWith('💌'))
             const lastSid = lastRealSession ? lastRealSession.id : sbSessions[0].id
-            fetchMessages(sb, lastSid).then(sbMsgs => {
+            fetchMessages(sb, lastSid, user?.id).then(sbMsgs => {
               if (sbMsgs.length > 0) {
                 saveMessagesLocal(lastSid, sbMsgs)
                 setMessages(sbMsgs)
@@ -192,7 +192,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const sb = supabaseRef.current
     if (sb) {
       // Try Supabase first
-      fetchSessions(sb).then(sbSessions => {
+      fetchSessions(sb, user?.id).then(sbSessions => {
         if (sbSessions.length > 0) {
           const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
           saveSessionsLocal(local)
@@ -225,7 +225,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
             if (!targetSid) return
             if (sb) {
               // Refresh the target session's messages from Supabase
-              fetchMessages(sb, targetSid).then(sbMsgs => {
+              fetchMessages(sb, targetSid, user?.id).then(sbMsgs => {
                 if (sbMsgs.length > 0) {
                   saveMessagesLocal(targetSid, sbMsgs)
                   // If user is currently viewing this session, update the UI
@@ -238,7 +238,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           })
           // Refresh sessions list to reflect updated timestamps
           if (sb) {
-            fetchSessions(sb).then(sbSessions => {
+            fetchSessions(sb, user?.id).then(sbSessions => {
               if (sbSessions.length > 0) {
                 const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
                 saveSessionsLocal(local)
@@ -258,7 +258,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   useEffect(() => {
     const sb = supabaseRef.current
     if (!sb) return
-    fetchSettings(sb).then(remote => {
+    fetchSettings(sb, user?.id).then(remote => {
       if (!remote) return
       if (remote.system_prompt) localStorage.setItem('system_prompt', remote.system_prompt)
       if (remote.temperature != null) localStorage.setItem('temperature', String(remote.temperature))
@@ -306,7 +306,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   useEffect(() => {
     const sb = supabaseRef.current
     if (!sb) return
-    fetchSessions(sb).then(sbSessions => {
+    fetchSessions(sb, user?.id).then(sbSessions => {
       if (sbSessions.length === 0) return
       const local = loadSessionsLocal()
       const merged = [...local]

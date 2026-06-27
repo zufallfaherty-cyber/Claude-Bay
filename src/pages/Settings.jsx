@@ -24,7 +24,7 @@ export default function Settings() {
   // Load settings from Supabase first, fallback to localStorage
   useEffect(() => {
     if (!supabase || settingsLoaded) return
-    fetchSettings(supabase).then(remote => {
+    fetchSettings(supabase, user?.id).then(remote => {
       if (remote) {
         if (remote.system_prompt) { localStorage.setItem('system_prompt', remote.system_prompt); setPrompt(remote.system_prompt) }
         if (remote.temperature != null) { localStorage.setItem('temperature', String(remote.temperature)); setTemperature(remote.temperature) }
