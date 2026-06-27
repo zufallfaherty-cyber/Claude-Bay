@@ -24,7 +24,14 @@ export default function LoginPage() {
         await signIn(email.trim(), password.trim())
       }
     } catch (err) {
-      setError(err.message || '操作失败，请重试')
+      const msg = err.message || '操作失败，请重试'
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('timeout') || msg.includes('Network')) {
+        setError('无法连接服务器，请检查网络后重试')
+      } else if (msg.includes('Invalid login') || msg.includes('invalid')) {
+        setError('邮箱或密码错误，请重试')
+      } else {
+        setError(msg)
+      }
     }
     setBusy(false)
   }

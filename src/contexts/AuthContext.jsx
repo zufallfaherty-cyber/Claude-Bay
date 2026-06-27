@@ -12,7 +12,15 @@ export function AuthProvider({ children }) {
 
   const supabase = useMemo(() => {
     if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+        flowType: 'pkce',
+      },
+    })
   }, [])
 
   useEffect(() => {
