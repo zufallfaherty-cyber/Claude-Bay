@@ -1,13 +1,64 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年6月27日 凌晨
+## 最后更新：2026年6月27日 晚上
 
 ---
 
-## 2026.6.26 今日完成
+## 2026.6.27 今日完成
 
-### Bug 修复
-- ✅ MoodDiary 崩溃修复：补了缺失的 `useEffect` import
+### Nudge 覆盖聊天记录（大 Bug）
+- ✅ **根因**：每次 nudge 创建独立 session（💌），Supabase 被 20+ 个碎片淹没，前端恢复时取 sessions[0] 误跳进 nudge
+- ✅ **修复**：nudge 改为追加到最近聊过天的非 nudge session，不再创建新对话
+- ✅ 前端恢复逻辑跳过 `💌` 开头的 session
+- ✅ 前端 nudge 轮询从 Supabase 重载而非写 localStorage
+
+### Safari 登录 + 数据读取
+- ✅ **Redirect URLs 为空**：Safari 安全策略导致登录失败，补上后解决
+- ✅ **RLS 缺 SELECT 策略**：前端直连 Supabase 读数据被拦，Safari 新设备 localStorage 为空 → 看起来「数据全丢了」
+- ✅ **修复方案**：加 `/api/load-sessions` `/api/load-messages` `/api/load-settings` 服务端读取接口，绕过 RLS
+- ✅ Settings / ChatPage 启动时从 Supabase 加载设置
+
+### 键盘问题（最终是系统问题）
+- ✅ 排查过程：`overflow:hidden` → `position:fixed` → `interactive-widget` → 全试了都不行
+- ✅ **真相**：iOS 系统键盘驱动卡住，所有 PWA 都弹不出。重启手机解决
+- ✅ 最终 viewport 配置：`width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover`（去掉了 `user-scalable=no`）
+
+### MoodDiary
+- ✅ 移除硬编码假数据（6月24/23/21/18日）
+- ✅ localStorage 持久化，切走再回来不丢失
+- ✅ Claude 心情 emoji 正则修复：`☀️` 等非标准范围 emoji 导致 mood/note 重复
+- ✅ 心情编辑弹窗加大（emoji 放大、行数增加）
+
+### Nudge 优化
+- ✅ 聊天上下文加上时间标签（「X分钟前」「X小时前」）
+
+---
+
+## 当前状态
+
+### 正常运行
+- 前端 Vercel：https://claude-bay-two.vercel.app ✅ 自动部署正常
+- 后端 Zeabur bayapi：https://bayapi.zeabur.app ✅
+- 记忆引擎 baymemory：https://baymemory.zeabur.app ✅
+- Pushover 推送：✅
+- Supabase 数据：✅ 聊天 + 设置 + nudge 全部入库
+- Nudge 每 45 分钟：✅
+
+### 已知问题
+1. ~~Vercel 不自动部署~~ → 确认正常工作
+2. ~~聊天记录被 nudge 覆盖~~ → 已修复
+3. ~~中文记忆编码乱码~~ → 待修（Ombre-Brain）
+4. ~~Embedding 向量化失败~~ → 待修
+5. ~~Safari 登录密码不对~~ → 是 Redirect URLs 配置问题 + 多账号混乱，已清理
+6. 情绪日记仅存 localStorage，换设备不同步 → 后续可接 Supabase
+7. Dashboard 天数在新设备从 1 开始 → 待接 Supabase
+
+---
+
+## 今天关键教训
+- **RLS 是双刃剑**：INSERT/UPDATE 配了但 SELECT 没配 → 前端根本读不到数据。服务端 API 读写统一走 service_role 是最稳的方案
+- **iOS PWA 键盘**：`user-scalable=no` 会挡键盘，`viewport-fit=cover` + `maximum-scale=1.0` 是正确的组合
+- **多个 Supabase Auth 用户**：用户可能不小心注册了多个号，数据只在一个号下面。清理多余用户很重要
 - ✅ LudoGame 闭包过期修复：引入 `stateRef` 统一管理状态，避免 setTimeout 中 stale closure
 - ✅ 聊天页 Claude 头像跟随自定义设置
 - ✅ 聊天气泡 padding 加大、placeholder 删除、AI 打字时不锁输入框
