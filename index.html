@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#7D9B76" />
     <meta name="description" content="Claude&Bay · 一个温柔细腻的AI伙伴" />
 
@@ -20,24 +20,6 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // iOS PWA keyboard fix — force viewport resize on focus
-      document.addEventListener('focusin', (e) => {
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
-          setTimeout(() => {
-            e.target.scrollIntoView({ block: 'center', behavior: 'smooth' })
-          }, 300)
-        }
-      })
-      // Fix 100dvh in iOS PWA
-      function setVH() {
-        const vh = window.innerHeight * 0.01
-        document.documentElement.style.setProperty('--vh', `${vh}px`)
-      }
-      setVH()
-      window.addEventListener('resize', setVH)
-      window.addEventListener('orientationchange', () => setTimeout(setVH, 100))
-    </script>
     <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
