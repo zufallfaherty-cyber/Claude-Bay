@@ -484,9 +484,12 @@ app.all('/api/nudge', async (req, res) => {
     try {
       const recentChats = await getRecentChats(5)
       if (recentChats.length > 0) {
-        chatContext = recentChats.map(m =>
-          `${m.role === 'user' ? '小湾' : 'Claude'}: ${m.content.slice(0, 120)}`
-        ).join('\n')
+        chatContext = recentChats.map(m => {
+          const msgTime = new Date(m.created_at)
+          const minsAgo = Math.round((now - msgTime) / 60000)
+          const timeLabel = minsAgo < 1 ? '刚刚' : minsAgo < 60 ? `${minsAgo}分钟前` : `${Math.floor(minsAgo / 60)}小时前`
+          return `${m.role === 'user' ? '小湾' : 'Claude'}（${timeLabel}）：${m.content.slice(0, 120)}`
+        }).join('\n')
       }
     } catch {}
 
