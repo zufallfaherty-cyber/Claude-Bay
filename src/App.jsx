@@ -143,8 +143,8 @@ function App() {
   }
 
   return (
-    <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative overflow-hidden">
-      <main className="flex-1 overflow-hidden">
+    <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative">
+      <main className="flex-1 overflow-y-auto">
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
