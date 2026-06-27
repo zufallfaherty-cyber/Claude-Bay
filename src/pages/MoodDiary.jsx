@@ -212,21 +212,21 @@ export default function MoodDiary() {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-black/30" onClick={() => setEditing(false)} />
-          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-6 shadow-2xl animate-[slideUp_0.3s_ease-out] max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-semibold text-warm-dark mb-4 text-center">今天的心情</h3>
-            <div className="flex flex-wrap justify-center gap-2 mb-5">
+          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm px-6 py-8 shadow-2xl animate-[slideUp_0.3s_ease-out] max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-warm-dark mb-5 text-center">今天的心情</h3>
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
               {moodOptions.map((emoji) => (
                 <button key={emoji} onClick={() => setEditMood(emoji)}
-                  className={`text-2xl p-2 rounded-xl transition-all active:scale-90 ${editMood === emoji ? 'bg-mint scale-110' : 'hover:bg-mint/30'}`}>
+                  className={`text-3xl p-2 rounded-xl transition-all active:scale-90 ${editMood === emoji ? 'bg-mint scale-110' : 'hover:bg-mint/30'}`}>
                   {emoji}
                 </button>
               ))}
             </div>
-            <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="写下你的心情..." rows={3}
+            <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="写下你的心情..." rows={4}
               className="w-full px-4 py-3 bg-cream rounded-2xl text-sm text-warm-dark placeholder-warm-gray resize-none outline-none focus:ring-2 focus:ring-sage/30 transition-all" />
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setEditing(false)} className="flex-1 py-2.5 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors">取消</button>
-              <button onClick={handleSaveEntry} className="flex-1 py-2.5 bg-sage-deep text-white rounded-2xl text-sm font-medium hover:bg-sage-deep/90 active:scale-[0.98] transition-all">保存 💕</button>
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setEditing(false)} className="flex-1 py-3 rounded-2xl text-sm text-warm-gray hover:bg-cream transition-colors">取消</button>
+              <button onClick={handleSaveEntry} className="flex-1 py-3 bg-sage-deep text-white rounded-2xl text-sm font-medium hover:bg-sage-deep/90 active:scale-[0.98] transition-all">保存 💕</button>
             </div>
           </div>
         </div>
