@@ -221,7 +221,7 @@ app.get('/api/debug/sessions', async (_req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('chat_sessions')
-      .select('id, name, updated_at')
+      .select('id, name, updated_at, user_id')
       .order('updated_at', { ascending: false })
     res.json({ data, error })
   } catch (e) { res.json({ error: e.message }) }
