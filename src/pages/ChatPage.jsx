@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchSessions, createSession, updateSession, fetchMessages, insertMessages } from '../lib/supabase'
+import { fetchSessions, createSession, updateSession, fetchMessages, insertMessages, fetchSettings } from '../lib/supabase'
 import ChatBubble from '../components/ChatBubble'
 import ChatInput from '../components/ChatInput'
 
@@ -253,6 +253,21 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const interval = setInterval(fetchNudges, 3 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Load settings from Supabase on mount (so ChatPage has correct settings even on new device)
+  useEffect(() => {
+    const sb = supabaseRef.current
+    if (!sb) return
+    fetchSettings(sb).then(remote => {
+      if (!remote) return
+      if (remote.system_prompt) localStorage.setItem('system_prompt', remote.system_prompt)
+      if (remote.temperature != null) localStorage.setItem('temperature', String(remote.temperature))
+      if (remote.max_context_rounds != null) localStorage.setItem('max_context_rounds', String(remote.max_context_rounds))
+      if (remote.api_base) localStorage.setItem('api_base', remote.api_base)
+      if (remote.api_key) localStorage.setItem('api_key', remote.api_key)
+      if (remote.api_model) localStorage.setItem('api_model', remote.api_model)
+    }).catch(() => {})
+  }, [supabase])
 
   // Auto-scroll: instant on load, smooth on new messages
   const isFirstRender = useRef(true)

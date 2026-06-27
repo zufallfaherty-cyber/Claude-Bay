@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { upsertSettings } from '../lib/supabase'
+import { fetchSettings } from '../lib/supabase'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -11,6 +11,7 @@ export default function Settings() {
 
   const [pushOn, setPushOn] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
 
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
@@ -19,6 +20,24 @@ export default function Settings() {
       setPushOn(!!sub)
     })
   }, [])
+
+  // Load settings from Supabase first, fallback to localStorage
+  useEffect(() => {
+    if (!supabase || settingsLoaded) return
+    fetchSettings(supabase).then(remote => {
+      if (remote) {
+        if (remote.system_prompt) { localStorage.setItem('system_prompt', remote.system_prompt); setPrompt(remote.system_prompt) }
+        if (remote.temperature != null) { localStorage.setItem('temperature', String(remote.temperature)); setTemperature(remote.temperature) }
+        if (remote.max_context_rounds != null) { localStorage.setItem('max_context_rounds', String(remote.max_context_rounds)); setMaxRounds(remote.max_context_rounds) }
+        if (remote.api_base) { localStorage.setItem('api_base', remote.api_base); setApiBase(remote.api_base) }
+        if (remote.api_key) { localStorage.setItem('api_key', remote.api_key); setApiKey(remote.api_key) }
+        if (remote.api_model) { localStorage.setItem('api_model', remote.api_model); setApiModel(remote.api_model) }
+        if (remote.avatar_bay_url) { localStorage.setItem('avatar_bay', remote.avatar_bay_url); setAvatarBay(remote.avatar_bay_url) }
+        if (remote.avatar_claude_url) { localStorage.setItem('avatar_claude', remote.avatar_claude_url); setAvatarClaude(remote.avatar_claude_url) }
+      }
+      setSettingsLoaded(true)
+    }).catch(() => { setSettingsLoaded(true) })
+  }, [supabase, settingsLoaded])
 
   const togglePush = async () => {
     setPushLoading(true)
