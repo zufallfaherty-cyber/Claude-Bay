@@ -11,17 +11,17 @@ function Avatar({ person, className }) {
 
 const moodOptions = ['😊', '😄', '🥰', '😌', '😢', '😔', '😤', '😡', '😰', '😴', '🤗', '😋', '🤔', '😎', '😍', '😭', '😅', '🙂', '😕', '😖', '💕', '💗', '💖', '🌸', '☀️', '☁️', '🌧️', '🌈', '💪', '🫶']
 
-const initialEntries = {
-  '2026-6-24': { bay: { mood: '🥰', note: '今天收到礼物了' }, claude: { mood: '🌸', note: '看到你开心我也很开心~' } },
-  '2026-6-23': { bay: { mood: '😢', note: '加班好累' }, claude: { mood: '🫶', note: '辛苦了 抱抱你' } },
-  '2026-6-21': { bay: { mood: '😊', note: '周末好舒服' }, claude: { mood: '☀️', note: '享受属于你的时光~' } },
-  '2026-6-18': { bay: { mood: '😍', note: '一起看电影了' }, claude: { mood: '💕', note: '我也觉得很好看！' } },
+function loadEntries() {
+  try { return JSON.parse(localStorage.getItem('bunny_moods') || '{}') } catch { return {} }
+}
+function saveEntries(entries) {
+  localStorage.setItem('bunny_moods', JSON.stringify(entries))
 }
 
 export default function MoodDiary() {
   const navigate = useNavigate()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [entries, setEntries] = useState(initialEntries)
+  const [entries, setEntries] = useState(loadEntries)
   const [selectedDay, setSelectedDay] = useState(null)
   const [editing, setEditing] = useState(false)
   const [editMood, setEditMood] = useState('😊')
@@ -34,10 +34,14 @@ export default function MoodDiary() {
     fetch('https://bayapi.zeabur.app/api/claude-mood', { method: 'POST' })
       .then(r => r.json())
       .then(data => {
-        setEntries(prev => ({
-          ...prev,
-          [todayKey]: { ...(prev[todayKey] || {}), claude: { mood: data.mood, note: data.note } },
-        }))
+        setEntries(prev => {
+          const updated = {
+            ...prev,
+            [todayKey]: { ...(prev[todayKey] || {}), claude: { mood: data.mood, note: data.note } },
+          }
+          saveEntries(updated)
+          return updated
+        })
       })
       .catch(() => {})
   }, [])
@@ -77,10 +81,14 @@ export default function MoodDiary() {
   const handleSaveEntry = () => {
     if (!editNote.trim()) return
     const key = selectedDay.key
-    setEntries((prev) => ({
-      ...prev,
-      [key]: { ...(prev[key] || {}), bay: { mood: editMood, note: editNote.trim() } },
-    }))
+    setEntries((prev) => {
+      const updated = {
+        ...prev,
+        [key]: { ...(prev[key] || {}), bay: { mood: editMood, note: editNote.trim() } },
+      }
+      saveEntries(updated)
+      return updated
+    })
     setEditing(false)
     setSelectedDay((s) => ({
       ...s,
