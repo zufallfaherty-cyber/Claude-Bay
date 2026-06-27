@@ -427,9 +427,10 @@ ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
     const data = await response.json()
     const text = data.choices?.[0]?.message?.content || '🌸，今天也是美好的一天'
 
-    const match = text.match(/^([\u{1F300}-\u{1FAFF}])\s*[,，]?\s*(.+)/u) || text.match(/(.+)/)
-    const mood = match?.[1] || '🌸'
-    const note = match?.[2]?.trim() || text.trim()
+    // Split on first Chinese/English comma — emoji before comma, note after
+    const parts = text.split(/[,，]\s*/)
+    const mood = parts[0]?.trim() || '🌸'
+    const note = parts.slice(1).join('，').trim() || mood
 
     res.json({ mood, note })
   } catch (err) {
