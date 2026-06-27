@@ -23,6 +23,7 @@
 
 html, body, #root {
   height: 100dvh;
+  height: calc(var(--vh, 1vh) * 100);
   width: 100%;
   overflow-x: hidden;
 }

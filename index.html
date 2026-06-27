@@ -21,6 +21,24 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // iOS PWA keyboard fix — force viewport resize on focus
+      document.addEventListener('focusin', (e) => {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') {
+          setTimeout(() => {
+            e.target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          }, 300)
+        }
+      })
+      // Fix 100dvh in iOS PWA
+      function setVH() {
+        const vh = window.innerHeight * 0.01
+        document.documentElement.style.setProperty('--vh', `${vh}px`)
+      }
+      setVH()
+      window.addEventListener('resize', setVH)
+      window.addEventListener('orientationchange', () => setTimeout(setVH, 100))
+    </script>
+    <script>
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
       }
