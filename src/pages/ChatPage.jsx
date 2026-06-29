@@ -340,7 +340,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
   const getTimeAware = (basePrompt) => {
     const n = new Date()
-    return basePrompt + `\n\n[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]`
+    return `[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]\n\n${basePrompt}`
   }
 
   // Build API-compatible content from a user message (text + attachments → string or multimodal array)
