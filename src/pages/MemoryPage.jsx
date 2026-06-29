@@ -8,14 +8,16 @@ const fadeUp = {
 }
 
 function moodEmoji(valence, arousal) {
-  if (valence == null) return null
-  if (valence > 0.3 && arousal > 0.4) return '😄'
-  if (valence > 0.3) return '😊'
-  if (valence < -0.3 && arousal > 0.4) return '😤'
-  if (valence < -0.3) return '😢'
-  if (arousal > 0.5) return '🤔'
-  if (arousal < -0.4) return '😴'
-  return '🙂'
+  if (valence == null || arousal == null) return null
+  // DS never gives negative valence; use low-V + high-A as negative signal
+  if (valence >= 0.7 && arousal >= 0.5) return '😄'  // happy excited
+  if (valence >= 0.7) return '😌'                     // warm quiet
+  if (valence >= 0.5 && arousal >= 0.5) return '🥰'   // warm interaction
+  if (valence >= 0.5) return '😊'                     // daily happy
+  if (valence >= 0.3 && arousal >= 0.6) return '😣'   // upset / grievance
+  if (valence >= 0.3) return '🥺'                     // fragile / pleading
+  if (arousal >= 0.6) return '😤'                     // anxious / angry
+  return '😔'                                         // low / tired
 }
 
 export default function MemoryPage() {
