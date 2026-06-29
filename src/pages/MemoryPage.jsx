@@ -89,7 +89,7 @@ export default function MemoryPage() {
                 initial="initial"
                 animate="animate"
                 transition={{ delay: i * 0.04 }}
-                className="glass rounded-2xl p-5 border border-white/30 hover:shadow-md transition-all"
+                className="glass rounded-2xl p-5 border border-white/30 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">

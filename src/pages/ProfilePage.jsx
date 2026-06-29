@@ -34,7 +34,7 @@ export default function ProfilePage() {
               initial="initial"
               animate="animate"
               onClick={() => navigate(f.path)}
-              className={`glass rounded-2xl p-5 border border-white/40 flex flex-col items-center justify-center text-center gap-3 hover:shadow-md transition-all active:scale-[0.96] bg-gradient-to-b ${f.gradient}`}
+              className={`glass rounded-2xl p-5 border border-white/40 flex flex-col items-center justify-center text-center gap-3 hover:shadow-md transition-shadow active:scale-[0.96] bg-gradient-to-b ${f.gradient}`}
             >
               <span className="text-[15px] font-semibold text-warm-dark tracking-[0.05em]">{f.label}</span>
               <span className="text-[12px] text-warm-gray/70 tracking-[0.04em] leading-relaxed">{f.desc}</span>

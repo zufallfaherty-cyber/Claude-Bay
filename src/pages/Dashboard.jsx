@@ -4,10 +4,21 @@ import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
 import { upsertSettings } from '../lib/supabase'
 
-// ── Animation variants ──
+// ── Animation variants (skip on re-mount to avoid flash) ──
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
+}
+
+// Cards only animate on first visit per session—not on every page switch
+const CARDS_VISITED_KEY = 'dashboard_cards_shown'
+function useSkipCardAnimation() {
+  const visited = sessionStorage.getItem(CARDS_VISITED_KEY)
+  if (!visited) {
+    sessionStorage.setItem(CARDS_VISITED_KEY, '1')
+    return false // first time: play animation
+  }
+  return true // subsequent: skip card animations
 }
 
 function getGreeting() {
@@ -49,6 +60,7 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const { supabase } = useAuth()
   const [together, setTogether] = useState(getDaysTogether)
+  const skipAnim = useSkipCardAnimation()
 
   // Sync together_since to Supabase
   useEffect(() => {
@@ -67,9 +79,9 @@ export default function Dashboard() {
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Hero Header */}
       <div className="px-6 pt-10 pb-6 text-center">
-        <motion.p variants={fadeUp} initial="initial" animate="animate" className="text-[12px] tracking-[0.2em] text-sage-deep/50 mb-2">{getGreeting()}</motion.p>
+        <motion.p variants={fadeUp} initial={skipAnim ? false : "initial"} animate="animate" className="text-[12px] tracking-[0.2em] text-sage-deep/50 mb-2">{getGreeting()}</motion.p>
         <motion.h1
-          variants={fadeUp} initial="initial" animate="animate"
+          variants={fadeUp} initial={skipAnim ? false : "initial"} animate="animate"
           className="text-warm-dark leading-tight mb-3 italic font-light flex items-baseline justify-center gap-[2px]"
           style={{ fontFamily: '"Playfair Display", serif' }}
         >
@@ -79,7 +91,7 @@ export default function Dashboard() {
           <span className="text-[52px]">B</span>
           <span className="text-[44px]">ay</span>
         </motion.h1>
-        <motion.div variants={fadeUp} initial="initial" animate="animate" className="flex items-baseline justify-center gap-2">
+        <motion.div variants={fadeUp} initial={skipAnim ? false : "initial"} animate="animate" className="flex items-baseline justify-center gap-2">
           <span
             className="text-[36px] text-warm-dark leading-none"
             style={{ fontFamily: '"Playfair Display", serif', fontStyle: 'italic' }}
@@ -96,12 +108,12 @@ export default function Dashboard() {
       <motion.div
         className="px-6 mb-6 mt-6"
         variants={fadeUp}
-        initial="initial"
+        initial={skipAnim ? false : "initial"}
         animate="animate"
       >
         <button
           onClick={() => navigate('/chat')}
-          className="w-full glass rounded-[20px] py-10 px-6 border border-white/50 flex items-center gap-5 hover:shadow-xl hover:border-sage/20 transition-all active:scale-[0.98] relative overflow-hidden"
+          className="w-full glass rounded-[20px] py-10 px-6 border border-white/50 flex items-center gap-5 hover:shadow-xl hover:border-sage/20 transition-shadow active:scale-[0.98] relative overflow-hidden"
         >
           <div className="absolute right-6 top-1/2 -translate-y-1/2 text-5xl opacity-[0.05] select-none pointer-events-none">💬</div>
           <div className="w-10 h-10 rounded-xl bg-sage/15 flex items-center justify-center flex-shrink-0">
@@ -128,7 +140,7 @@ export default function Dashboard() {
               initial="initial"
               animate="animate"
               onClick={() => navigate(f.path)}
-              className={`glass rounded-2xl p-5 border border-white/40 flex flex-col items-center justify-center text-center gap-3 hover:shadow-md transition-all active:scale-[0.96] bg-gradient-to-b ${f.gradient}`}
+              className={`glass rounded-2xl p-5 border border-white/40 flex flex-col items-center justify-center text-center gap-3 hover:shadow-md transition-shadow active:scale-[0.96] bg-gradient-to-b ${f.gradient}`}
             >
               <span className="text-[15px] font-semibold text-warm-dark tracking-[0.05em]">{f.label}</span>
               <span className="text-[12px] text-warm-gray/70 tracking-[0.04em] leading-relaxed">{f.desc}</span>
