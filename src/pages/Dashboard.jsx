@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { useAuth } from '../contexts/AuthContext'
-import { upsertSettings, fetchTogetherSince } from '../lib/supabase'
 
 // ── Animation variants (skip on re-mount to avoid flash) ──
 const fadeUp = {
@@ -32,20 +30,11 @@ function getGreeting() {
 }
 
 function getDaysTogether() {
-  const stored = localStorage.getItem('together_since')
-  if (stored) {
-    const start = new Date(stored)
-    const today = new Date()
-    return {
-      days: Math.max(1, Math.floor((today - start) / 86400000) + 1),
-      since: start.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-    }
-  }
+  const start = new Date('2026-06-28')
   const today = new Date()
-  localStorage.setItem('together_since', today.toISOString().split('T')[0])
   return {
-    days: 1,
-    since: today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    days: Math.max(1, Math.floor((today - start) / 86400000) + 1),
+    since: 'June 28, 2026',
   }
 }
 
@@ -58,27 +47,8 @@ const features = [
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { supabase } = useAuth()
   const [together, setTogether] = useState(getDaysTogether)
   const skipAnim = useSkipCardAnimation()
-
-  // Sync together_since with Supabase (read on load, write on change)
-  useEffect(() => {
-    if (!supabase) return
-    const local = localStorage.getItem('together_since')
-    if (local) {
-      // Already have locally — sync to Supabase for backup
-      upsertSettings(supabase, { together_since: local }).catch(() => {})
-    } else {
-      // No local value (new device / cache cleared) — restore from Supabase
-      fetchTogetherSince(supabase).then(remote => {
-        if (remote) {
-          localStorage.setItem('together_since', remote)
-          setTogether(getDaysTogether())
-        }
-      }).catch(() => {})
-    }
-  }, [supabase])
 
   // Refresh at midnight
   useEffect(() => {
