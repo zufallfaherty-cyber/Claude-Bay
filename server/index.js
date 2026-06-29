@@ -391,8 +391,11 @@ app.post('/api/remember', async (req, res) => {
 // ── Claude's mood for today ──
 app.post('/api/claude-mood', async (req, res) => {
   try {
-    const now = new Date()
-    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    // Use China timezone (UTC+8), same as nudge
+    const utcNow = new Date()
+    const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
+    const hour = now.getUTCHours()
+    const timeStr = `${now.getUTCFullYear()}年${now.getUTCMonth()+1}月${now.getUTCDate()}日 周${'日一二三四五六'[now.getUTCDay()]} ${String(hour).padStart(2,'0')}:${String(now.getUTCMinutes()).padStart(2,'0')}`
 
     let memoryContext = ''
     try {
