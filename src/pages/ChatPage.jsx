@@ -343,6 +343,41 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     return basePrompt + `\n\n[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]`
   }
 
+  // Build API-compatible content from a user message (text + attachments → string or multimodal array)
+  const buildApiContent = (msg) => {
+    const text = (msg.content || '').trim()
+    const atts = msg.attachments || []
+    if (atts.length === 0) return text || '(empty)'
+
+    const parts = []
+    if (text) parts.push({ type: 'text', text })
+
+    for (const a of atts) {
+      if (a.type === 'image') {
+        // Claude-compatible vision format (also works with OpenAI-compatible proxies)
+        parts.push({ type: 'image_url', image_url: { url: a.data } })
+      } else if (a.isText && typeof a.data === 'string') {
+        // Text file: include its content directly
+        const maxLen = 5000
+        const fileContent = a.data.length > maxLen ? a.data.slice(0, maxLen) + '\n...(truncated)' : a.data
+        parts.push({ type: 'text', text: `[文件: ${a.name}]\n${fileContent}` })
+      } else {
+        // Binary file (PDF etc.): name only, can't extract text
+        parts.push({ type: 'text', text: `[用户发送了文件: ${a.name}]` })
+      }
+    }
+
+    // Simpler: if only one text part, return string to avoid confusing non-vision APIs
+    if (parts.length === 1 && parts[0].type === 'text') return parts[0].text
+
+    // If no text but we have images, add a hint so content is never empty
+    if (!text && parts.some(p => p.type === 'image_url')) {
+      parts.unshift({ type: 'text', text: '[用户发送了图片]' })
+    }
+
+    return parts
+  }
+
   const handleRegenerate = useCallback(async () => {
     if (streamingRef.current || regenerating) return
     const msgs = messagesRef.current
@@ -361,7 +396,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
     const recentMsgs = trimmed.slice(-maxRounds * 2)
-    const apiMessages = recentMsgs.map(m => ({ role: m.role, content: m.content }))
+    const apiMessages = recentMsgs.map(m => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。')
@@ -433,7 +468,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     // Context window truncation
     const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
-    const apiMessages = recentMessages.map((m) => ({ role: m.role, content: m.content }))
+    const apiMessages = recentMessages.map((m) => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。')

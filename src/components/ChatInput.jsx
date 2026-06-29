@@ -37,16 +37,33 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || [])
     files.forEach((file) => {
+      const isImage = file.type.startsWith('image/')
+      // Text-readable file types: read content as plain text
+      const textExts = ['.txt', '.json', '.csv', '.md', '.xml', '.yaml', '.yml', '.log', '.env']
+      const textMimes = ['text/', 'application/json', 'application/xml']
+      const isText = !isImage && (
+        textMimes.some(t => file.type.startsWith(t)) ||
+        textExts.some(ext => file.name.toLowerCase().endsWith(ext))
+      )
+
       const reader = new FileReader()
       reader.onload = () => {
         setAttachments((prev) => [...prev, {
           name: file.name,
-          type: file.type.startsWith('image/') ? 'image' : 'file',
+          type: isImage ? 'image' : 'file',
           mime: file.type,
-          data: reader.result,
+          data: reader.result,       // base64 for images, text content for text files
+          isText,                    // flag so ChatPage knows whether data is readable text
         }])
       }
-      reader.readAsDataURL(file)
+      if (isImage) {
+        reader.readAsDataURL(file)
+      } else if (isText) {
+        reader.readAsText(file)
+      } else {
+        // Binary file (PDF etc.): read as data URL for preview thumbnail
+        reader.readAsDataURL(file)
+      }
     })
     if (fileRef.current) fileRef.current.value = ''
   }
