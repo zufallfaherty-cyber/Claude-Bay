@@ -17,9 +17,9 @@ import Settings from './pages/Settings'
 
 // ── Page transition wrapper ──
 const pageVariants = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -6 },
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
 }
 
 function PageWrapper({ children }) {
@@ -29,7 +29,7 @@ function PageWrapper({ children }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.28, ease: [0.32, 0, 0.23, 1] }}
+      transition={{ duration: 0.18, ease: 'easeInOut' }}
       className="h-full"
     >
       {children}
@@ -150,7 +150,7 @@ function App() {
   return (
     <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative">
       <main className="flex-1 overflow-y-auto">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route
