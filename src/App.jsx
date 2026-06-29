@@ -128,11 +128,16 @@ function App() {
   }, [user, supabase])
 
   if (loading) {
+    const claudeAvatar = localStorage.getItem('avatar_claude') || ''
     return (
       <div className="h-full flex items-center justify-center bg-cream">
         <div className="flex flex-col items-center gap-4">
-          <div className="text-4xl animate-pulse">🌿</div>
-          <p className="text-sm text-warm-gray">加载中...</p>
+          {claudeAvatar?.startsWith('data:') ? (
+            <img src={claudeAvatar} alt="" className="w-16 h-16 rounded-full object-cover" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-mint flex items-center justify-center text-2xl">{claudeAvatar || '🌿'}</div>
+          )}
+          <p className="text-sm text-warm-gray">waiting..</p>
         </div>
       </div>
     )
