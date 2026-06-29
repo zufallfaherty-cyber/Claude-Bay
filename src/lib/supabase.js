@@ -211,9 +211,11 @@ export async function deleteFile(supabase, fileId) {
 
 export async function fetchTogetherSince(supabase) {
   if (!supabase) return null
-  const { data } = await supabase
-    .from('user_settings')
-    .select('together_since')
-    .single()
-  return data?.together_since || null
+  try {
+    const { data } = await supabase
+      .from('user_settings')
+      .select('together_since')
+      .limit(1)
+    return data?.[0]?.together_since || null
+  } catch { return null }
 }

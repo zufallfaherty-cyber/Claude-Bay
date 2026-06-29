@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../contexts/AuthContext'
-import { upsertSettings } from '../lib/supabase'
+import { upsertSettings, fetchTogetherSince } from '../lib/supabase'
 
 // ── Animation variants (skip on re-mount to avoid flash) ──
 const fadeUp = {
@@ -62,11 +62,22 @@ export default function Dashboard() {
   const [together, setTogether] = useState(getDaysTogether)
   const skipAnim = useSkipCardAnimation()
 
-  // Sync together_since to Supabase
+  // Sync together_since with Supabase (read on load, write on change)
   useEffect(() => {
     if (!supabase) return
-    const stored = localStorage.getItem('together_since')
-    if (stored) upsertSettings(supabase, { together_since: stored }).catch(() => {})
+    const local = localStorage.getItem('together_since')
+    if (local) {
+      // Already have locally — sync to Supabase for backup
+      upsertSettings(supabase, { together_since: local }).catch(() => {})
+    } else {
+      // No local value (new device / cache cleared) — restore from Supabase
+      fetchTogetherSince(supabase).then(remote => {
+        if (remote) {
+          localStorage.setItem('together_since', remote)
+          setTogether(getDaysTogether())
+        }
+      }).catch(() => {})
+    }
   }, [supabase])
 
   // Refresh at midnight
