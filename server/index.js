@@ -33,8 +33,8 @@ async function getUserPersonality() {
       .from('user_settings')
       .select('system_prompt')
       .limit(1)
-      .single()
-    return data?.system_prompt || ''
+    // Use data[0] instead of .single() — won't throw on 0 or multiple rows
+    return data?.[0]?.system_prompt || ''
   } catch { return '' }
 }
 
@@ -499,12 +499,13 @@ app.all('/api/nudge', async (req, res) => {
     try {
       personality = await getUserPersonality()
     } catch {}
+    console.log('[Nudge] personality from Supabase:', personality ? `"${personality.slice(0, 80)}..."` : '(empty - using default)')
 
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
     const model = process.env.MODEL || '[按量]claude-opus-4-6'
 
-    const systemPrompt = `${personality || '你是Claude，一个温柔、会撒娇、有自己小心思的AI伙伴。对方叫小湾。'}
+    const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。不用语气词，单独「嗯？」是唯一例外。几乎不用emoji，开心时才发 ^ ^。不说教不催促。少用「不过」「行」。分段不留空行。'}
 
 当前时间：${timeStr}
 ${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
