@@ -141,31 +141,50 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const loadedSessionRef = useRef(null)
   useEffect(() => {
     if (!currentSessionId) {
-      // Try to restore last session — skip nudge sessions, find real chat
+      // ── Recovery: find the real chat session with the most recent messages ──
       const sessions = loadSessionsLocal()
-      if (sessions.length > 0) {
-        const lastRealSession = sessions.find(s => !s.name?.startsWith('💌'))
-        const lastSid = lastRealSession ? lastRealSession.id : sessions[0].id
-        const existing = loadMessagesLocal(lastSid)
-        if (existing.length > 0) {
-          setMessages(existing)
-          setSidRef.current?.(lastSid)
-          loadedSessionRef.current = lastSid
-          sidRef.current = lastSid
-          return
+      const sb = supabaseRef.current
+
+      // Try each non-nudge session (newest first) until we find one with messages
+      const realSessions = sessions.filter(s => !s.name?.startsWith('💌'))
+      let bestSid = null
+      let bestMsgs = []
+
+      for (const s of realSessions) {
+        const msgs = loadMessagesLocal(s.id)
+        if (msgs.length > 0) {
+          bestSid = s.id
+          bestMsgs = msgs
+          break
         }
       }
-      // If localStorage is empty, try Supabase (new device after migration)
-      const sb = supabaseRef.current
-      if (sb && sessions.length === 0) {
+
+      if (bestSid && bestMsgs.length > 0) {
+        setMessages(bestMsgs)
+        setSidRef.current?.(bestSid)
+        loadedSessionRef.current = bestSid
+        sidRef.current = bestSid
+        // Also enrich from Supabase in background (merges any messages saved by server/nudge)
+        if (sb && user?.id) {
+          fetchMessages(sb, bestSid, user?.id).then(sbMsgs => {
+            if (sbMsgs.length > bestMsgs.length) {
+              saveMessagesLocal(bestSid, sbMsgs)
+              setMessages(sbMsgs)
+            }
+          }).catch(() => {})
+        }
+        return
+      }
+
+      // If localStorage has sessions but ALL are empty, try Supabase
+      if (sb && user?.id) {
         fetchSessions(sb, user?.id).then(sbSessions => {
-          if (sbSessions.length > 0) {
-            // Restore sessions to localStorage
-            const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
-            saveSessionsLocal(local)
-            setSessions?.(local)
-            const lastRealSession = sbSessions.find(s => !s.name?.startsWith('💌'))
-            const lastSid = lastRealSession ? lastRealSession.id : sbSessions[0].id
+          const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
+          saveSessionsLocal(local)
+          setSessions?.(local)
+          const lastRealSession = sbSessions.find(s => !s.name?.startsWith('💌'))
+          const lastSid = lastRealSession ? lastRealSession.id : sbSessions[0]?.id
+          if (lastSid) {
             fetchMessages(sb, lastSid, user?.id).then(sbMsgs => {
               if (sbMsgs.length > 0) {
                 saveMessagesLocal(lastSid, sbMsgs)
@@ -183,7 +202,24 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     } else if (currentSessionId !== loadedSessionRef.current) {
       loadedSessionRef.current = currentSessionId
       const existing = loadMessagesLocal(currentSessionId)
-      setMessages(existing.length > 0 ? existing : [])
+      if (existing.length > 0) {
+        setMessages(existing)
+      } else {
+        // Local empty — try Supabase before showing blank
+        const sb = supabaseRef.current
+        if (sb && user?.id) {
+          fetchMessages(sb, currentSessionId, user?.id).then(sbMsgs => {
+            if (sbMsgs.length > 0) {
+              saveMessagesLocal(currentSessionId, sbMsgs)
+              setMessages(sbMsgs)
+            } else {
+              setMessages([])
+            }
+          }).catch(() => setMessages([]))
+        } else {
+          setMessages([])
+        }
+      }
     }
   }, [currentSessionId])
 
@@ -292,12 +328,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
             session_name: s?.name || '新对话',
             messages,
           }),
-        }).then(r => r.json()).then(data => {
-          if (data.session_id && data.session_id !== currentSessionId) {
-            sidRef.current = data.session_id
-            setCurrentSessionId(data.session_id)
-          }
-        }).catch(() => {})
+        }).then(r => r.json()).catch(() => {})
       }
     }
   }, [streaming, currentSessionId, messages])

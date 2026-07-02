@@ -165,15 +165,9 @@ app.post('/api/save-chat', async (req, res) => {
     const { user_id, session_id, session_name, messages } = req.body
     if (!user_id || !session_id) return res.json({ ok: false, error: 'missing params' })
 
-    // Ensure valid UUID for session_id (frontend might pass non-UUID from nudge)
-    let sid = session_id
-    if (typeof sid !== 'string' || sid.length < 30 || !sid.includes('-')) {
-      sid = crypto.randomUUID()
-    }
-
-    // Upsert session
+    // Upsert session (frontend always sends valid UUIDs now)
     const { error: sessErr } = await supabaseAdmin.from('chat_sessions').upsert({
-      id: sid, user_id, name: session_name || '新对话',
+      id: session_id, user_id, name: session_name || '新对话',
       updated_at: new Date().toISOString()
     }, { onConflict: 'id' })
     if (sessErr) {
@@ -197,7 +191,7 @@ app.post('/api/save-chat', async (req, res) => {
         }
       }
     }
-    res.json({ ok: true, session_id: sid })
+    res.json({ ok: true, session_id })
   } catch (e) { res.json({ ok: false, error: e.message }) }
 })
 
@@ -290,6 +284,99 @@ app.get('/api/debug/settings', async (_req, res) => {
 })
 
 app.get('/api/debug/chat-saves', (_req, res) => res.json({ saveCalls: saveChatCount }))
+
+// ── Admin: merge sessions and clean up nudge fragments ──
+app.post('/api/admin/cleanup', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ error: 'no supabase' })
+  try {
+    const { user_id } = req.body
+    if (!user_id) return res.json({ error: 'missing user_id' })
+    const log = []
+
+    // 1. Find all sessions for this user
+    const { data: allSessions } = await supabaseAdmin
+      .from('chat_sessions')
+      .select('id, name, updated_at')
+      .eq('user_id', user_id)
+      .order('updated_at', { ascending: false })
+
+    if (!allSessions || allSessions.length === 0) {
+      return res.json({ error: 'no sessions found' })
+    }
+
+    // Find the main session — the one with the most messages
+    let mainSid = null
+    let maxMsgs = 0
+    for (const s of allSessions) {
+      const { count } = await supabaseAdmin
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', s.id)
+      if (count > maxMsgs) { maxMsgs = count; mainSid = s.id }
+    }
+    log.push(`Main session: ${mainSid} (${maxMsgs} msgs)`)
+
+    // 2. Merge all other sessions' messages into main session
+    const otherSessions = allSessions.filter(s => s.id !== mainSid)
+    let mergedTotal = 0
+    for (const s of otherSessions) {
+      const { data: msgs } = await supabaseAdmin
+        .from('chat_messages')
+        .select('id')
+        .eq('session_id', s.id)
+      if (!msgs || msgs.length === 0) {
+        // Empty session — just delete it
+        await supabaseAdmin.from('chat_sessions').delete().eq('id', s.id)
+        log.push(`Deleted empty session: ${s.id.slice(0, 8)}`)
+        continue
+      }
+      // Move messages to main session
+      const ids = msgs.map(m => m.id)
+      for (let i = 0; i < ids.length; i += 100) {
+        await supabaseAdmin.from('chat_messages')
+          .update({ session_id: mainSid })
+          .in('id', ids.slice(i, i + 100))
+      }
+      mergedTotal += ids.length
+      // Delete the now-empty session
+      await supabaseAdmin.from('chat_sessions').delete().eq('id', s.id)
+      log.push(`Merged ${s.id.slice(0, 8)}: ${ids.length} msgs → main`)
+    }
+
+    // 3. Touch main session updated_at
+    await supabaseAdmin.from('chat_sessions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', mainSid)
+
+    // 4. Rename main session to date range
+    const { data: firstMsg } = await supabaseAdmin
+      .from('chat_messages')
+      .select('created_at')
+      .eq('session_id', mainSid)
+      .order('created_at', { ascending: true })
+      .limit(1)
+    const { data: lastMsg } = await supabaseAdmin
+      .from('chat_messages')
+      .select('created_at')
+      .eq('session_id', mainSid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    const fmt = (d) => {
+      const t = new Date(d)
+      return `${t.getMonth() + 1}/${t.getDate()}`
+    }
+    const from = firstMsg?.[0]?.created_at ? fmt(firstMsg[0].created_at) : '?'
+    const to = lastMsg?.[0]?.created_at ? fmt(lastMsg[0].created_at) : '?'
+    const newName = from === to ? from : `${from} - ${to}`
+    await supabaseAdmin.from('chat_sessions').update({ name: newName }).eq('id', mainSid)
+    log.push(`Renamed: ${newName}`)
+
+    res.json({ ok: true, mainSession: mainSid, mergedTotal, newName, log })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
 
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
