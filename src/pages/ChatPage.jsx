@@ -12,6 +12,7 @@ const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxx
 const MSG_PREFIX = 'bunny_msgs_'
 const SESS_KEY = 'bunny_sessions'
 const MAX_STORED_MSGS = 300
+const MAX_LOADED_MSGS = 500  // Supabase enrichment cap, not AI context
 
 function loadMessagesLocal(sessionId) {
   try { return JSON.parse(localStorage.getItem(MSG_PREFIX + sessionId) || '[]') }
@@ -168,8 +169,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         if (sb && user?.id) {
           fetchMessages(sb, bestSid, user?.id).then(sbMsgs => {
             if (sbMsgs.length > bestMsgs.length) {
-              saveMessagesLocal(bestSid, sbMsgs)
-              setMessages(sbMsgs)
+              const capped = sbMsgs.slice(-MAX_LOADED_MSGS)
+              saveMessagesLocal(bestSid, capped)
+              setMessages(capped)
             }
           }).catch(() => {})
         }
@@ -187,8 +189,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           if (lastSid) {
             fetchMessages(sb, lastSid, user?.id).then(sbMsgs => {
               if (sbMsgs.length > 0) {
-                saveMessagesLocal(lastSid, sbMsgs)
-                setMessages(sbMsgs)
+                const capped = sbMsgs.slice(-MAX_LOADED_MSGS)
+                saveMessagesLocal(lastSid, capped)
+                setMessages(capped)
                 setSidRef.current?.(lastSid)
                 loadedSessionRef.current = lastSid
                 sidRef.current = lastSid
@@ -210,8 +213,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         if (sb && user?.id) {
           fetchMessages(sb, currentSessionId, user?.id).then(sbMsgs => {
             if (sbMsgs.length > 0) {
-              saveMessagesLocal(currentSessionId, sbMsgs)
-              setMessages(sbMsgs)
+              const capped = sbMsgs.slice(-MAX_LOADED_MSGS)
+              saveMessagesLocal(currentSessionId, capped)
+              setMessages(capped)
             } else {
               setMessages([])
             }

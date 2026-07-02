@@ -175,9 +175,10 @@ app.post('/api/save-chat', async (req, res) => {
       return res.json({ ok: false, error: 'session upsert failed: ' + JSON.stringify(sessErr) })
     }
 
-    // Upsert messages
+    // Upsert messages (cap at 600 to bound payload, frontend limits to 500)
     if (messages && messages.length > 0) {
-      const rows = messages.map(m => ({
+      const capped = messages.length > 600 ? messages.slice(-600) : messages
+      const rows = capped.map(m => ({
         id: m.id, session_id, user_id,
         role: m.role, content: m.content || '',
         attachments: m.attachments || [],
