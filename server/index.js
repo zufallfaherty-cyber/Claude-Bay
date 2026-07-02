@@ -228,19 +228,23 @@ app.get('/api/load-sessions', async (req, res) => {
 })
 
 // ── Load messages (server-side, bypasses RLS) ──
+// NOTE: Supabase defaults to 1000 rows max. We fetch newest 600 in descending
+// order then reverse, so we always get the most recent messages first.
 app.get('/api/load-messages', async (req, res) => {
   if (!supabaseAdmin) return res.json({ data: [] })
-  const { user_id, session_id } = req.query
+  const { user_id, session_id, limit } = req.query
   if (!user_id || !session_id) return res.json({ data: [] })
+  const rowLimit = parseInt(limit) || 600
   try {
     const { data, error } = await supabaseAdmin
       .from('chat_messages')
       .select('*')
       .eq('user_id', user_id)
       .eq('session_id', session_id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
+      .limit(rowLimit)
     if (error) return res.json({ data: [], error: error.message })
-    res.json({ data })
+    res.json({ data: (data || []).reverse() })
   } catch (e) { res.json({ data: [], error: e.message }) }
 })
 
