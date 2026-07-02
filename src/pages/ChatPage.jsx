@@ -130,6 +130,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const setSessionsRef = useRef(setSessions)
   const setSidRef = useRef(setCurrentSessionId)
   const supabaseRef = useRef(supabase)
+  const userRef = useRef(user)
 
   // Keep refs in sync
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -137,6 +138,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   useEffect(() => { setSessionsRef.current = setSessions }, [setSessions])
   useEffect(() => { setSidRef.current = setCurrentSessionId }, [setCurrentSessionId])
   useEffect(() => { supabaseRef.current = supabase }, [supabase])
+  useEffect(() => { userRef.current = user }, [user])
 
   // Load messages on mount or session switch
   const loadedSessionRef = useRef(null)
@@ -165,13 +167,18 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         setSidRef.current?.(bestSid)
         loadedSessionRef.current = bestSid
         sidRef.current = bestSid
-        // Also enrich from Supabase in background (merges any messages saved by server/nudge)
+        // Also enrich from Supabase in background (merge messages saved by server/nudge, don't replace local)
         if (sb && user?.id) {
           fetchMessages(sb, bestSid, user?.id).then(sbMsgs => {
-            if (sbMsgs.length > bestMsgs.length) {
-              const capped = sbMsgs.slice(-MAX_LOADED_MSGS)
-              saveMessagesLocal(bestSid, capped)
-              setMessages(capped)
+            if (sbMsgs.length > 0) {
+              const localIds = new Set(bestMsgs.map(m => m.id))
+              const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
+              if (newFromSb.length > 0) {
+                const merged = [...bestMsgs, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
+                const capped = merged.slice(-MAX_LOADED_MSGS)
+                saveMessagesLocal(bestSid, capped)
+                setMessages(capped)
+              }
             }
           }).catch(() => {})
         }
@@ -207,6 +214,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       const existing = loadMessagesLocal(currentSessionId)
       if (existing.length > 0) {
         setMessages(existing)
+        // Background: merge Supabase messages (for nudge messages written by server)
+        if (sb && user?.id) {
+          fetchMessages(sb, currentSessionId, user?.id).then(sbMsgs => {
+            const localIds = new Set(existing.map(m => m.id))
+            const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
+            if (newFromSb.length > 0) {
+              const merged = [...existing, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
+              const capped = merged.slice(-MAX_LOADED_MSGS)
+              saveMessagesLocal(currentSessionId, capped)
+              setMessages(capped)
+            }
+          }).catch(() => {})
+        }
       } else {
         // Local empty — try Supabase before showing blank
         const sb = supabaseRef.current
@@ -259,26 +279,32 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           if (!Array.isArray(nudges) || nudges.length === 0) return
           const sb = supabaseRef.current
           const currentSid = sidRef.current
+          const uid = userRef.current?.id
           nudges.forEach(n => {
-            // Nudge was already written to Supabase by server — just reload
             const targetSid = n.session_id
             if (!targetSid) return
-            if (sb) {
-              // Refresh the target session's messages from Supabase
-              fetchMessages(sb, targetSid, user?.id).then(sbMsgs => {
+            if (sb && uid) {
+              fetchMessages(sb, targetSid, uid).then(sbMsgs => {
                 if (sbMsgs.length > 0) {
-                  saveMessagesLocal(targetSid, sbMsgs)
-                  // If user is currently viewing this session, update the UI
-                  if (targetSid === currentSid) {
-                    setMessages(sbMsgs)
+                  // Merge: don't replace local messages, just add new ones from Supabase
+                  const currentMsgs = targetSid === currentSid ? messagesRef.current : loadMessagesLocal(targetSid)
+                  const localIds = new Set(currentMsgs.map(m => m.id))
+                  const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
+                  if (newFromSb.length > 0) {
+                    const merged = [...currentMsgs, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
+                    const capped = merged.slice(-MAX_LOADED_MSGS)
+                    saveMessagesLocal(targetSid, capped)
+                    if (targetSid === currentSid) {
+                      setMessages(capped)
+                    }
                   }
                 }
               }).catch(() => {})
             }
           })
           // Refresh sessions list to reflect updated timestamps
-          if (sb) {
-            fetchSessions(sb, user?.id).then(sbSessions => {
+          if (sb && uid) {
+            fetchSessions(sb, uid).then(sbSessions => {
               if (sbSessions.length > 0) {
                 const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
                 saveSessionsLocal(local)
