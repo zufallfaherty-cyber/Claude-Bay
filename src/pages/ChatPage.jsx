@@ -145,11 +145,12 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   useEffect(() => {
     const sb = supabaseRef.current
     if (!currentSessionId) {
-      // ── Recovery: find the real chat session with the most recent messages ──
+      // ── Recovery: find the most recently updated non-nudge session with messages ──
       const sessions = loadSessionsLocal()
 
-      // Try each non-nudge session (newest first) until we find one with messages
       const realSessions = sessions.filter(s => !s.name?.startsWith('💌'))
+      // Sort by updated_at descending, pick the newest one with messages
+      realSessions.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))
       let bestSid = null
       let bestMsgs = []
 
