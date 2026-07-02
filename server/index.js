@@ -325,6 +325,20 @@ app.get('/api/debug/nudge-test', async (_req, res) => {
   } catch (e) { res.json({ error: e.message, log }) }
 })
 
+// ── Debug: get last N messages (lightweight, avoids downloading all) ──
+app.get('/api/debug/last-messages', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ error: 'no supabase' })
+  const { user_id, session_id, limit = 10 } = req.query
+  const { data, error } = await supabaseAdmin
+    .from('chat_messages')
+    .select('id, role, content, created_at')
+    .eq('user_id', user_id)
+    .eq('session_id', session_id)
+    .order('created_at', { ascending: false })
+    .limit(parseInt(limit))
+  res.json({ count: data?.length, last: data, error })
+})
+
 // ── Admin: merge sessions and clean up nudge fragments ──
 app.post('/api/admin/cleanup', async (req, res) => {
   if (!supabaseAdmin) return res.json({ error: 'no supabase' })
