@@ -143,10 +143,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   // Load messages on mount or session switch
   const loadedSessionRef = useRef(null)
   useEffect(() => {
+    const sb = supabaseRef.current
     if (!currentSessionId) {
       // ── Recovery: find the real chat session with the most recent messages ──
       const sessions = loadSessionsLocal()
-      const sb = supabaseRef.current
 
       // Try each non-nudge session (newest first) until we find one with messages
       const realSessions = sessions.filter(s => !s.name?.startsWith('💌'))
@@ -229,7 +229,6 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         }
       } else {
         // Local empty — try Supabase before showing blank
-        const sb = supabaseRef.current
         if (sb && user?.id) {
           fetchMessages(sb, currentSessionId, user?.id).then(sbMsgs => {
             if (sbMsgs.length > 0) {
