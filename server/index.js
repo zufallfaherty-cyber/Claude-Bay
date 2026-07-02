@@ -287,6 +287,44 @@ app.get('/api/debug/settings', async (_req, res) => {
 
 app.get('/api/debug/chat-saves', (_req, res) => res.json({ saveCalls: saveChatCount }))
 
+// ── Debug: test nudge Supabase write directly ──
+app.get('/api/debug/nudge-test', async (_req, res) => {
+  if (!supabaseAdmin) return res.json({ error: 'no supabase' })
+  const log = []
+  try {
+    // 1. Test crypto.randomUUID
+    try {
+      const testUuid = crypto.randomUUID()
+      log.push(`crypto.randomUUID OK: ${testUuid}`)
+    } catch (e) { log.push(`crypto.randomUUID FAIL: ${e.message}`) }
+
+    // 2. Test user_settings query
+    const { data: settings, error: settingsErr } = await supabaseAdmin.from('user_settings').select('user_id').limit(1)
+    log.push(`user_settings query: data=${JSON.stringify(settings)}, error=${JSON.stringify(settingsErr)}`)
+
+    // 3. Test chat_sessions query
+    const uid = settings?.[0]?.user_id
+    if (uid) {
+      const { data: sessions, error: sessErr } = await supabaseAdmin
+        .from('chat_sessions').select('id, name').eq('user_id', uid).not('name', 'ilike', '💌%').order('updated_at', { ascending: false }).limit(1)
+      log.push(`chat_sessions query: data=${JSON.stringify(sessions)}, error=${JSON.stringify(sessErr)}`)
+
+      // 4. Test actual insert
+      if (sessions?.[0]) {
+        const msgId = crypto.randomUUID()
+        const testContent = 'DEBUG nudge test ' + new Date().toISOString()
+        const { error: insertErr } = await supabaseAdmin.from('chat_messages').insert({
+          id: msgId, session_id: sessions[0].id, user_id: uid,
+          role: 'assistant', content: testContent, attachments: [],
+          created_at: new Date().toISOString()
+        })
+        log.push(`insert test: error=${JSON.stringify(insertErr)}, msgId=${msgId}, content="${testContent}"`)
+      }
+    }
+    res.json({ log })
+  } catch (e) { res.json({ error: e.message, log }) }
+})
+
 // ── Admin: merge sessions and clean up nudge fragments ──
 app.post('/api/admin/cleanup', async (req, res) => {
   if (!supabaseAdmin) return res.json({ error: 'no supabase' })
