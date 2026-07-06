@@ -15,6 +15,37 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
 }
 
+// ── Model helpers ──
+function parseModels(input, fallback = '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6') {
+  const raw = input || fallback
+  return raw.split(',').map(m => m.trim()).filter(Boolean)
+}
+
+async function tryModels(models, apiKey, apiBase, makeBody) {
+  let lastError
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i]
+    try {
+      const response = await fetch(`${apiBase}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify(makeBody(model)),
+      })
+      if (response.ok) {
+        if (i > 0) console.log(`[Model] ✅ Fallback to "${model}"`)
+        return { response, model }
+      }
+      const errText = await response.text()
+      console.warn(`[Model] ❌ "${model}" (${response.status}): ${errText.slice(0, 200)}`)
+      lastError = new Error(`${response.status}: ${errText.slice(0, 200)}`)
+    } catch (err) {
+      console.warn(`[Model] ❌ "${model}" network: ${err.message}`)
+      lastError = err
+    }
+  }
+  throw lastError || new Error('All models failed')
+}
+
 async function getRecentChats(limit = 6) {
   if (!supabaseAdmin) return []
   try {
@@ -557,7 +588,7 @@ app.post('/api/claude-mood', async (req, res) => {
 
     const apiKey = process.env.API_KEY
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const model = process.env.MODEL || '[按量]claude-opus-4-6'
+    const models = parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
     const prompt = `当前时间：${timeStr}
 ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
@@ -567,12 +598,10 @@ ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
 回复格式：先写一个emoji，然后一个中文逗号，然后一句心情留言。
 例：🌸，今天看到你好开心`
 
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }], temperature: 0.9, max_tokens: 50 }),
-    })
-    const data = await response.json()
+    const { response: moodResp } = await tryModels(models, apiKey, apiBase,
+      (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.9, max_tokens: 50 })
+    )
+    const data = await moodResp.json()
     const text = data.choices?.[0]?.message?.content || '🌸，今天也是美好的一天'
 
     // Split on first Chinese/English comma — emoji before comma, note after
@@ -651,7 +680,7 @@ app.all('/api/nudge', async (req, res) => {
 
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const model = process.env.MODEL || '[按量]claude-opus-4-6'
+    const models = parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。不用语气词，单独「嗯？」是唯一例外。几乎不用emoji，开心时才发 ^ ^。不说教不催促。少用「不过」「行」。分段不留空行。'}
 
@@ -673,13 +702,10 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
 
 回复格式：先YES或NO，然后如果YES，下一行写消息（30字以内，口语化、不模板）。`
 
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: '到时间了，看看要不要发消息？' }], temperature: 0.9, max_tokens: 200 }),
-    })
-
-    const data = await response.json()
+    const { response: nudgeResp } = await tryModels(models, apiKey, apiBase,
+      (m) => ({ model: m, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: '到时间了，看看要不要发消息？' }], temperature: 0.9, max_tokens: 200 })
+    )
+    const data = await nudgeResp.json()
     const text = data.choices?.[0]?.message?.content || ''
     const isYes = text.toUpperCase().includes('YES')
     const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
@@ -775,7 +801,7 @@ app.post('/api/chat', async (req, res) => {
 
   const apiKey = reqKey || process.env.API_KEY
   const apiBase = reqBase || process.env.API_BASE || 'https://api.jiushi.xin/v1'
-  const model = reqModel || process.env.MODEL || '[按量]claude-opus-4-6'
+  const models = parseModels(reqModel || process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
   if (!apiKey) {
     return res.status(500).json({ error: 'API_KEY not configured on server' })
@@ -812,12 +838,10 @@ app.post('/api/chat', async (req, res) => {
   // ── Non-streaming mode: generate full response then return ──
   if (!isStream) {
     try {
-      const response = await fetch(`${apiBase}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model, messages: apiMessages, temperature, max_tokens: maxTokens }),
-      })
-      const data = await response.json()
+      const { response: chatResp } = await tryModels(models, apiKey, apiBase,
+        (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens })
+      )
+      const data = await chatResp.json()
       const text = data.choices?.[0]?.message?.content || ''
       return res.json({ content: text })
     } catch (err) {
@@ -833,20 +857,9 @@ app.post('/api/chat', async (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no')
 
   try {
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: apiMessages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: true,
-      }),
-    })
+    const { response } = await tryModels(models, apiKey, apiBase,
+      (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens, stream: true })
+    )
 
     if (!response.ok) {
       const errText = await response.text()
@@ -901,5 +914,5 @@ app.post('/api/chat', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🐰 Bunny Chat server running on http://localhost:${PORT}`)
   console.log(`   API Base: ${process.env.API_BASE || 'https://api.jiushi.xin/v1'}`)
-  console.log(`   Model: ${process.env.MODEL || '[按量]claude-opus-4-6'}`)
+  console.log(`   Models: ${parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6').join(', ')}`)
 })

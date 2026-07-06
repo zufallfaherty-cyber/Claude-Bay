@@ -34,9 +34,39 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px'
   }
 
-  const handleFileChange = (e) => {
+  // Resize image before base64 encoding — keeps payload under control
+  const compressImage = (file) => new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1024
+      let { width, height } = img
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX }
+        else { width = Math.round(width * MAX / height); height = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob((blob) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.readAsDataURL(blob)
+      }, 'image/jpeg', 0.75)
+    }
+    img.onerror = () => {
+      // Fallback: read original if canvas fails (e.g. SVG)
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.readAsDataURL(file)
+    }
+    img.src = URL.createObjectURL(file)
+  })
+
+  const handleFileChange = async (e) => {
     const files = Array.from(e.target.files || [])
-    files.forEach((file) => {
+    for (const file of files) {
       const isImage = file.type.startsWith('image/')
       // Text-readable file types: read content as plain text
       const textExts = ['.txt', '.json', '.csv', '.md', '.xml', '.yaml', '.yml', '.log', '.env']
@@ -46,25 +76,22 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         textExts.some(ext => file.name.toLowerCase().endsWith(ext))
       )
 
-      const reader = new FileReader()
-      reader.onload = () => {
-        setAttachments((prev) => [...prev, {
-          name: file.name,
-          type: isImage ? 'image' : 'file',
-          mime: file.type,
-          data: reader.result,       // base64 for images, text content for text files
-          isText,                    // flag so ChatPage knows whether data is readable text
-        }])
-      }
       if (isImage) {
-        reader.readAsDataURL(file)
-      } else if (isText) {
-        reader.readAsText(file)
+        const data = await compressImage(file)
+        setAttachments((prev) => [...prev, {
+          name: file.name, type: 'image', mime: 'image/jpeg', data, isText: false,
+        }])
       } else {
-        // Binary file (PDF etc.): read as data URL for preview thumbnail
-        reader.readAsDataURL(file)
+        const reader = new FileReader()
+        reader.onload = () => {
+          setAttachments((prev) => [...prev, {
+            name: file.name, type: 'file', mime: file.type, data: reader.result, isText,
+          }])
+        }
+        if (isText) reader.readAsText(file)
+        else reader.readAsDataURL(file)
       }
-    })
+    }
     if (fileRef.current) fileRef.current.value = ''
   }
 

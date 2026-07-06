@@ -86,7 +86,7 @@ export default function Settings() {
     localStorage.getItem('api_key') || ''
   )
   const [apiModel, setApiModel] = useState(() =>
-    localStorage.getItem('api_model') || '[按量]claude-opus-4-6'
+    localStorage.getItem('api_model') || '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6'
   )
   const [saved, setSaved] = useState(false)
 
@@ -235,12 +235,12 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-warm-gray mb-1.5 block">模型</label>
+              <label className="text-xs font-medium text-warm-gray mb-1.5 block">模型（多个用逗号分隔，失败自动切换）</label>
               <input
                 value={apiModel}
                 onChange={(e) => setApiModel(e.target.value)}
                 className="w-full px-4 py-2.5 bg-white/70 rounded-xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all"
-                placeholder="[按量]claude-opus-4-6"
+                placeholder="[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6"
               />
             </div>
           </div>
