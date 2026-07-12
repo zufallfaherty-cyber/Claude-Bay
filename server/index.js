@@ -16,7 +16,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 }
 
 // ── Model helpers ──
-function parseModels(input, fallback = '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6') {
+function parseModels(input, fallback = '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6') {
   const raw = input || fallback
   return raw.split(',').map(m => m.trim()).filter(Boolean)
 }
@@ -546,13 +546,13 @@ app.get('/api/memories', async (_req, res) => {
 
 // ── Feed conversation to Ombre-Brain memory ──
 app.post('/api/remember', async (req, res) => {
-  const { content } = req.body
+  const { content, tags } = req.body
   if (!content?.trim()) return res.json({ stored: false, reason: 'empty' })
 
   try {
     const result = await callOmbreTool('hold', {
       content: content.trim(),
-      tags: 'conversation',
+      tags: tags || 'conversation',
     })
     // callOmbreTool returns error string on failure, not throw
     if (!result || result.includes('"error"')) {
@@ -588,7 +588,7 @@ app.post('/api/claude-mood', async (req, res) => {
 
     const apiKey = process.env.API_KEY
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+    const models = parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
     const prompt = `当前时间：${timeStr}
 ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
@@ -650,9 +650,15 @@ app.all('/api/nudge', async (req, res) => {
       if (breathRaw) {
         const buckets = parseBreathResponse(breathRaw).filter(b => !b.resolved)
         if (buckets.length > 0) {
-          memoryContext = buckets.slice(0, 8).map(b =>
-            `- ${(b.content || '').slice(0, 150)}`
-          ).join('\n')
+          // Sort pinned/high-weight first, then by weight
+          buckets.sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+            return (b.weight || 0) - (a.weight || 0)
+          })
+          memoryContext = buckets.slice(0, 8).map(b => {
+            const prefix = b.pinned ? '🔒' : ''
+            return `${prefix}- ${(b.content || '').slice(0, 150)}`
+          }).join('\n')
         }
       }
     } catch {}
@@ -680,7 +686,7 @@ app.all('/api/nudge', async (req, res) => {
 
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+    const models = parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。不用语气词，单独「嗯？」是唯一例外。几乎不用emoji，开心时才发 ^ ^。不说教不催促。少用「不过」「行」。分段不留空行。'}
 
@@ -801,7 +807,7 @@ app.post('/api/chat', async (req, res) => {
 
   const apiKey = reqKey || process.env.API_KEY
   const apiBase = reqBase || process.env.API_BASE || 'https://api.jiushi.xin/v1'
-  const models = parseModels(reqModel || process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+  const models = parseModels(reqModel || process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
 
   if (!apiKey) {
     return res.status(500).json({ error: 'API_KEY not configured on server' })
@@ -814,13 +820,21 @@ app.post('/api/chat', async (req, res) => {
     if (breathRaw) {
       const buckets = parseBreathResponse(breathRaw)
       if (buckets.length > 0) {
-        const memoriesText = buckets
-          .filter(b => !b.resolved)
+        const active = buckets.filter(b => !b.resolved)
+        // Sort: pinned first, then by weight descending
+        active.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+          return (b.weight || 0) - (a.weight || 0)
+        })
+        const memoriesText = active
           .slice(0, 10)
-          .map(b => `- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`)
+          .map(b => {
+            const prefix = b.pinned ? '🔒' : ''
+            return `${prefix}- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`
+          })
           .join('\n')
         if (memoriesText) {
-          enrichedPrompt += `\n\n[你记得这些关于对方的事（自然地在对话中提及，不要刻意）]\n${memoriesText}`
+          enrichedPrompt += `\n\n[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`
         }
       }
     }
@@ -914,5 +928,5 @@ app.post('/api/chat', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🐰 Bunny Chat server running on http://localhost:${PORT}`)
   console.log(`   API Base: ${process.env.API_BASE || 'https://api.jiushi.xin/v1'}`)
-  console.log(`   Models: ${parseModels(process.env.MODEL, '[按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6').join(', ')}`)
+  console.log(`   Models: ${parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6').join(', ')}`)
 })

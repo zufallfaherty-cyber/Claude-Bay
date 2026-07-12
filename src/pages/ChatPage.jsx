@@ -570,16 +570,47 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     streamingRef.current = false
     setStreaming(false)
 
-    // Feed to Ombre-Brain memory (only every 5 rounds, or if user shares personal info)
-    const personalKeywords = ['我喜欢', '我讨厌', '我害怕', '我想', '我记得', '我小时候', '我最', '我不喜欢', '我告诉', '我的']
+    // Feed to Ombre-Brain memory
+    // Personal info keywords — anything Claude must remember about her
+    const personalKeywords = [
+      '生日', '我今年', '我年龄', '我属', '我星座',
+      '我喜欢', '我讨厌', '我害怕', '我最', '我不喜欢',
+      '我家在', '我住在', '我工作', '我公司', '我学校', '我学',
+      '我想', '我记得', '我小时候', '我以前', '我告诉',
+      '我爸', '我妈', '我妈妈', '我爸爸', '我哥', '我姐', '我弟', '我妹',
+      '我朋友', '我闺蜜',
+      '我生理期', '我例假', '我经期',
+      '我名字', '叫我',
+    ]
     const isPersonal = personalKeywords.some(k => text.includes(k))
     const roundCount = messagesRef.current.filter(m => m.role === 'user').length
-    if (content && !content.startsWith('❌') && (isPersonal || roundCount % 5 === 0)) {
-      const memoryText = `小湾: ${text}\nClaude: ${content.slice(0, 500)}`
+
+    // Store every 3 rounds (periodic), or immediately for personal info
+    const shouldStore = content && !content.startsWith('❌') && (isPersonal || roundCount % 3 === 0)
+
+    if (shouldStore) {
+      let memoryText
+      if (isPersonal) {
+        // Personal info: full Claude response, no truncation, marked important
+        memoryText = `[重要个人信息]\n小湾: ${text}\nClaude: ${content}`
+      } else {
+        // Periodic: last ~3 rounds so Ombre-Brain has context to judge importance
+        const recentMsgs = messagesRef.current.slice(-8)
+        const lines = []
+        for (const m of recentMsgs) {
+          if (m.role === 'user') lines.push(`小湾: ${m.content}`)
+          else if (m.role === 'assistant' && m.content && !m.content.startsWith('❌')) lines.push(`Claude: ${m.content.slice(0, 300)}`)
+        }
+        memoryText = lines.join('\n')
+      }
+
       fetch('https://bayapi.zeabur.app/api/remember', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: memoryText }),
+        body: JSON.stringify({
+          content: memoryText,
+          tags: isPersonal ? 'personal_info' : 'conversation',
+        }),
       }).catch(() => {})
     }
   }, []) // empty deps — everything is via refs
