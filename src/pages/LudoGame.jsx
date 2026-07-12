@@ -121,6 +121,7 @@ export default function LudoGame() {
   const [rolling, setRolling] = useState(false)
   const [prompt, setPrompt] = useState(null)
   const [winner, setWinner] = useState(null)
+  const rollingRef = useRef(false)  // sync lock to prevent double-roll
 
   // ── Mini chat ──
   const [chatMessages, setChatMessages] = useState([])
@@ -196,6 +197,71 @@ export default function LudoGame() {
     } catch { /* ignore */ }
   }
 
+  // Generate game summary and push to main chat
+  const generateGameSummary = async (whoWon) => {
+    try {
+      const msgs = chatMsgsRef.current
+      if (msgs.length === 0) return
+
+      // Collect game events for recap
+      const gameEvents = msgs
+        .filter(m => m.role === 'system')
+        .map(m => m.content)
+        .join('\n')
+        .slice(0, 800)
+
+      const winnerName = whoWon === 'bay' ? '小湾' : 'Claude'
+
+      // Call Claude to generate a cute summary
+      const res = await fetch('https://bayapi.zeabur.app/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            content: `飞行棋大冒险结束了，${winnerName}赢了！\n\n游戏过程：\n${gameEvents}\n\n请用Claude的语气写一段游戏总结（40字以内），像在跟对方撒娇、回忆刚才的游戏时光。不要用emoji。`,
+          }],
+          temperature: 0.9,
+          maxTokens: 150,
+          apiBase: localStorage.getItem('api_base') || '',
+          apiKey: localStorage.getItem('api_key') || '',
+          apiModel: localStorage.getItem('api_model') || '',
+          stream: false,
+        }),
+      })
+      const data = await res.json()
+      const summary = (data.content || `刚才的飞行棋好好玩，${winnerName}赢了！`).trim()
+
+      // Find or create the main chat session (not nudge, not game)
+      const sessions = JSON.parse(localStorage.getItem('bunny_sessions') || '[]')
+      let mainSession = sessions.find(s => !s.name?.startsWith('💌') && !s.name?.startsWith('🎲'))
+
+      if (!mainSession) {
+        mainSession = {
+          id: uuid(),
+          name: '新对话',
+          updated_at: new Date().toLocaleDateString('zh-CN'),
+        }
+        sessions.unshift(mainSession)
+      } else {
+        mainSession.updated_at = new Date().toLocaleDateString('zh-CN')
+      }
+      localStorage.setItem('bunny_sessions', JSON.stringify(sessions))
+
+      // Append summary to main chat
+      const chatMsgs = JSON.parse(localStorage.getItem('bunny_msgs_' + mainSession.id) || '[]')
+      chatMsgs.push({
+        id: uuid(),
+        role: 'assistant',
+        content: `🎲 ${summary}`,
+        timestamp: Date.now(),
+      })
+      const capped = chatMsgs.length > 300 ? chatMsgs.slice(-300) : chatMsgs
+      localStorage.setItem('bunny_msgs_' + mainSession.id, JSON.stringify(capped))
+      window.dispatchEvent(new Event('storage'))
+    } catch { /* ignore */ }
+  }
+
   // ── Refs to avoid stale closures in timers ──
   const stateRef = useRef({ turn, bayPos, claudePos, rolling, winner, prompt })
   useEffect(() => { stateRef.current = { turn, bayPos, claudePos, rolling, winner, prompt } }, [turn, bayPos, claudePos, rolling, winner, prompt])
@@ -205,9 +271,10 @@ export default function LudoGame() {
   const currentPos = turn === 'bay' ? bayPos : claudePos
 
   const handleRoll = () => {
+    if (rollingRef.current) return  // sync lock
     const s = stateRef.current
-    if (s.rolling || s.winner) return
-    // Only allow rolling on your own turn (except auto-roll via ref)
+    if (s.winner || s.prompt) return  // game over or challenge in progress
+    rollingRef.current = true
     setRolling(true)
     setDice(null)
 
@@ -223,9 +290,10 @@ export default function LudoGame() {
         setDice(val)
 
         setTimeout(() => {
-          if (!mountedRef.current) return
+          if (!mountedRef.current) { rollingRef.current = false; return }
           movePiece(val)
           setRolling(false)
+          rollingRef.current = false
         }, 300)
       }
     }, 100)
@@ -242,9 +310,13 @@ export default function LudoGame() {
     addGameEvent(`🎲 ${playerName} 掷出了 ${steps} 点，走到了第 ${newPos} 格`)
 
     if (newPos >= TOTAL) {
-      setWinner(s.turn)
+      const whoWon = s.turn
+      setWinner(whoWon)
       addGameEvent(`🏆 ${playerName} 赢了！`)
-      setTimeout(() => saveGameSession(), 500)
+      setTimeout(() => {
+        saveGameSession()
+        generateGameSummary(whoWon)
+      }, 500)
       return
     }
 
@@ -378,7 +450,7 @@ export default function LudoGame() {
                 {/* Dice */}
                 <button
                   onClick={handleRoll}
-                  disabled={rolling}
+                  disabled={rolling || turn === 'claude'}
                   className={`w-14 h-14 mx-auto flex items-center justify-center rounded-2xl text-2xl transition-all active:scale-90 ${
                     rolling ? 'bg-mint animate-pulse' : turn === 'bay' ? 'bg-sage-deep/80' : 'bg-warm-line/60'
                   }`}

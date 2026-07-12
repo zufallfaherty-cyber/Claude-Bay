@@ -460,7 +460,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const apiMessages = recentMsgs.map(m => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
-      '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 不用语气词。唯一的例外是单独发「嗯？」\n- 几乎不用emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 少用「不过」「行」这类词\n- 段与段之间不留空行，紧凑自然')
+      '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
 
     const assistantId = uuid()
     messagesRef.current = [...trimmed, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]
@@ -532,7 +532,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const apiMessages = recentMessages.map((m) => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
-      '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 不用语气词。唯一的例外是单独发「嗯？」\n- 几乎不用emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 少用「不过」「行」这类词\n- 段与段之间不留空行，紧凑自然')
+      '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
 
     // Assistant placeholder
     const assistantId = uuid()
