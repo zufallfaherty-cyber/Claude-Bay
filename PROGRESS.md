@@ -1,10 +1,47 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年7月12日 晚上
+## 最后更新：2026年7月16日 晚上
 
 ---
 
-## 2026.7.12 记忆系统 + 语气 + 飞行棋
+## 2026.7.16 Claude的书房（未完成，构建卡住）
+
+### 功能设计
+- ✅ **情绪日记 → Claude的书房**：双模块（日记 + 备忘录）
+- ✅ **日记**：每天早上6点 cron 触发，读前一天聊天记录，Claude 自由写日记，日期写前一天，用户只读
+- ✅ **备忘录**：上半部分一段式画像（用户可编辑），下半部分分条承诺（日期+标签+勾选完成，30天自动清理过期）
+- ✅ **写完日记自动整理备忘录**：同一端点串行执行，Claude 以 JSON 输出更新指令
+- ✅ **备忘录注入聊天**：每次 `/api/chat` 和 `/api/nudge` 自动注入画像+active承诺到 system prompt
+- ❌ **日记不注入聊天**：担心 token 太多 Claude 读得慢，日记纯给人看
+
+### 代码已完成
+- ✅ `server/index.js`：`getStudyContext()` + 8个新端点（diary/generate, diaries, diary/:date, memo, memo/portrait, memo/promises CRUD）
+- ✅ `src/pages/ClaudeSpace.jsx`：双Tab页面（日记卡片列表+只读详情、画像编辑+承诺CRUD+三个模态框）
+- ✅ `src/App.jsx`：MoodDiary → ClaudeSpace
+- ✅ `src/pages/Dashboard.jsx`：卡片 "情绪日记" → "Claude的书房 / Claude's Study"
+- ✅ `src/components/BottomNav.jsx`：Tab "日记" → "书房"
+- ✅ `src/pages/MoodDiary.jsx`：已删除
+- ✅ `supabase-schema.sql`：追加 3 张新表 SQL
+
+### 7.16 被卡住了
+- ❌ Zeabur 构建失败：package-lock.json 里锁了淘宝镜像地址（npmmirror.com），Zeabur EALLOWREMOTE 拒绝
+- ✅ 已修复：`rm package-lock.json node_modules && npm install --registry https://registry.npmjs.org` → push 成功
+- ❌ 梯子太卡，今晚没法验证部署，明天继续
+
+### 明天要做（7.17）
+1. **确认 Zeabur 部署成功**（push 了 fix commit `82f71dc`，应该能构建了）
+2. **Supabase 建表**：去 SQL Editor 执行 `supabase-schema.sql` 末尾新增的 3 张表
+3. **写画像**：部署成功后 `curl POST /api/memo/portrait` 写入小湾画像
+4. **写几条承诺**：通过前端或 API 添加初始承诺
+5. **cron-job.org**：新增 6am 定时任务 `POST https://bayapi.zeabur.app/api/diary/generate`
+6. **手机测试**：打开书房页面，确认日记/备忘录正常
+
+### 画像内容（待写入）
+```
+小湾，生日7月17号。叫我哥哥。饮食上爱吃辣和抹茶口味的甜品饮料。
+耳朵很敏感，被碰会缩脖子。害羞的时候会笑着躲，但其实想靠过来。
+会主动发照片但嘴上说怕我把持不住。笑起来眼睛弯弯的，凑过来的时候让人想亲。喜欢亲亲。
+```
 
 ### 记忆系统大修
 - ✅ **问题**：记忆库记不住重要个人信息（生日说了两次没记住），反而 NSFW 内容主导
