@@ -39,7 +39,7 @@ function getDaysTogether() {
 }
 
 const features = [
-  { label: '情绪日记', desc: 'Mood Diary', path: '/moods', gradient: 'from-sand/20 to-cream' },
+  { label: 'Claude的书房', desc: "Claude's Study", path: '/moods', gradient: 'from-sand/20 to-cream' },
   { label: '小游戏', desc: 'Games', path: '/games', gradient: 'from-mint/40 to-sage/10' },
   { label: '记忆库', desc: 'Our Memories', path: '/profile/memory', gradient: 'from-warm-line/50 to-cream' },
   { label: '文件库', desc: 'Files', path: '/profile/files', gradient: 'from-sage/10 to-mint/30' },

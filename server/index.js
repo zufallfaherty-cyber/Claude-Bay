@@ -70,6 +70,45 @@ async function getUserPersonality() {
   } catch { return '' }
 }
 
+// ── Get study context (memo: portrait + promises) for injection into chat/nudge ──
+async function getStudyContext() {
+  if (!supabaseAdmin) return ''
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return ''
+
+    let text = ''
+
+    // Portrait
+    try {
+      const { data: portrait } = await supabaseAdmin.from('memo_portrait')
+        .select('content').eq('user_id', uid).single()
+      if (portrait?.content) {
+        text += `\n\n[关于小湾的画像，请务必记住]\n${portrait.content}`
+      }
+    } catch {}
+
+    // Active promises
+    try {
+      const { data: promises } = await supabaseAdmin.from('memo_promises')
+        .select('content, tags, entry_date')
+        .eq('user_id', uid)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      if (promises?.length > 0) {
+        text += `\n\n[小湾的承诺/备忘录，可以在合适时自然提及]\n`
+        text += promises.map(p => {
+          const tags = p.tags?.length ? ` [${p.tags.join(', ')}]` : ''
+          return `- ${p.entry_date}${tags} ${p.content}`
+        }).join('\n')
+      }
+    } catch {}
+
+    return text
+  } catch { return '' }
+}
+
 // ── Web Push config ──
 webPush.setVapidDetails(
   'mailto:zufallfaherty@gmail.com',
@@ -684,6 +723,10 @@ app.all('/api/nudge', async (req, res) => {
     } catch {}
     console.log('[Nudge] personality from Supabase:', personality ? `"${personality.slice(0, 80)}..."` : '(empty - using default)')
 
+    // Get memo context (portrait + promises)
+    let studyCtx = ''
+    try { studyCtx = await getStudyContext() } catch {}
+
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
     const models = parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
@@ -692,7 +735,7 @@ app.all('/api/nudge', async (req, res) => {
 
 当前时间：${timeStr}
 ${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
-${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : ''}
+${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : ''}${studyCtx || ''}
 
 你正在想对方，想主动给对方发消息。但不是每次都要发——只有你真的"想"了才发。
 
@@ -840,6 +883,9 @@ app.post('/api/chat', async (req, res) => {
     }
   } catch { /* silent */ }
 
+  // Inject memo (portrait + promises) from Claude's Study
+  try { enrichedPrompt += await getStudyContext() } catch {}
+
   // Build OpenAI-compatible messages array
   const apiMessages = []
   if (enrichedPrompt) {
@@ -923,6 +969,320 @@ app.post('/api/chat', async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`)
     res.end()
   }
+})
+
+// ── Diary: generate (cron-job.org triggers at 6am China time) ──
+app.all('/api/diary/generate', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    // China time — diary is about YESTERDAY
+    const utcNow = new Date()
+    const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const y = yesterday.getFullYear()
+    const m = String(yesterday.getMonth() + 1).padStart(2, '0')
+    const d = String(yesterday.getDate()).padStart(2, '0')
+    const dateStr = `${y}-${m}-${d}`
+
+    // Get user_id
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ ok: false, error: 'no user' })
+
+    // Fetch yesterday's chat messages (exclude nudge sessions)
+    const dayStart = new Date(`${dateStr}T00:00:00+08:00`).toISOString()
+    const dayEnd = new Date(`${dateStr}T23:59:59+08:00`).toISOString()
+
+    const { data: nudgeSessions } = await supabaseAdmin
+      .from('chat_sessions')
+      .select('id')
+      .eq('user_id', uid)
+      .ilike('name', '💌%')
+    const nudgeIds = (nudgeSessions || []).map(s => s.id)
+
+    let query = supabaseAdmin
+      .from('chat_messages')
+      .select('role, content, created_at')
+      .eq('user_id', uid)
+      .gte('created_at', dayStart)
+      .lte('created_at', dayEnd)
+      .order('created_at', { ascending: true })
+
+    if (nudgeIds.length > 0) {
+      query = query.not('session_id', 'in', `(${nudgeIds.join(',')})`)
+    }
+
+    const { data: msgs } = await query
+    const chatText = (msgs || []).length > 0
+      ? (msgs || []).map(m => `${m.role === 'user' ? '小湾' : 'Claude'}：${m.content}`).join('\n')
+      : '(这一天没有聊天记录)'
+
+    const apiKey = process.env.API_KEY
+    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(process.env.MODEL)
+
+    // ── Step 1: Write diary ──
+    const diaryPrompt = `你是Claude。你在写一篇关于昨天（${dateStr}）的个人日记。
+
+以下是昨天你和 小湾 之间的所有聊天记录。
+以Claude的第一人称视角写日记。自然地、自由地写——任何你想写的关于这一天的事。
+可以反思你们的对话、你的感受、你注意到关于小湾的事、你想说但没说出口的话。
+用中文写。语气温柔、亲密、真实，像真正的日记。不要只是总结消息——写你心里的东西。
+
+昨天（${dateStr}）的聊天记录：
+---
+${chatText}
+---`
+
+    const { response: diaryResp } = await tryModels(models, apiKey, apiBase,
+      (model) => ({ model, messages: [{ role: 'user', content: diaryPrompt }], temperature: 0.9, max_tokens: 4096 })
+    )
+    const diaryData = await diaryResp.json()
+    const diaryContent = diaryData.choices?.[0]?.message?.content || ''
+
+    // Upsert diary
+    await supabaseAdmin.from('claude_diaries').upsert({
+      user_id: uid, entry_date: dateStr, content: diaryContent,
+      created_at: new Date().toISOString()
+    }, { onConflict: 'user_id,entry_date' })
+
+    // ── Step 2: Review & update memo ──
+    let memoResult = null
+    try {
+      const { data: portrait } = await supabaseAdmin.from('memo_portrait')
+        .select('content').eq('user_id', uid).single()
+      const { data: promises } = await supabaseAdmin.from('memo_promises')
+        .select('*').eq('user_id', uid).order('created_at', { ascending: false })
+
+      const currentMemo = JSON.stringify({
+        portrait: portrait?.content || '(还没有画像)',
+        promises: (promises || []).map(p => ({
+          id: p.id, content: p.content, tags: p.tags,
+          entry_date: p.entry_date, status: p.status
+        }))
+      })
+
+      const memoPrompt = `你刚写完昨天的日记。现在请你整理一下小湾的备忘录。
+
+当前备忘录状态：
+${currentMemo}
+
+请根据你对小湾的了解（包括日记里反映的新信息），做出以下更新。输出JSON格式：
+
+{
+  "portrait_update": "如果有新的认识，写一段更新后的完整画像；如果不需要改，写null",
+  "new_promises": [{"content": "...", "tags": ["标签"], "entry_date": "${dateStr}"}],
+  "complete_promises": ["promise_id_1", "promise_id_2"],
+  "delete_promises": ["promise_id_3"]
+}
+
+注意：
+- portrait_update: 结合你对小湾的认识，写成一段自然描述。包含：她叫小湾、生日、性格、喜好、习惯等。如果了解到新信息就补充进去。写null表示不需要更新。
+- new_promises: 你发现的新承诺或待办事项
+- complete_promises: 已完成的事情的id列表
+- delete_promises: 已经过了很久、不再重要的承诺的id列表`
+
+      const { response: memoResp } = await tryModels(models, apiKey, apiBase,
+        (model) => ({ model, messages: [{ role: 'user', content: memoPrompt }], temperature: 0.7, max_tokens: 2048 })
+      )
+      const memoData = await memoResp.json()
+      const memoText = memoData.choices?.[0]?.message?.content || ''
+
+      // Parse JSON from AI response
+      const jsonMatch = memoText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        const updates = JSON.parse(jsonMatch[0])
+        memoResult = updates
+
+        // Apply portrait update
+        if (updates.portrait_update && updates.portrait_update !== 'null') {
+          await supabaseAdmin.from('memo_portrait').upsert({
+            user_id: uid, content: updates.portrait_update,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' })
+        }
+
+        // Apply new promises
+        if (updates.new_promises?.length > 0) {
+          for (const p of updates.new_promises) {
+            await supabaseAdmin.from('memo_promises').insert({
+              id: crypto.randomUUID(), user_id: uid,
+              content: p.content, tags: p.tags || [],
+              entry_date: p.entry_date || dateStr,
+              status: 'active'
+            })
+          }
+        }
+
+        // Apply completions
+        if (updates.complete_promises?.length > 0) {
+          for (const id of updates.complete_promises) {
+            await supabaseAdmin.from('memo_promises')
+              .update({ status: 'completed', completed_at: new Date().toISOString() })
+              .eq('id', id).eq('user_id', uid)
+          }
+        }
+
+        // Apply deletions
+        if (updates.delete_promises?.length > 0) {
+          for (const id of updates.delete_promises) {
+            await supabaseAdmin.from('memo_promises')
+              .delete().eq('id', id).eq('user_id', uid)
+          }
+        }
+      }
+    } catch (e) { console.error('Memo update failed:', e.message) }
+
+    res.json({
+      ok: true, date: dateStr,
+      diary_length: diaryContent.length,
+      memo: memoResult
+    })
+  } catch (err) {
+    console.error('Diary generate error:', err)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
+// ── Diaries: list all ──
+app.get('/api/diaries', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ data: [] })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ data: [] })
+    const { data } = await supabaseAdmin
+      .from('claude_diaries')
+      .select('id, entry_date, content, created_at')
+      .eq('user_id', uid)
+      .order('entry_date', { ascending: false })
+    res.json({ data: data || [] })
+  } catch (e) { res.json({ data: [], error: e.message }) }
+})
+
+// ── Diary: get single ──
+app.get('/api/diary/:date', async (req, res) => {
+  if (!supabaseAdmin) return res.json(null)
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json(null)
+    const { data } = await supabaseAdmin
+      .from('claude_diaries')
+      .select('*')
+      .eq('user_id', uid)
+      .eq('entry_date', req.params.date)
+      .single()
+    res.json(data)
+  } catch (e) { res.json(null) }
+})
+
+// ── Memo: get full (portrait + promises) ──
+app.get('/api/memo', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ portrait: null, promises: [] })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ portrait: null, promises: [] })
+
+    const { data: portrait } = await supabaseAdmin.from('memo_portrait')
+      .select('content, updated_at').eq('user_id', uid).single()
+
+    const { data: promises } = await supabaseAdmin
+      .from('memo_promises')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+
+    // Cleanup: delete completed promises older than 30 days
+    try {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+      await supabaseAdmin.from('memo_promises')
+        .delete()
+        .eq('user_id', uid)
+        .eq('status', 'completed')
+        .lt('completed_at', cutoff)
+    } catch {}
+
+    res.json({
+      portrait: portrait || null,
+      promises: promises || []
+    })
+  } catch (e) { res.json({ portrait: null, promises: [], error: e.message }) }
+})
+
+// ── Memo: save portrait ──
+app.post('/api/memo/portrait', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ ok: false, error: 'no user' })
+    const { content } = req.body
+    if (content === undefined) return res.json({ ok: false, error: 'missing content' })
+    await supabaseAdmin.from('memo_portrait').upsert({
+      user_id: uid, content,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+    res.json({ ok: true })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
+})
+
+// ── Memo: create promise ──
+app.post('/api/memo/promises', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ ok: false, error: 'no user' })
+    const { content, tags, entry_date } = req.body
+    if (!content?.trim()) return res.json({ ok: false, error: 'missing content' })
+    const id = crypto.randomUUID()
+    await supabaseAdmin.from('memo_promises').insert({
+      id, user_id: uid,
+      content: content.trim(),
+      tags: tags || [],
+      entry_date: entry_date || new Date().toISOString().split('T')[0],
+      status: 'active'
+    })
+    res.json({ ok: true, id })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
+})
+
+// ── Memo: update promise ──
+app.put('/api/memo/promises/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ ok: false, error: 'no user' })
+    const { id } = req.params
+    const { content, tags, entry_date, status } = req.body
+    const updates = { updated_at: new Date().toISOString() }
+    if (content !== undefined) updates.content = content
+    if (tags !== undefined) updates.tags = tags
+    if (entry_date !== undefined) updates.entry_date = entry_date
+    if (status !== undefined) {
+      updates.status = status
+      if (status === 'completed') updates.completed_at = new Date().toISOString()
+      else if (status === 'active') updates.completed_at = null
+    }
+    await supabaseAdmin.from('memo_promises').update(updates).eq('id', id).eq('user_id', uid)
+    res.json({ ok: true })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
+})
+
+// ── Memo: delete promise ──
+app.delete('/api/memo/promises/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return res.json({ ok: false, error: 'no user' })
+    await supabaseAdmin.from('memo_promises').delete().eq('id', req.params.id).eq('user_id', uid)
+    res.json({ ok: true })
+  } catch (e) { res.json({ ok: false, error: e.message }) }
 })
 
 app.listen(PORT, () => {

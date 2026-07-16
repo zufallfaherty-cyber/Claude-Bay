@@ -7,7 +7,7 @@ import BottomNav from './components/BottomNav'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
-import MoodDiary from './pages/MoodDiary'
+import ClaudeSpace from './pages/ClaudeSpace'
 import GamesPage from './pages/GamesPage'
 import LudoGame from './pages/LudoGame'
 import ProfilePage from './pages/ProfilePage'
@@ -166,7 +166,7 @@ function App() {
                 </PageWrapper>
               }
             />
-            <Route path="/moods" element={<PageWrapper><MoodDiary /></PageWrapper>} />
+            <Route path="/moods" element={<PageWrapper><ClaudeSpace /></PageWrapper>} />
             <Route path="/games" element={<PageWrapper><GamesPage /></PageWrapper>} />
             <Route path="/games/ludo" element={<PageWrapper><LudoGame /></PageWrapper>} />
             <Route path="/profile" element={<PageWrapper><ProfilePage /></PageWrapper>} />
