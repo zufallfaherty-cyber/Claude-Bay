@@ -21,7 +21,8 @@ function parseModels(input, fallback = '[AG2缓存按量]claude-opus-4-6,[k]clau
   return raw.split(',').map(m => m.trim()).filter(Boolean)
 }
 
-async function tryModels(models, apiKey, apiBase, makeBody) {
+async function tryModels(models, apiKey, apiBase, makeBody, opts = {}) {
+  const { stream = false } = opts
   let lastError
   for (let i = 0; i < models.length; i++) {
     const model = models[i]
@@ -31,13 +32,36 @@ async function tryModels(models, apiKey, apiBase, makeBody) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
         body: JSON.stringify(makeBody(model)),
       })
-      if (response.ok) {
-        if (i > 0) console.log(`[Model] ✅ Fallback to "${model}"`)
-        return { response, model }
+
+      // Non-2xx → model/relay rejected us outright, try the next one
+      if (!response.ok) {
+        const errText = await response.text()
+        console.warn(`[Model] ❌ "${model}" (HTTP ${response.status}): ${errText.slice(0, 200)}`)
+        lastError = new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`)
+        continue
       }
-      const errText = await response.text()
-      console.warn(`[Model] ❌ "${model}" (${response.status}): ${errText.slice(0, 200)}`)
-      lastError = new Error(`${response.status}: ${errText.slice(0, 200)}`)
+
+      // 2xx — but relay providers (jiushi.xin) often return 200 with an error
+      // body when the model name is invalid / balance exhausted. For non-streaming
+      // we read the whole body and validate it before trusting the response.
+      if (!stream) {
+        const text = await response.text()
+        let parsed = null
+        try { parsed = JSON.parse(text) } catch {}
+        const content = parsed?.choices?.[0]?.message?.content
+        const errMsg = parsed?.error?.message || parsed?.error
+        if (errMsg || (!content && text.trim())) {
+          console.warn(`[Model] ❌ "${model}" error body: ${String(errMsg || text).slice(0, 200)}`)
+          lastError = new Error(String(errMsg || 'empty response'))
+          continue
+        }
+        if (i > 0) console.log(`[Model] ✅ Fallback to "${model}"`)
+        return { data: parsed, model }
+      }
+
+      // Streaming: 200 is the only pre-stream signal available.
+      if (i > 0) console.log(`[Model] ✅ Fallback to "${model}"`)
+      return { response, model }
     } catch (err) {
       console.warn(`[Model] ❌ "${model}" network: ${err.message}`)
       lastError = err
@@ -637,10 +661,9 @@ ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
 回复格式：先写一个emoji，然后一个中文逗号，然后一句心情留言。
 例：🌸，今天看到你好开心`
 
-    const { response: moodResp } = await tryModels(models, apiKey, apiBase,
+    const { data } = await tryModels(models, apiKey, apiBase,
       (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.9, max_tokens: 50 })
     )
-    const data = await moodResp.json()
     const text = data.choices?.[0]?.message?.content || '🌸，今天也是美好的一天'
 
     // Split on first Chinese/English comma — emoji before comma, note after
@@ -751,10 +774,9 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
 
 回复格式：先YES或NO，然后如果YES，下一行写消息（30字以内，口语化、不模板）。`
 
-    const { response: nudgeResp } = await tryModels(models, apiKey, apiBase,
+    const { data } = await tryModels(models, apiKey, apiBase,
       (m) => ({ model: m, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: '到时间了，看看要不要发消息？' }], temperature: 0.9, max_tokens: 200 })
     )
-    const data = await nudgeResp.json()
     const text = data.choices?.[0]?.message?.content || ''
     const isYes = text.toUpperCase().includes('YES')
     const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
@@ -898,10 +920,9 @@ app.post('/api/chat', async (req, res) => {
   // ── Non-streaming mode: generate full response then return ──
   if (!isStream) {
     try {
-      const { response: chatResp } = await tryModels(models, apiKey, apiBase,
+      const { data } = await tryModels(models, apiKey, apiBase,
         (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens })
       )
-      const data = await chatResp.json()
       const text = data.choices?.[0]?.message?.content || ''
       return res.json({ content: text })
     } catch (err) {
@@ -918,7 +939,8 @@ app.post('/api/chat', async (req, res) => {
 
   try {
     const { response } = await tryModels(models, apiKey, apiBase,
-      (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens, stream: true })
+      (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens, stream: true }),
+      { stream: true }
     )
 
     if (!response.ok) {
@@ -1035,10 +1057,9 @@ app.all('/api/diary/generate', async (req, res) => {
 ${chatText}
 ---`
 
-    const { response: diaryResp } = await tryModels(models, apiKey, apiBase,
+    const { data: diaryData } = await tryModels(models, apiKey, apiBase,
       (model) => ({ model, messages: [{ role: 'user', content: diaryPrompt }], temperature: 0.9, max_tokens: 4096 })
     )
-    const diaryData = await diaryResp.json()
     const diaryContent = diaryData.choices?.[0]?.message?.content || ''
 
     // Upsert diary
@@ -1083,10 +1104,9 @@ ${currentMemo}
 - complete_promises: 已完成的事情的id列表
 - delete_promises: 已经过了很久、不再重要的承诺的id列表`
 
-      const { response: memoResp } = await tryModels(models, apiKey, apiBase,
+      const { data: memoData } = await tryModels(models, apiKey, apiBase,
         (model) => ({ model, messages: [{ role: 'user', content: memoPrompt }], temperature: 0.7, max_tokens: 2048 })
       )
-      const memoData = await memoResp.json()
       const memoText = memoData.choices?.[0]?.message?.content || ''
 
       // Parse JSON from AI response
