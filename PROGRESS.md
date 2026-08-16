@@ -34,6 +34,10 @@
 
 ### 其他
 - ✅ Zeabur 余额不足（Insufficient balance）→ 用户已充值，服务恢复
+- ✅ 部署成功（lockfile 换源后构建通过）
+
+### 遗留 / 下次要做
+- ⚠️ **服务器内存 2GB 已用 57%**：待分析占用来源（可能 Express / Ombre-Brain 记忆引擎 / node 进程），下次想办法优化或扩容
 
 ---
 
