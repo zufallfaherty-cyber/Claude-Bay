@@ -16,7 +16,9 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 }
 
 // ── Model helpers ──
-function parseModels(input, fallback = '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6') {
+const DEFAULT_MODELS = '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
+
+function parseModels(input, fallback = DEFAULT_MODELS) {
   const raw = input || fallback
   return raw.split(',').map(m => m.trim()).filter(Boolean)
 }
@@ -651,7 +653,7 @@ app.post('/api/claude-mood', async (req, res) => {
 
     const apiKey = process.env.API_KEY
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+    const models = parseModels(process.env.MODEL, DEFAULT_MODELS)
 
     const prompt = `当前时间：${timeStr}
 ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
@@ -752,7 +754,7 @@ app.all('/api/nudge', async (req, res) => {
 
     const apiKey = process.env.API_KEY || req.body?.apiKey || ''
     const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+    const models = parseModels(process.env.MODEL, DEFAULT_MODELS)
 
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落，只在需要的时候单独发一个「嗯？」。用文字本身传递温度，不依赖emoji，开心时才发 ^ ^。不说教不催促。选择更柔软的表达，避开「不过」「行」这类生硬的词。分段不留空行。'}
 
@@ -872,7 +874,7 @@ app.post('/api/chat', async (req, res) => {
 
   const apiKey = reqKey || process.env.API_KEY
   const apiBase = reqBase || process.env.API_BASE || 'https://api.jiushi.xin/v1'
-  const models = parseModels(reqModel || process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6')
+  const models = parseModels(reqModel || process.env.MODEL, DEFAULT_MODELS)
 
   if (!apiKey) {
     return res.status(500).json({ error: 'API_KEY not configured on server' })
@@ -1308,5 +1310,5 @@ app.delete('/api/memo/promises/:id', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`🐰 Bunny Chat server running on http://localhost:${PORT}`)
   console.log(`   API Base: ${process.env.API_BASE || 'https://api.jiushi.xin/v1'}`)
-  console.log(`   Models: ${parseModels(process.env.MODEL, '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6').join(', ')}`)
+  console.log(`   Models: ${parseModels(process.env.MODEL, DEFAULT_MODELS).join(', ')}`)
 })

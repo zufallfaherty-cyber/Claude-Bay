@@ -86,7 +86,7 @@ export default function Settings() {
     localStorage.getItem('api_key') || ''
   )
   const [apiModel, setApiModel] = useState(() =>
-    localStorage.getItem('api_model') || '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6'
+    localStorage.getItem('api_model') || '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
   )
   const [saved, setSaved] = useState(false)
 
