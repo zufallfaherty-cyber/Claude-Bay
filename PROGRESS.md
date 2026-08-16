@@ -4,17 +4,36 @@
 
 ---
 
-## 2026.8.16 模型降级修复
+## 2026.8.16 模型降级 + 部署修复
 
 ### 多模型自动降级没生效（Bug）
 - ❌ **现象**：用户反馈「模型不能用就换一个」没生效，第一个模型失效时不切换
-- ✅ **根因**：`tryModels()` 只判断 HTTP 状态码 `response.ok`，但中转站（jiushi.xin）在模型名失效 / 余额不足 / 渠道下线时**返回 HTTP 200 + body 里的 `error` 字段**，被当成成功、不降级
+- ✅ **根因**：`tryModels()` 只判断 HTTP 状态码 `response.ok`，但中转站（jiushi.xin）在模型名失效 / 渠道下线时**返回 HTTP 200 + body 里的 `error` 字段**，被当成成功、不降级
 - ✅ **修复**（`server/index.js`）：
   - 非流式分支读完整 body，解析后校验 `error` 字段或空 `choices`，有问题 `continue` 到下一模型
   - 流式分支显式传 `{ stream: true }` 区分
   - 6 处调用点（chat / mood / nudge / diary / memo）从 `{ response }` + `.json()` 统一改为 `{ data }`
-- ✅ 已提交推送：commit `d4556fd` → origin/master，Zeabur 自动部署 bayapi
-- ⚠️ 待验证：手机设置页「模型」字段应为逗号分隔 3 模型 `[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6`（若 localStorage 存的是旧单个模型名则无列表可切）
+- ✅ commit `d4556fd`
+
+### 降级列表加 [按量] + 抽常量
+- ✅ 抽 `DEFAULT_MODELS` 常量统一 6 处硬编码，追加 `[按量]claude-opus-4-6` 兜底
+- ✅ 现列表：`[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6`
+- ✅ Settings 默认值同步。commit `0f871a1`
+
+### 验证发现：默认模型名全部失效（外部问题）
+- ❌ 实测 4 个默认模型名（`[AG2缓存按量]` / `[按量]` / `[k]` 前缀）在中转站全部 `No available channel ... under group vip` —— 渠道已下线
+- ✅ Zeabur 环境变量 `MODEL` 里配的模型仍有效（不传 apiModel 时 chat / mood 正常）
+- ✅ 降级逻辑本身验证通过（依次尝试多模型并正确报最后一个错误）
+- ⚠️ 等中转站渠道恢复；届时若有效模型名 ≠ DEFAULT_MODELS 需再更新
+
+### Zeabur 部署失败（npmmirror 历史坑复发）
+- ❌ 充值后仍「部署失败」，根因是 `server/package-lock.json` 残留 69 处 `registry.npmmirror.com`
+- ✅ Zeabur 构建环境只放行 `registry.npmjs.org`，npmmirror 触发 EALLOWREMOTE。7.16 只修了根目录 lockfile，漏了 `server/`
+- ✅ 修复：sed 全局替换 `registry.npmmirror.com` → `registry.npmjs.org`。commit `0f2a914`
+- 📌 **历史坑**：以后 `npm install` 若走了淘宝镜像，记得同时检查根目录和 `server/` 两个 lockfile 的 resolved 域名
+
+### 其他
+- ✅ Zeabur 余额不足（Insufficient balance）→ 用户已充值，服务恢复
 
 ---
 
