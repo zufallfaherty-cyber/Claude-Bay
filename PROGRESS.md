@@ -1,6 +1,20 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年7月16日 晚上
+## 最后更新：2026年8月16日
+
+---
+
+## 2026.8.16 模型降级修复
+
+### 多模型自动降级没生效（Bug）
+- ❌ **现象**：用户反馈「模型不能用就换一个」没生效，第一个模型失效时不切换
+- ✅ **根因**：`tryModels()` 只判断 HTTP 状态码 `response.ok`，但中转站（jiushi.xin）在模型名失效 / 余额不足 / 渠道下线时**返回 HTTP 200 + body 里的 `error` 字段**，被当成成功、不降级
+- ✅ **修复**（`server/index.js`）：
+  - 非流式分支读完整 body，解析后校验 `error` 字段或空 `choices`，有问题 `continue` 到下一模型
+  - 流式分支显式传 `{ stream: true }` 区分
+  - 6 处调用点（chat / mood / nudge / diary / memo）从 `{ response }` + `.json()` 统一改为 `{ data }`
+- ✅ 已提交推送：commit `d4556fd` → origin/master，Zeabur 自动部署 bayapi
+- ⚠️ 待验证：手机设置页「模型」字段应为逗号分隔 3 模型 `[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6`（若 localStorage 存的是旧单个模型名则无列表可切）
 
 ---
 
