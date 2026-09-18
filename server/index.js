@@ -534,7 +534,20 @@ app.post('/api/admin/cleanup', async (req, res) => {
 
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  const mem = process.memoryUsage()
+  const toMB = (n) => Math.round((n / 1024 / 1024) * 10) / 10
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime_sec: Math.round(process.uptime()),
+    memory_mb: {
+      rss: toMB(mem.rss),
+      heapTotal: toMB(mem.heapTotal),
+      heapUsed: toMB(mem.heapUsed),
+      external: toMB(mem.external),
+      arrayBuffers: toMB(mem.arrayBuffers),
+    },
+  })
 })
 
 // ── Ombre-Brain test ──
