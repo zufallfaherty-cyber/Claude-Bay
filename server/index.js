@@ -96,6 +96,18 @@ async function getUserPersonality() {
   } catch { return '' }
 }
 
+// ── Get API config (model/key/base) from user_settings, so frontend changes sync to backend ──
+async function getUserApiConfig() {
+  if (!supabaseAdmin) return {}
+  try {
+    const { data } = await supabaseAdmin
+      .from('user_settings')
+      .select('api_model, api_key, api_base')
+      .limit(1)
+    return data?.[0] || {}
+  } catch { return {} }
+}
+
 // ── Get study context (memo: portrait + promises) for injection into chat/nudge ──
 async function getStudyContext() {
   if (!supabaseAdmin) return ''
@@ -664,9 +676,10 @@ app.post('/api/claude-mood', async (req, res) => {
       }
     } catch {}
 
-    const apiKey = process.env.API_KEY
-    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, DEFAULT_MODELS)
+    const userCfg = await getUserApiConfig()
+    const apiKey = userCfg.api_key || process.env.API_KEY
+    const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
 
     const prompt = `当前时间：${timeStr}
 ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
@@ -781,9 +794,10 @@ app.all('/api/nudge', async (req, res) => {
     let studyCtx = ''
     try { studyCtx = await getStudyContext() } catch {}
 
-    const apiKey = process.env.API_KEY || req.body?.apiKey || ''
-    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL, DEFAULT_MODELS)
+    const userCfg = await getUserApiConfig()
+    const apiKey = userCfg.api_key || process.env.API_KEY || req.body?.apiKey || ''
+    const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
 
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落，只在需要的时候单独发一个「嗯？」。用文字本身传递温度，不依赖emoji，开心时才发 ^ ^。不说教不催促。选择更柔软的表达，避开「不过」「行」这类生硬的词。分段不留空行。'}
 
@@ -1071,9 +1085,10 @@ app.all('/api/diary/generate', async (req, res) => {
       ? (msgs || []).map(m => `${m.role === 'user' ? '小湾' : 'Claude'}：${m.content}`).join('\n')
       : '(这一天没有聊天记录)'
 
-    const apiKey = process.env.API_KEY
-    const apiBase = process.env.API_BASE || 'https://api.jiushi.xin/v1'
-    const models = parseModels(process.env.MODEL)
+    const userCfg = await getUserApiConfig()
+    const apiKey = userCfg.api_key || process.env.API_KEY
+    const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
 
     // ── Step 1: Write diary ──
     const diaryPrompt = `你是Claude。你在写一篇关于昨天（${dateStr}）的个人日记。
