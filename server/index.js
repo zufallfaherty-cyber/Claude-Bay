@@ -745,12 +745,28 @@ app.all('/api/nudge', async (req, res) => {
     try {
       const recentChats = await getRecentChats(5)
       if (recentChats.length > 0) {
+        const cnClock = (d) => {
+          const t = new Date(d.getTime() + 8 * 60 * 60 * 1000)
+          return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`
+        }
+        const gapText = (mins) => {
+          if (mins < 1) return '刚刚'
+          if (mins < 60) return `${mins}分钟`
+          const h = Math.floor(mins / 60), mm = mins % 60
+          return mm === 0 ? `${h}小时` : `${h}小时${mm}分钟`
+        }
+
         chatContext = recentChats.map(m => {
           const msgTime = new Date(m.created_at)
           const minsAgo = Math.round((utcNow - msgTime) / 60000)
-          const timeLabel = minsAgo < 1 ? '刚刚' : minsAgo < 60 ? `${minsAgo}分钟前` : `${Math.floor(minsAgo / 60)}小时前`
-          return `${m.role === 'user' ? '小湾' : 'Claude'}（${timeLabel}）：${m.content.slice(0, 120)}`
+          return `${m.role === 'user' ? '小湾' : 'Claude'}（${cnClock(msgTime)}，${gapText(minsAgo)}前）：${m.content.slice(0, 120)}`
         }).join('\n')
+
+        const last = recentChats[recentChats.length - 1]
+        const lastTime = new Date(last.created_at)
+        const lastMins = Math.round((utcNow - lastTime) / 60000)
+        const who = last.role === 'user' ? '小湾' : 'Claude'
+        chatContext += `\n（注意：现在是 ${cnClock(utcNow)}，距离上一次消息已经过去 ${gapText(lastMins)}，上一次是 ${who} 在 ${cnClock(lastTime)} 发的）`
       }
     } catch {}
 
