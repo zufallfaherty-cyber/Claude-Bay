@@ -16,7 +16,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 }
 
 // ── Model helpers ──
-const DEFAULT_MODELS = '[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
+const DEFAULT_MODELS = '[企业按量]claude-opus-4-6,[CCMAX]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
 
 function parseModels(input, fallback = DEFAULT_MODELS) {
   const raw = input || fallback

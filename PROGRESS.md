@@ -1,6 +1,66 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年8月16日
+## 最后更新：2026年10月7日
+
+---
+
+## 2026.10.7 nudge 失效真正原因（模型名定位）
+
+### 实测结果（通过 bayapi /api/chat 逐个模型测出）
+- ✅ **`[CCMAX]claude-opus-4-6`** —— 唯一能正常回复的模型，前端聊天靠它在兜底
+- ❌ `[企业按量]claude-opus-4-6` —— `This token has no access`（用户一直以为能用，其实是 CCMAX 在兜底）
+- ❌ `[k]claude-opus-4-6` / `[k]claude-sonnet-4-6` —— `No available channel ... group vip`
+- ❌ `[按量]claude-opus-4-6` —— no access
+
+### 结论
+- API 密钥没问题（前端 Settings key 与 Zeabur 后端 `API_KEY` 相同，配 CCMAX 都通）
+- **根因**：Zeabur bayapi 的 `MODEL` 环境变量没配 `[CCMAX]claude-opus-4-6`，nudge 调 `process.env.MODEL` 失败 → 500
+- **修复**：Zeabur `MODEL` 改为 `[CCMAX]claude-opus-4-6`（待用户改，改完验证）
+- **遗留**：`server/index.js` 的 `DEFAULT_MODELS` 常量、`Settings.jsx` 默认值仍是旧失效列表，可顺手更新
+
+---
+
+## 2026.10.6 nudge 触发频率 + 模型问题（待办）
+
+### nudge 实际触发频率 = 每 1 小时
+- ⚠️ PROGRESS.md 里多处写的「45 分钟 / 2 小时」都是过时残留，真实间隔在 cron-job.org 上配的，**现在是每 1 小时一次**
+- 📌 代码里没有触发频率逻辑（只有凌晨 1-5 点静默），间隔完全由 cron-job.org 决定
+
+### 模型 AG2 用不了 → nudge 触发不了
+- ❌ 当前 Zeabur `MODEL` 环境变量用的 AG2 模型已失效，导致 nudge 一直触发不了
+- ✅ 用户决定改成「企业按量」模型（中转站模型前缀）
+- ⏳ **待办**：等梯子（VPN）恢复后，改 Zeabur `MODEL` 环境变量为 [企业按量] 前缀的有效模型（具体模型名需到中转站 jiushi.xin 确认）
+
+### 其他
+- 梯子今天坏了，cron-job.org / 中转站都打不开，只能等
+
+---
+
+## 2026.9.18 内存排查 + baymemory 崩溃修复
+
+### baymemory 崩溃循环（mcp 2.x 依赖漂移）
+- ❌ **现象**：baymemory 反复 BackOff 崩溃，日志 `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`
+- ✅ **根因**：`requirements.txt` 里 `mcp>=1.0.0` 没锁上限，重新构建时 pip 拉到 mcp 2.x（FastMCP 改名为 MCPServer），而 `server.py` 仍按 1.x 写 `from mcp.server.fastmcp import FastMCP`
+- ✅ **修复**：`requirements.txt` 改为 `mcp>=1.0.0,<2`。commit `b83ade4`，Zeabur 手动 Redeploy 后恢复运行
+- 📌 **教训**：Python 依赖没锁大版本，重新构建会拉到破坏性新版本。下次改依赖记得锁上限
+
+### 内存占用排查（结论：不是我们的服务）
+- ✅ 加 `/api/memory` 公开接口（`src/web/system.py`），返回 rss/peak/embedding/buckets 统计
+- ✅ 实测：baymemory Python **105 MB**（峰值 107 MB），bayapi Node **74 MB**
+- ✅ **结论**：两个服务合计 <200 MB，2GB 服务器里 65%（约 1.3GB）不是它们吃的，很可能是崩溃循环期间的临时状态。内存问题基本排除，无需优化/扩容
+- 📌 之前的"2GB 已用 57%"（见 8.16 遗留）大概率同源
+
+### ⚠️ 记忆数据已丢失（已确认）
+- ❌ `/api/memory` 返回 `embedding_count: 0`、所有 bucket 计数 0、`total_size_kb: 0.0`
+- ✅ **已确认根因**：Zeabur baymemory 从未挂持久化卷（用户确认"什么都没挂载"），数据一直躺在容器临时盘里，这次 Redeploy 换容器就清掉了
+- ✅ **确认无备份**：`github_sync.py` 备份功能需 `OMBRE_GITHUB_TOKEN`，从未配置；数据在 `.gitignore` 里，没进 git
+- ✅ **已挂载持久化卷**：给 baymemory 挂盘到 `/app/buckets`（1GB），服务健康（HTTP 200）。之后记忆会持久化，不会再丢
+- 📌 可选后续：开 GitHub 备份（`github_sync.py`，需 `OMBRE_GITHUB_TOKEN`）做双保险
+- 📌 聊天记录等业务数据在 Supabase，未受影响
+
+### 密钥泄露（用户暂不处理）
+- ⚠️ 排查时把多个密钥明文贴进了对话：`API_KEY`、`SUPABASE_SERVICE_ROLE`、`OMBRE_COMPRESS_API_KEY`、`OMBRE_EMBED_API_KEY`、`PUSHOVER_TOKEN`、两个 `PASSWORD`
+- 📌 **用户决定暂不重置**（"账户没多少钱"）。已提醒：Supabase Service Role 能读全部聊天记录/情绪日记，属隐私风险而非金钱风险，建议至少换这一个
 
 ---
 
