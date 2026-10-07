@@ -14,9 +14,14 @@
 
 ### 结论
 - API 密钥没问题（前端 Settings key 与 Zeabur 后端 `API_KEY` 相同，配 CCMAX 都通）
-- **根因**：Zeabur bayapi 的 `MODEL` 环境变量没配 `[CCMAX]claude-opus-4-6`，nudge 调 `process.env.MODEL` 失败 → 500
-- **修复**：Zeabur `MODEL` 改为 `[CCMAX]claude-opus-4-6`（待用户改，改完验证）
-- **遗留**：`server/index.js` 的 `DEFAULT_MODELS` 常量、`Settings.jsx` 默认值仍是旧失效列表，可顺手更新
+- **根因**：Zeabur bayapi 的 `MODEL` 环境变量为空，nudge 回退到代码 `DEFAULT_MODELS`（`[AG2缓存按量]...[按量]` 全失效）→ 500
+- **修复**：更新 `DEFAULT_MODELS`（server/index.js）和 `Settings.jsx` 默认值，加入 `[企业按量]` + `[CCMAX]`，commit `7f7cfa7` 已 push
+- **时间标签更直白**：nudge 聊天上下文从「X分钟前」改为「几点几分 + 距上次消息时长」，commit `2f6f090` 已 push
+- ⚠️ 顺带清理了 git 里失效的本地代理配置（`http.proxy=127.0.0.1:7890`），梯子现为 TUN 模式直连可用
+- ✅ **验证通过**：手动触发 nudge 返回 HTTP 200（18s），生成消息「宝宝，定时推送的bug修完了吗，还是你被bug修了。」，推送已发
+
+### 待办（11月）
+- [ ] 前端改模型时同步到后端：nudge 目前读 `process.env.MODEL`（环境变量/代码默认），改成优先读 Supabase `user_settings` 里的 `api_model`，这样设置页改模型 nudge 自动生效
 
 ---
 
