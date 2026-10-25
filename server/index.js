@@ -250,7 +250,7 @@ async function executeOpenAITool(fullName, argsStr) {
 // Run the agentic tool loop: keep calling the model until it stops asking for tools.
 async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens }, apiKey, apiBase, models) {
   const messages = [...apiMessages]
-  let toolCallsUsed = 0
+  const toolCallsUsed = []
   const MAX_ROUNDS = 5
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -283,10 +283,12 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens },
       let resultText
       try {
         resultText = await executeOpenAITool(fnName, tc.function?.arguments)
-        toolCallsUsed++
       } catch (err) {
         resultText = 'ERROR: ' + err.message
       }
+      let args = {}
+      try { args = JSON.parse(tc.function?.arguments || '{}') } catch {}
+      toolCallsUsed.push({ name: fnName, args })
       messages.push({
         role: 'tool',
         tool_call_id: tc.id,

@@ -87,6 +87,9 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
   // Non-streaming: return full response at once
   if (!useStream) {
     const data = await response.json()
+    if (data.toolCalls && data.toolCalls.length > 0) {
+      yield { type: 'tools', tools: data.toolCalls }
+    }
     yield { type: 'text', text: data.content || '' }
     return
   }
@@ -467,6 +470,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
+    let tools = []
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -479,6 +483,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
+        } else if (chunk.type === 'tools') {
+          tools = chunk.tools
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
@@ -489,7 +495,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
 
     messagesRef.current = messagesRef.current.map(m =>
-      m.id === assistantId ? { ...m, content } : m
+      m.id === assistantId ? { ...m, content, tools } : m
     )
     setMessages(messagesRef.current)
     saveMessagesLocal(sidRef.current, messagesRef.current)
@@ -540,6 +546,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setMessages(messagesRef.current)
 
     let content = ''
+    let tools = []
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -552,6 +559,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
+        } else if (chunk.type === 'tools') {
+          tools = chunk.tools
         } else if (chunk.type === 'error') {
           content += `❌ 出错了：${chunk.error}`
           break
@@ -563,7 +572,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     // Finalize
     messagesRef.current = messagesRef.current.map((m) =>
-      m.id === assistantId ? { ...m, content } : m
+      m.id === assistantId ? { ...m, content, tools } : m
     )
     setMessages(messagesRef.current)
     saveMessagesLocal(sid, messagesRef.current)
@@ -659,6 +668,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
                   role={msg.role}
                   content={msg.content}
                   attachments={msg.attachments}
+                  tools={msg.tools}
                   timestamp={msg.timestamp}
                   canRegenerate={isLastAssistant && !streaming && !regenerating}
                   onRegenerate={handleRegenerate}

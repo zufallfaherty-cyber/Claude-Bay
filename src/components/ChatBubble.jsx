@@ -11,7 +11,7 @@ function parseCodeBlocks(text) {
   return blocks
 }
 
-export default function ChatBubble({ role, content, attachments, timestamp, canRegenerate, onRegenerate }) {
+export default function ChatBubble({ role, content, attachments, tools, timestamp, canRegenerate, onRegenerate }) {
   const isUser = role === 'user'
   const time = timestamp ? new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : ''
   const [saved, setSaved] = useState(false)
@@ -82,6 +82,21 @@ export default function ChatBubble({ role, content, attachments, timestamp, canR
                 </div>
               )
             ))}
+          </div>
+        )}
+
+        {/* Tool call hint (above reply) */}
+        {!isUser && tools && tools.length > 0 && (
+          <div className="mb-1.5 flex flex-wrap gap-1.5 ml-1">
+            {tools.map((t, i) => {
+              const name = String(t.name || '').split('__').pop()
+              return (
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-mint/50 text-sage-deep text-[11px] font-medium border border-sage/20">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                  {name}
+                </span>
+              )
+            })}
           </div>
         )}
 
