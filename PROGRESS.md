@@ -4,6 +4,25 @@
 
 ---
 
+## 2026.10.25 小湾画像实装 + Claude 自动补充（✅ 完成）
+
+### 画像功能上线
+- 前端「书房」实装「小湾画像」：默认进备忘录 tab（日记不装，按用户要求只装画像），画像 + 承诺/待办可编辑/增删
+- Supabase 建表 `memo_portrait` / `memo_promises`（之前没建，导致书房「没实装」），并补 GRANT（否则 42501 权限拒绝）
+- 后端 `/api/memo`、`/api/memo/portrait`、`/api/memo/promises` CRUD；`getStudyContext()` 把画像 + 承诺注入聊天/nudge 的 system prompt
+
+### 画像自动补充（本次核心）
+- `server/index.js` 新增 `autoUpdatePortrait(content)`：读现有画像 → 让 Claude 判断新信息是否为长期个人信息（生日/称呼/口味/各种喜好/工作/家人/性格/亲密成人偏好等）→ 有则融合成新画像（≤300字）写回 `memo_portrait`，否则输出 NO 不动
+- `/api/remember` 命中 `personal_info` 标签时 fire-and-forget 调它，不阻塞返回、失败静默
+- 前端 `personalKeywords` 增补亲密/成人触发词（做爱/上床/爱爱/口交/想要我/要我）
+- 已部署：后端 scp + `docker compose up -d --build bayapi`（健康检查 OK）；前端 git push → Vercel 自动部署
+
+### 注意
+- 画像自动补充每次命中个人信息会多一次 Claude 调用（opus），个人信息频率低，可接受
+- 日记（claude_diaries）仍未装，按用户要求只装画像
+
+---
+
 ## 2026.10.25 Zeabur 停运 → 迁移到腾讯云香港服务器（✅ 核心搬家完成）
 
 ### 背景
