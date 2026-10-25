@@ -5,7 +5,7 @@ const API = 'https://124-156-142-6.sslip.io'
 
 export default function ClaudeSpace() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('diary') // 'diary' | 'memo'
+  const [tab, setTab] = useState('memo') // 'diary' | 'memo'
 
   // ── Diary state ──
   const [diaries, setDiaries] = useState([])
@@ -128,12 +128,6 @@ export default function ClaudeSpace() {
 
       {/* Tab bar */}
       <div className="flex-shrink-0 flex px-4 pt-3 pb-1 gap-1">
-        <button
-          onClick={() => setTab('diary')}
-          className={`flex-1 py-2 rounded-xl text-[14px] font-medium transition-all active:scale-[0.97] ${
-            tab === 'diary' ? 'bg-sage-deep text-white shadow-sm' : 'text-warm-gray hover:bg-mint/50'
-          }`}
-        >📔 日记</button>
         <button
           onClick={() => setTab('memo')}
           className={`flex-1 py-2 rounded-xl text-[14px] font-medium transition-all active:scale-[0.97] ${
