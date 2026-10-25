@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { toolMeta } from '../lib/toolLabels'
 
 const API = 'https://124-156-142-6.sslip.io'
 
@@ -199,8 +200,8 @@ export default function ToolboxPage() {
                       className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/45 border border-white/50 hover:bg-mint/40 active:scale-[0.98] transition-all text-left min-h-[72px]"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-semibold text-warm-dark">{t.name}</p>
-                        {t.description && <p className="text-[12px] text-warm-gray/60 leading-relaxed mt-1 line-clamp-2">{t.description}</p>}
+                        <p className="text-[15px] font-semibold text-warm-dark">{toolMeta(t.name).label}</p>
+                        {(toolMeta(t.name).desc || t.description) && <p className="text-[12px] text-warm-gray/60 leading-relaxed mt-1 line-clamp-2">{toolMeta(t.name).desc || t.description}</p>}
                       </div>
                       {/* Big switch (visual) */}
                       <span className={`relative w-14 h-8 rounded-full transition-all flex-shrink-0 ${t.enabled ? 'bg-sage-deep' : 'bg-warm-line/50'}`}>
