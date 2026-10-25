@@ -5,7 +5,7 @@ const uuid = () => crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxx
 
 // ── SSE stream (same as ChatPage) ──
 async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }) {
-  const response = await fetch('https://bayapi.zeabur.app/api/chat', {
+  const response = await fetch('https://124-156-142-6.sslip.io/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }),
@@ -213,7 +213,7 @@ export default function LudoGame() {
       const winnerName = whoWon === 'bay' ? '小湾' : 'Claude'
 
       // Call Claude to generate a cute summary
-      const res = await fetch('https://bayapi.zeabur.app/api/chat', {
+      const res = await fetch('https://124-156-142-6.sslip.io/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

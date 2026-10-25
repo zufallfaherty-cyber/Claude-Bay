@@ -26,7 +26,7 @@ export default function MemoryPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('https://bayapi.zeabur.app/api/memories')
+    fetch('https://124-156-142-6.sslip.io/api/memories')
       .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
       .then((data) => setMemories(data.buckets || []))
       .catch((err) => setError(err.message))

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const API = 'https://bayapi.zeabur.app'
+const API = 'https://124-156-142-6.sslip.io'
 
 export default function ClaudeSpace() {
   const navigate = useNavigate()

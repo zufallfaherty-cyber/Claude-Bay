@@ -1,6 +1,84 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年10月7日
+## 最后更新：2026年10月25日
+
+---
+
+## 2026.10.25 Zeabur 停运 → 迁移到腾讯云香港服务器（✅ 核心搬家完成）
+
+### 背景
+- Zeabur 因两次数据泄露（8月 + 10月14-15）宣布 2026-12-31 全面停运，bayapi/baymemory 必须搬走
+- 用户没银行卡、只有支付宝/微信，试过 Railway（暂停注册）/ Render（免费也要卡）/ HF（国内被墙）都走不通 → 最终选腾讯云香港轻量服务器（微信支付，约 ¥30/月，境外区免备案）
+
+### 新服务器
+- **IP `124.156.142.6`**，Ubuntu 22.04，用户 `ubuntu`，免密 SSH（`~/.ssh/id_ed25519`），Docker 29 + Compose v5
+- `~/docker-compose.yml` 跑两个容器（都监听 127.0.0.1，待 Caddy 反代出 HTTPS）：
+  - `baymemory`：Ombre-Brain，`~/Ombre-Brain`，命名卷 `buckets`→`/app/buckets`，端口 8000
+  - `bayapi`：bunny-chat 后端，`~/bayapi`（直接 scp，没走 git），端口 3001，`OMBRE_BRAIN_URL=http://baymemory:8000` 内网连通
+- ⚠️ **踩坑**：bayapi 的 Dockerfile 原来用 `node:20-slim`，新版 `@supabase/supabase-js` 要原生 WebSocket（Node 20 没有）→ 崩循环。改 `node:22-slim` 解决
+
+### 数据迁移（1186 个记忆桶，全部搬完）
+- 旧 baymemory `/api/export`（需 dashboard 登录，旧实例 `setup_needed:true`，走 `/auth/setup` 设临时密码拿会话）→ 导出 1.8MB zip（1186 桶 + embeddings.db 20KB + export_meta.json）
+- 新实例 `/auth/setup` → `/api/migrate/upload`（解析：1186 桶、0 冲突、embedding 模型一致）→ `/api/migrate/apply` → `imported:1186, skipped:0`
+- ✅ `/health` buckets=1186，卷内 1186 个 .md 文件核验落盘、内容完整
+
+### ⏳ 剩余待办
+1. **HTTPS + 域名**：前端 Vercel 是 HTTPS，后端必须 HTTPS。可选免费 `sslip.io`（`https://124-156-142-6.sslip.io`，零成本）或买 ¥10 域名
+2. 前端 14 处 `bayapi.zeabur.app` 改新 URL → 重新部署 Vercel
+3. cron-job.org 的 nudge/diary URL 改新地址
+4. （可选）GitHub 备份防再丢数据
+5. （用户暂缓）轮换 Zeabur 上泄露的密钥（SUPABASE_SERVICE_ROLE 等）
+
+---
+
+## 2026.10.25 记忆库「回忆失衡」优化（Ombre-Brain）
+
+### 问题
+- 回忆（breath 浮现）被高情感浓度的亲密/身体接触记忆霸榜：这类记忆 arousal 高（V0.8/A0.9），权重 ~12.5；日常/哲学话题（V0.5/A0.3）权重 ~8，全被挤到后面
+- AI 每次只取前 5~10 条（聊天 10 / nudge 8 / 日记 5），前几名全是亲密内容 → AI 眼里「用户」只剩亲密记忆，日常/哲学话题看不到
+
+### 修复（Ombre-Brain，commit `7bf511b`）
+1. 长期记忆情绪占比 70%→60%：`src/decay_engine.py` `_LONG_TERM_EMOTION_RATIO`
+2. 回忆加「域多样性」：`src/tools/breath/surface.py` 新增 `_diversify_domains()`，单一主域最多占浮现名额 50%（前10条恋爱最多5、前8条最多4），冷启动桶仍置顶
+3. `config.example.yaml` 加 `surfacing.domain_diversity_ratio: 0.5`（0=关、1=不限制）
+
+### 效果
+- 回忆从「全是亲密互动」变成「亲密 + 日常 + 哲学均衡浮现」，不删任何已存记忆，只改「回忆时谁浮上来」
+
+### ⏳ 部署（待梯子）
+- push 暂失败（`Could not resolve host: github.com`，梯子未开）。开梯子后：`cd Ombre-Brain && git push origin main` → Zeabur 手动 Redeploy baymemory
+- 无需改环境变量：`domain_diversity_ratio` 代码默认 0.5
+
+---
+
+## 2026.10.10 前端打不开排查 +「免梯子」完整方案确认
+
+### 现象
+- ❌ 前端 https://claude-bay-two.vercel.app 突然打不开，浏览器报 `FetchEvent.respondWith received an error: TypeError: Load failed`
+
+### 根因：Vercel 域名被墙（DNS 污染）
+- ✅ 实测 DNS 解析 `claude-bay-two.vercel.app` → `31.13.69.169`（Facebook 的 IP）+ IPv6 `2a03:...face:b00c`，典型的 DNS 污染特征
+- ✅ `TypeError: Load failed` = Service Worker（sw.js 网络优先策略）去 fetch 被墙的资源失败，不是代码 bug
+- ✅ 后端 `bayapi.zeabur.app` 国内直连正常（HTTP 200），代码 / 服务器 / 中转站都没问题
+
+### 关键发现：Supabase 也被墙（这才是「免梯子」真正的拦路虎）
+- ❌ 实测 `dfiztbhylghncyangdlm.supabase.co` 国内直连被重置（Connection reset），登录 + 直连数据都会失败
+- ✅ 澄清了用户误解：中转站（api.jiushi.xin）不是问题 —— 它是**后端在境外调的**（ChatPage / LudoGame 都 fetch `bayapi.zeabur.app/api/chat`，手机从不直连中转站）
+- ⚠️ 真正被墙、且浏览器直连的是：**Vercel（前端）+ Supabase（登录 + 部分数据）**
+
+### 「不用梯子」完整方案（用户暂缓，先等梯子）
+要彻底免梯子，需两步：
+1. **前端搬到 Zeabur** —— 解决「打开页面」
+2. **所有 Supabase 请求改走后端代理** —— 登录 + 数据不再浏览器直连 Supabase。后端已有 load-sessions/load-messages/load-settings/save-chat/save-settings 等接口走 service_role，但**缺 auth 登录接口**，且 `supabase.js` 里 createSession/updateSession/insertMessage/insertMessages/moods/files/fetchTogetherSince 等仍是前端直连 Supabase
+
+### 决策
+- ✅ 用户决定：先等梯子恢复（去睡觉了），暂不做迁移
+- 📌 时间预估：完整迁移约 1～2 小时（后端补 auth 接口 + 前端 AuthContext / supabase.js 改走后端 + 测试）
+
+### 待办（下次）
+- [ ] 梯子恢复后：可选做「前端迁 Zeabur + Supabase 全走后端代理」，彻底免梯子
+- [ ] 后端补 `/api/auth/*`（signin/signup），前端 AuthContext 改走后端（不再用 supabase-js auth 直连）
+- [ ] `supabase.js` 剩余直连 Supabase 的调用改走后端或补对应接口
 
 ---
 

@@ -4,7 +4,7 @@
 
 // ── Sessions ──
 
-const API_BASE = 'https://bayapi.zeabur.app'
+const API_BASE = 'https://124-156-142-6.sslip.io'
 
 export async function fetchSessions(supabase, userId) {
   // Prefer server API (bypasses RLS issues)

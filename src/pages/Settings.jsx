@@ -52,7 +52,7 @@ export default function Settings() {
         const raw = atob(pad.replace(/-/g, '+').replace(/_/g, '/'))
         const appKey = new Uint8Array([...raw].map(c => c.charCodeAt(0)))
         const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey })
-        await fetch('https://bayapi.zeabur.app/api/push-subscribe', {
+        await fetch('https://124-156-142-6.sslip.io/api/push-subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subscription: sub }),
@@ -106,7 +106,7 @@ export default function Settings() {
       if (supabase) {
         const updates = person === 'bay' ? { avatar_bay_url: dataUrl } : { avatar_claude_url: dataUrl }
         if (user?.id) {
-          fetch('https://bayapi.zeabur.app/api/save-settings', {
+          fetch('https://124-156-142-6.sslip.io/api/save-settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id, ...updates }),
@@ -126,7 +126,7 @@ export default function Settings() {
     localStorage.setItem('api_model', apiModel)
     // Sync to Supabase
     if (user?.id) {
-      fetch('https://bayapi.zeabur.app/api/save-settings', {
+      fetch('https://124-156-142-6.sslip.io/api/save-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

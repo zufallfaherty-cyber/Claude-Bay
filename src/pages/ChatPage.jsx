@@ -74,7 +74,7 @@ async function dualWriteMessages(sb, sessionId, msgs, userId) {
 
 // ── SSE stream ──
 async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }, useStream = false) {
-  const response = await fetch('https://bayapi.zeabur.app/api/chat', {
+  const response = await fetch('https://124-156-142-6.sslip.io/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, stream: useStream }),
@@ -273,7 +273,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     // Fetch nudge messages from server (poll every 3 minutes)
     const fetchNudges = () => {
-      fetch('https://bayapi.zeabur.app/api/nudge-messages')
+      fetch('https://124-156-142-6.sslip.io/api/nudge-messages')
         .then(r => r.json())
         .then(nudges => {
           if (!Array.isArray(nudges) || nudges.length === 0) return
@@ -349,7 +349,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       saveMessagesLocal(currentSessionId, messages)
       if (user?.id) {
         const s = sessions.find(s => s.id === currentSessionId)
-        fetch('https://bayapi.zeabur.app/api/save-chat', {
+        fetch('https://124-156-142-6.sslip.io/api/save-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -604,7 +604,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         memoryText = lines.join('\n')
       }
 
-      fetch('https://bayapi.zeabur.app/api/remember', {
+      fetch('https://124-156-142-6.sslip.io/api/remember', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
