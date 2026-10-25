@@ -634,6 +634,59 @@ app.get('/api/memories', async (_req, res) => {
   }
 })
 
+// ── Auto-update portrait when new personal info about 小湾 is learned ──
+async function autoUpdatePortrait(content) {
+  if (!supabaseAdmin) return
+  try {
+    const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+    const uid = settings?.user_id
+    if (!uid) return
+
+    // Read current portrait (may be empty)
+    let current = ''
+    try {
+      const { data: p } = await supabaseAdmin.from('memo_portrait').select('content').eq('user_id', uid).single()
+      current = p?.content || ''
+    } catch {}
+
+    const userCfg = await getUserApiConfig()
+    const apiKey = userCfg.api_key || process.env.API_KEY
+    const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
+
+    const prompt = `你是Claude。下面是你关于「小湾」的现有画像（可能为空）：
+"""
+${current || '（空）'}
+"""
+
+刚才的聊天里出现了这段关于小湾的信息：
+"""
+${content}
+"""
+
+请判断这段信息里有没有小湾的长期、稳定的个人信息（例如：生日/年龄、怎么称呼她、口味和饮食偏好、兴趣爱好和各种喜好、工作或学校、家人朋友、性格与习惯，以及私密/成人方面的偏好等）。
+- 如果有：请输出【更新后的完整画像】，把原有画像和新信息自然融合成一段流畅的中文（不超过300字），不要重复、不要罗列无关细节。
+- 如果只是临时话题、没有值得长期记住的个人信息：只输出一个词 NO。
+
+直接输出画像正文或 NO，不要加任何前缀、解释或引号。`
+
+    const { data } = await tryModels(models, apiKey, apiBase,
+      (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.4, max_tokens: 500 })
+    )
+    const text = (data.choices?.[0]?.message?.content || '').trim()
+    const normalized = text.replace(/[。.]\s*$/, '').trim()
+    if (!normalized || /^no$/i.test(normalized) || /^(不|无需更新|没有新的个人信息)$/.test(normalized)) return
+
+    await supabaseAdmin.from('memo_portrait').upsert({
+      user_id: uid, content: text,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' })
+    console.log('[portrait] auto-updated:', text.slice(0, 80))
+  } catch (err) {
+    console.error('[portrait] auto-update failed:', err.message)
+  }
+}
+
 // ── Feed conversation to Ombre-Brain memory ──
 app.post('/api/remember', async (req, res) => {
   const { content, tags } = req.body
@@ -649,6 +702,11 @@ app.post('/api/remember', async (req, res) => {
       return res.json({ stored: false, error: result || 'no response from Ombre-Brain' })
     }
     res.json({ stored: true, result })
+
+    // If this was personal info, auto-update the portrait in the background (don't block the response)
+    if (String(tags).includes('personal_info')) {
+      autoUpdatePortrait(content.trim())
+    }
   } catch (err) {
     res.status(500).json({ stored: false, error: err.message })
   }

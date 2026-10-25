@@ -581,6 +581,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       '我朋友', '我闺蜜',
       '我生理期', '我例假', '我经期',
       '我名字', '叫我',
+      // 亲密 / 成人偏好
+      '做爱', '上床', '爱爱', '口交', '想要我', '要我',
     ]
     const isPersonal = personalKeywords.some(k => text.includes(k))
     const roundCount = messagesRef.current.filter(m => m.role === 'user').length
