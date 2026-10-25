@@ -4,6 +4,15 @@
 
 ---
 
+## 今日大变动总览（2026.10.25）
+
+1. **搬家**：bayapi + baymemory 从 Zeabur 迁到腾讯云香港服务器 `124.156.142.6`，1186 个记忆桶全部搬完
+2. **HTTPS 上线**：后端改用 `https://124-156-142-6.sslip.io`（Caddy 自动证书），前端已切过去
+3. **书房「小湾画像」实装**：画像 + 承诺可编辑，且 Claude 能自动补充（含各种喜好/亲密偏好）
+4. **工作流变更**：后端部署从「git push → Zeabur」改成「scp + docker compose 重建」，见下方「日常工作流」
+
+---
+
 ## 2026.10.25 小湾画像实装 + Claude 自动补充（✅ 完成）
 
 ### 画像功能上线
@@ -533,8 +542,9 @@
 
 - **GitHub**: zufallfaherty-cyber / ZufallFaherty@gmail.com
 - **Vercel**: https://claude-bay-two.vercel.app（GitHub 自动部署）
-- **Zeabur 后端**: bayapi（GitHub 自动部署）
-- **Zeabur 记忆**: baymemory（手动部署，Ombre-Brain）
+- **后端 bayapi**: 腾讯云香港服务器 `124.156.142.6`（Docker 容器 `bayapi`，端口 3001，scp 部署）
+- **记忆 baymemory**: 腾讯云香港服务器 `124.156.142.6`（Docker 容器 `baymemory`，端口 8000）
+- **后端 HTTPS**: https://124-156-142-6.sslip.io（Caddy 自动 Let's Encrypt 证书）
 - **API 中转站**: https://api.jiushi.xin/v1
 - **API 密钥**: 在设置页配置（已硬编码兜底，2026.6.25 移除）
 - **模型**: [按量]claude-opus-4-6
@@ -544,16 +554,20 @@
 
 ---
 
-## 日常工作流
+## 日常工作流（⚠️ 2026.10.25 已改，后端不再走 Zeabur）
 
-1. **改前端代码** → `git push` → Vercel 自动部署
-2. **改后端代码** → `git push` → Zeabur 自动部署（baiapi）
-3. **改记忆引擎** → cd Ombre-Brain → git push → Zeabur 手动 Redeploy
+1. **改前端代码** → `git push` → Vercel 自动部署（无需动服务器）
+2. **改后端代码** → 本地改 `server/index.js`，然后：
+   - 上传：`scp server/index.js ubuntu@124.156.142.6:~/bayapi/index.js`
+   - 重建：`ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build bayapi'`
+   - 验证：`ssh ubuntu@124.156.142.6 'docker ps --filter name=bayapi --format "{{.Status}}"'`
+3. **改记忆引擎** → 服务器 `~/Ombre-Brain` 里改 → `ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build baymemory'`
 4. **手机上测试** → 打开 https://claude-bay-two.vercel.app
 5. **本地预览** → `cd bunny-chat && npx vite --host` → http://172.20.10.6:5174
+6. **注意**：git 需要梯子代理 `http://127.0.0.1:7890`（已配 `git config http/https.proxy`）；服务器 SSH 免密（`~/.ssh/id_ed25519`）
 
 ## 明天要做
 
-1. Supabase 数据库接入
-2. 继续优化细节
-3. 测试推送通知是否真的到达
+1. cron-job.org 的 nudge/diary 定时任务 URL 从 `bayapi.zeabur.app` 改到 `124-156-142-6.sslip.io`
+2. （用户暂缓）轮换 Zeabur 泄露的密钥（SUPABASE_SERVICE_ROLE 最急）
+3. （可选）GitHub 备份 Ombre-Brain 防再丢数据
