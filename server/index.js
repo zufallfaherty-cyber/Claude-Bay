@@ -3,6 +3,7 @@ import cors from 'cors'
 import crypto from 'crypto'
 import webPush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
+import { createMcpClient, loadMcpConfig, saveMcpConfig } from './mcp.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -51,8 +52,9 @@ async function tryModels(models, apiKey, apiBase, makeBody, opts = {}) {
         let parsed = null
         try { parsed = JSON.parse(text) } catch {}
         const content = parsed?.choices?.[0]?.message?.content
+        const toolCalls = parsed?.choices?.[0]?.message?.tool_calls
         const errMsg = parsed?.error?.message || parsed?.error
-        if (errMsg || (!content && text.trim())) {
+        if (errMsg || (!content && !toolCalls && text.trim())) {
           console.warn(`[Model] ❌ "${model}" error body: ${String(errMsg || text).slice(0, 200)}`)
           lastError = new Error(String(errMsg || 'empty response'))
           continue
@@ -165,75 +167,135 @@ const pushSubscriptions = []
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 
-// ── Ombre-Brain MCP Client ──
+// ── Ombre-Brain MCP client (memory engine) ──
 const OMBRE_BRAIN_URL = process.env.OMBRE_BRAIN_URL || ''
-let ombreSessionId = null
-let ombreCallId = 0
+const ombreClient = OMBRE_BRAIN_URL ? createMcpClient(`${OMBRE_BRAIN_URL}/mcp`) : null
 
-function parseSSEResponse(text) {
-  const lines = text.split('\n')
-  for (const line of lines) {
-    if (line.startsWith('data: ')) {
-      try { return JSON.parse(line.substring(6)) } catch { /* skip */ }
-    }
-  }
-  try { return JSON.parse(text) } catch { return null }
+async function callOmbreTool(toolName, args = {}) {
+  if (!ombreClient) return null
+  return await ombreClient.callTool(toolName, args)
 }
 
-async function initOmbreSession() {
-  if (!OMBRE_BRAIN_URL) return false
-  try {
-    const res = await fetch(`${OMBRE_BRAIN_URL}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', method: 'initialize',
-        params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'bunny-chat', version: '1.0' } },
-        id: ++ombreCallId,
-      }),
-    })
-    ombreSessionId = res.headers.get('mcp-session-id')
-    await fetch(`${OMBRE_BRAIN_URL}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
-    })
-    console.log('Ombre-Brain MCP session initialized')
-    return true
-  } catch (err) {
-    console.error('Ombre init error:', err.message)
-    ombreSessionId = null
-    return false
-  }
+// ── MCP registry: multiple servers + tool discovery + enable/disable ──
+const mcpClients = new Map()    // server name -> client
+const mcpToolsCache = new Map() // server name -> { tools, at }
+
+function getMcpClient(name, url) {
+  let c = mcpClients.get(name)
+  if (!c) { c = createMcpClient(url); mcpClients.set(name, c) }
+  return c
 }
 
-async function callOmbreTool(toolName, args = {}, retry = true) {
-  if (!OMBRE_BRAIN_URL) return null
-  try {
-    if (!ombreSessionId) { const ok = await initOmbreSession(); if (!ok) return null }
-    const res = await fetch(`${OMBRE_BRAIN_URL}/mcp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json, text/event-stream', 'Mcp-Session-Id': ombreSessionId },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: toolName, arguments: args }, id: ++ombreCallId }),
-    })
-    const text = await res.text()
-    const parsed = parseSSEResponse(text)
-    if (parsed?.result?.content) {
-      return parsed.result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
+async function discoverTools(server) {
+  const cached = mcpToolsCache.get(server.name)
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.tools
+  const client = getMcpClient(server.name, server.url)
+  const tools = await client.listTools()
+  mcpToolsCache.set(server.name, { tools, at: Date.now() })
+  return tools
+}
+
+function sanitizeName(s) {
+  return String(s || '').replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
+// Build the OpenAI "tools" array from every enabled tool across servers.
+async function getEnabledOpenAITools() {
+  const cfg = loadMcpConfig()
+  const enabledMap = cfg.enabled || {}
+  const out = []
+  for (const server of cfg.servers || []) {
+    if (!server.url) continue
+    const enabledTools = enabledMap[server.name] || []
+    if (enabledTools.length === 0) continue
+    let tools = []
+    try { tools = await discoverTools(server) } catch { tools = [] }
+    const byName = new Map(tools.map((t) => [t.name, t]))
+    const srv = sanitizeName(server.name)
+    for (const toolName of enabledTools) {
+      const t = byName.get(toolName)
+      if (!t) continue
+      const schema = t.inputSchema && typeof t.inputSchema === 'object'
+        ? t.inputSchema
+        : { type: 'object', properties: {} }
+      out.push({
+        type: 'function',
+        function: {
+          name: `${srv}__${toolName}`,
+          description: (t.description || t.name || '').slice(0, 1000),
+          parameters: schema,
+        },
+      })
     }
-    // Detect expired session and retry once
-    const errStr = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
-    if (retry && (errStr.includes('Session not found') || errStr.includes('session'))) {
-      ombreSessionId = null
-      return callOmbreTool(toolName, args, false)
-    }
-    return parsed ? JSON.stringify(parsed) : null
-  } catch (err) {
-    console.error(`Ombre ${toolName} error:`, err.message)
-    ombreSessionId = null
-    if (retry) return callOmbreTool(toolName, args, false)
-    return null
   }
+  return out
+}
+
+// Execute an OpenAI tool call by its namespaced name ("server__tool").
+async function executeOpenAITool(fullName, argsStr) {
+  const sep = fullName.indexOf('__')
+  if (sep < 0) throw new Error(`unknown tool: ${fullName}`)
+  const srvName = fullName.slice(0, sep)
+  const toolName = fullName.slice(sep + 2)
+  const cfg = loadMcpConfig()
+  const server = (cfg.servers || []).find((s) => sanitizeName(s.name) === srvName)
+  if (!server) throw new Error(`unknown server: ${srvName}`)
+  let args = {}
+  try { args = JSON.parse(argsStr || '{}') } catch {}
+  const client = getMcpClient(server.name, server.url)
+  const result = await client.callTool(toolName, args)
+  return result ?? '(no result)'
+}
+
+// Run the agentic tool loop: keep calling the model until it stops asking for tools.
+async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens }, apiKey, apiBase, models) {
+  const messages = [...apiMessages]
+  let toolCallsUsed = 0
+  const MAX_ROUNDS = 5
+
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    const { data } = await tryModels(models, apiKey, apiBase, (m) => {
+      const body = { model: m, messages, temperature, max_tokens: maxTokens }
+      if (openAITools && openAITools.length > 0) body.tools = openAITools
+      return body
+    })
+
+    const msg = data.choices?.[0]?.message
+    const toolCalls = msg?.tool_calls
+    if (!toolCalls || toolCalls.length === 0) {
+      return { content: msg?.content || '', toolCalls: toolCallsUsed }
+    }
+
+    // Append the assistant message (with its tool_calls) to history
+    messages.push({
+      role: 'assistant',
+      content: msg.content || '',
+      tool_calls: toolCalls.map((tc) => ({
+        id: tc.id,
+        type: 'function',
+        function: { name: tc.function?.name, arguments: tc.function?.arguments || '{}' },
+      })),
+    })
+
+    // Execute each tool and append the result
+    for (const tc of toolCalls) {
+      const fnName = tc.function?.name
+      let resultText
+      try {
+        resultText = await executeOpenAITool(fnName, tc.function?.arguments)
+        toolCallsUsed++
+      } catch (err) {
+        resultText = 'ERROR: ' + err.message
+      }
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: typeof resultText === 'string' ? resultText : JSON.stringify(resultText),
+      })
+    }
+  }
+
+  return { content: '（工具调用轮次过多，已停止）', toolCalls: toolCallsUsed }
 }
 
 // ── Parse breath markdown response into bucket objects ──
@@ -566,6 +628,91 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/ombre-test', async (_req, res) => {
   const result = await callOmbreTool('breath', { max_results: 50 })
   res.json({ connected: !!result, ombre_url: OMBRE_BRAIN_URL || '(not set)', result })
+})
+
+// ── MCP toolbox: list servers + tools + enabled state ──
+app.get('/api/mcp/tools', async (_req, res) => {
+  try {
+    const cfg = loadMcpConfig()
+    const enabledMap = cfg.enabled || {}
+    const servers = []
+    for (const server of cfg.servers || []) {
+      let tools = []
+      try { tools = await discoverTools(server) } catch { tools = [] }
+      const enabledSet = new Set(enabledMap[server.name] || [])
+      servers.push({
+        name: server.name,
+        url: server.url,
+        tools: tools.map((t) => ({ name: t.name, description: t.description || '', enabled: enabledSet.has(t.name) })),
+      })
+    }
+    res.json({ servers })
+  } catch (e) {
+    res.json({ servers: [], error: e.message })
+  }
+})
+
+// ── Toggle a single tool on/off ──
+app.post('/api/mcp/toggle', (req, res) => {
+  const { server, tool, enabled } = req.body || {}
+  if (!server || !tool) return res.json({ ok: false, error: 'missing server/tool' })
+  const cfg = loadMcpConfig()
+  if (!cfg.enabled) cfg.enabled = {}
+  const list = new Set(cfg.enabled[server] || [])
+  if (enabled) list.add(tool); else list.delete(tool)
+  cfg.enabled[server] = [...list]
+  saveMcpConfig(cfg)
+  res.json({ ok: true, enabled: cfg.enabled[server] })
+})
+
+// ── Toggle all tools of a server on/off ──
+app.post('/api/mcp/toggle-all', async (req, res) => {
+  const { server, enabled } = req.body || {}
+  if (!server) return res.json({ ok: false, error: 'missing server' })
+  const cfg = loadMcpConfig()
+  const srv = (cfg.servers || []).find((s) => s.name === server)
+  if (!srv) return res.json({ ok: false, error: 'server not found' })
+  if (!cfg.enabled) cfg.enabled = {}
+  if (enabled) {
+    let tools = []
+    try { tools = await discoverTools(srv) } catch { tools = [] }
+    cfg.enabled[server] = tools.map((t) => t.name)
+  } else {
+    cfg.enabled[server] = []
+  }
+  saveMcpConfig(cfg)
+  res.json({ ok: true, enabled: cfg.enabled[server] })
+})
+
+// ── Add / update an MCP server ──
+app.post('/api/mcp/servers', (req, res) => {
+  const { name, url, oldName } = req.body || {}
+  if (!name || !url) return res.json({ ok: false, error: 'missing name/url' })
+  const cfg = loadMcpConfig()
+  cfg.servers = cfg.servers || []
+  const target = oldName || name
+  const existing = cfg.servers.find((s) => s.name === target)
+  if (existing) {
+    existing.name = name
+    existing.url = url
+  } else {
+    cfg.servers.push({ id: crypto.randomUUID(), name, url })
+  }
+  saveMcpConfig(cfg)
+  mcpToolsCache.delete(target)
+  mcpClients.delete(target)
+  res.json({ ok: true })
+})
+
+// ── Remove an MCP server ──
+app.delete('/api/mcp/servers/:name', (req, res) => {
+  const cfg = loadMcpConfig()
+  cfg.servers = (cfg.servers || []).filter((s) => s.name !== req.params.name)
+  if (cfg.enabled) delete cfg.enabled[req.params.name]
+  saveMcpConfig(cfg)
+  mcpToolsCache.delete(req.params.name)
+  mcpClients.delete(req.params.name)
+  res.json({ ok: true })
 })
 
 // ── Memories ──
@@ -1020,14 +1167,12 @@ app.post('/api/chat', async (req, res) => {
     apiMessages.push({ role: m.role, content: m.content })
   })
 
-  // ── Non-streaming mode: generate full response then return ──
+  // ── Non-streaming mode: agentic tool loop, then return final text ──
   if (!isStream) {
     try {
-      const { data } = await tryModels(models, apiKey, apiBase,
-        (m) => ({ model: m, messages: apiMessages, temperature, max_tokens: maxTokens })
-      )
-      const text = data.choices?.[0]?.message?.content || ''
-      return res.json({ content: text })
+      const openAITools = await getEnabledOpenAITools()
+      const { content, toolCalls } = await runToolLoop(apiMessages, openAITools, { temperature, maxTokens }, apiKey, apiBase, models)
+      return res.json({ content, toolCalls })
     } catch (err) {
       return res.status(500).json({ error: err.message })
     }

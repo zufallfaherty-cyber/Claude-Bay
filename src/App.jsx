@@ -13,6 +13,7 @@ import LudoGame from './pages/LudoGame'
 import ProfilePage from './pages/ProfilePage'
 import MemoryPage from './pages/MemoryPage'
 import FilesPage from './pages/FilesPage'
+import ToolboxPage from './pages/ToolboxPage'
 import Settings from './pages/Settings'
 
 // ── Page transition wrapper ──
@@ -172,6 +173,7 @@ function App() {
             <Route path="/profile" element={<PageWrapper><ProfilePage /></PageWrapper>} />
             <Route path="/profile/memory" element={<PageWrapper><MemoryPage /></PageWrapper>} />
             <Route path="/profile/files" element={<PageWrapper><FilesPage /></PageWrapper>} />
+            <Route path="/profile/tools" element={<PageWrapper><ToolboxPage /></PageWrapper>} />
             <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
           </Routes>
         </AnimatePresence>

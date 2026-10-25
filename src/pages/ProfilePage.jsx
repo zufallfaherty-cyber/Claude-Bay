@@ -9,6 +9,7 @@ const fadeUp = {
 const features = [
   { label: '记忆库', desc: 'Our Memories', path: '/profile/memory', gradient: 'from-warm-line/50 to-cream' },
   { label: '文件库', desc: 'Files', path: '/profile/files', gradient: 'from-sage/10 to-mint/30' },
+  { label: '工具箱', desc: 'MCP Tools', path: '/profile/tools', gradient: 'from-sage/10 to-mint/30' },
   { label: '设置', desc: 'Settings', path: '/settings', gradient: 'from-warm-gray/10 to-cream' },
 ]
 
