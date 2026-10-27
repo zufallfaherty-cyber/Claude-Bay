@@ -4,7 +4,7 @@
 
 ---
 
-## 2026.10.27 新项目「weather-sense」环境感知 MCP（🚧 代码完成，待部署）
+## 2026.10.27 新项目「weather-sense」环境感知 MCP（✅ 已部署上线）
 
 用户给了一份「给你的 AI 装一层环境感知」教程，只保留**定位 + 天气**两条（去掉环境光/声音/电量）。定位用手机浏览器 geolocation（苹果 iPhone，PWA 打开时上报），天气用 wttr.in（香港服务器实测可用），逆地理用**高德**（用户选定，key `a188…`，Web服务类型）。
 
@@ -16,8 +16,9 @@
 **需求（用户逐条定）**：
 1. 平时聊天：定位 + 天气都开放（他一般不主动用）。
 2. 主动推送（nudge）：**去掉天气，保留定位**（用于查岗）；prompt 加「你还能查她此刻的位置——用于消失太久或没有报备的查岗」。
-3. 每天早 7 点：后端预查天气→翻译成「身体感受」句→直接注入 prompt（AI 不调工具）。
+3. 每天早 7 点：后端预查天气→体感句 + 「今天接下来」句→直接注入 prompt（AI 不调工具，走 weathersense 的 `/feeling` 专用接口，不走 MCP 工具）。
 4. 体感句 = 季节/地点/天空/时段/风/湿度 + 温度 → 一句 35~50 字第一人称身体感受。用户「你写的永远优先」，种子句后续迭代。
+5. 聊天时查天气（get_weather 工具）= 只给「现在具体数字 + 接下来天气（会不会降温/下雨/出太阳）」，**不给体感句**；天气数据去掉风向、保留风力（风速 + 等级）。
 
 **已写完待部署的文件**：
 - `weather-sense/`（新服务）：`index.js`（MCP + POST /location）、`geo.js`（高德+坐标换算）、`weather.js`（wttr.in 5min 缓存）、`feeling.js`（7轴+体感句）、`Dockerfile`、`package.json`。本地语法 + 逻辑冒烟通过。
@@ -26,11 +27,11 @@
 - `bunny-chat/src/lib/toolLabels.js`：加中文名 `查天气`/`查位置`（工具箱 + 聊天气泡共用）。
 - 前端 `npm run build` 通过。
 
-**部署待办（需用户授权覆盖生产配置）**：
-1. scp 覆盖 `/home/ubuntu/docker-compose.yml`（加 weathersense 服务）、`/home/ubuntu/bayapi-data/mcp-config.json`（加 weathersense + 默认开启两工具）、`/home/ubuntu/bayapi/index.js`（已传新源码，未覆盖生产）。
-2. `docker compose up -d --build weathersense bayapi`。
-3. 前端 `git push` → Vercel 自动部署。
-- weather-sense 新源码已 scp 到 `/home/ubuntu/weather-sense/`（新建目录，未覆盖任何生产文件）。
+**部署（2026.10.27 晚间，已全部上线）**：
+1. scp 覆盖 `/home/ubuntu/docker-compose.yml`、`/home/ubuntu/bayapi-data/mcp-config.json`、`/home/ubuntu/bayapi/index.js`、`/home/ubuntu/weather-sense/*`（覆盖前均备份）。
+2. `docker compose build weathersense bayapi && docker compose up -d`，两容器运行正常。
+3. 前端 `git push`（commit `eaa995d`）→ Vercel 自动部署。
+- 验证：`get_weather` 返回「现在数字 + 接下来」，无体感句、无风向（保留风力）；公网 `/api/location` 上报 `{"ok":true}`；`judgeHome` 坐标换算在家 1m / 走远 2km 在外面。
 
 
 
