@@ -18,6 +18,9 @@ const TOOL_META = {
   reply_notification:    { label: '回复通知',     desc: '回复一条通知' },
   search_feeds:          { label: '搜索笔记',     desc: '按关键词搜小红书笔记' },
   user_profile:          { label: '看用户主页',   desc: '看某个用户的主页' },
+  // ── 环境感知（weather-sense）──
+  get_weather:           { label: '查天气',       desc: '查询此刻天气的具体数字，以及今天接下来的天气（会不会降温、下雨、出太阳）' },
+  get_location:          { label: '查位置',       desc: '查她此刻的位置（在家还是外面）' },
 }
 
 // 后端返回的工具名可能是 "server__tool" 命名空间形式，先取最后一段

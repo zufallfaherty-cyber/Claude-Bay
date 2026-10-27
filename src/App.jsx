@@ -128,6 +128,23 @@ function App() {
     }
   }, [user, supabase])
 
+  // 上报位置：PWA 打开时浏览器定位 → 服务端 weather-sense（用于「查岗」）
+  useEffect(() => {
+    if (!user || !('geolocation' in navigator)) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords
+        fetch('https://124-156-142-6.sslip.io/api/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: latitude, lng: longitude, accuracy }),
+        }).catch(() => {})
+      },
+      () => {}, // 用户拒绝或定位失败 → 静默，不打扰
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 2 * 60 * 1000 }
+    )
+  }, [user])
+
   if (loading) {
     const claudeAvatar = localStorage.getItem('avatar_claude') || ''
     return (

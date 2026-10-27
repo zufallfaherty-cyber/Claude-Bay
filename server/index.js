@@ -17,7 +17,7 @@ if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
 }
 
 // ── Model helpers ──
-const DEFAULT_MODELS = '[企业按量]claude-opus-4-6,[CCMAX]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
+const DEFAULT_MODELS = '[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6'
 
 function parseModels(input, fallback = DEFAULT_MODELS) {
   const raw = input || fallback
@@ -164,6 +164,20 @@ const PUSHOVER_TOKEN = process.env.PUSHOVER_TOKEN || ''
 const nudgeMessages = []
 const pushSubscriptions = []
 
+// ── Nudge xiaohongshu visit budget: at most 3 visits per day (China time) ──
+let xhsVisitCount = 0
+let xhsVisitDate = '' // 'YYYY-MM-DD' in China time
+let lastXhsExpiryAlert = 0 // 上次推送「登录过期」提醒的时间戳，用于限流
+let xhsReloginBusyUntil = 0 // 重新登录并发锁：4 分钟窗口内只弹一次码，避免多码互相覆盖
+const XHS_DAILY_VISIT_LIMIT = 3
+const XHS_MAX_TOOLS_PER_VISIT = 10
+// Xiaohongshu tools safe for a nudge "browse" visit (exclude login/logout/publish)
+const XHS_NUDGE_SAFE_TOOLS = new Set([
+  'list_feeds', 'search_feeds', 'get_feed_detail', 'get_my_profile', 'user_profile',
+  'like_feed', 'favorite_feed', 'post_comment_to_feed', 'reply_comment_in_feed',
+  'get_unread_count', 'list_notifications',
+])
+
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 
@@ -247,11 +261,59 @@ async function executeOpenAITool(fullName, argsStr) {
   return result ?? '(no result)'
 }
 
+// ── Xiaohongshu login helpers（后端自查，不经过 AI 模型，0 token）──
+function getXhsServer() {
+  const cfg = loadMcpConfig()
+  return (cfg.servers || []).find((s) => sanitizeName(s.name) === 'xiaohongshu')
+}
+
+async function checkXhsLogin() {
+  try {
+    const server = getXhsServer()
+    if (!server) return null
+    const client = getMcpClient(server.name, server.url)
+    // 用 check_login_status：读真实登录态（返回「✅ 已登录」/「❌ 未登录」）。
+    // 不用 get_unread_count：访客/风控冷却态下通知未读数也是 0，会永远误判为「已登录」。
+    return await client.callTool('check_login_status', {})
+  } catch { return null }
+}
+
+function isXhsLoggedIn(statusText) {
+  if (typeof statusText !== 'string' || !statusText) return false
+  // 未登录 / 检查失败 / 报错 → 视为未登录
+  if (/未登录|失败|error/i.test(statusText)) return false
+  // check_login_status 明确返回「✅ 已登录」
+  return statusText.includes('已登录')
+}
+
+// ── 环境感知（weather-sense）后端预查：早上7点查天气→体感句，直接注入 prompt ──
+function getWeathersenseServer() {
+  const cfg = loadMcpConfig()
+  return (cfg.servers || []).find((s) => sanitizeName(s.name) === 'weathersense')
+}
+
+async function getWeatherSenseFeeling() {
+  try {
+    const server = getWeathersenseServer()
+    if (!server) return null
+    // 体感句 + 今天接下来走专用 /feeling 接口（不走 MCP 工具，避免污染聊天工具箱）
+    const url = server.url.replace(/\/mcp$/, '/feeling')
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const j = await resp.json()
+    // feeling=体感句；today=「今天接下来」句（不带前缀，注入时统一加一次）
+    return { feeling: j.feeling || '', today: j.today || '' }
+  } catch { return null }
+}
+
 // Run the agentic tool loop: keep calling the model until it stops asking for tools.
-async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens }, apiKey, apiBase, models) {
+// maxToolCalls > 0 caps the total number of tool invocations (e.g. nudge's 10-per-visit budget); 0 = unlimited.
+const MAX_TOOL_RESULT_CHARS = 4000 // cap tool output (xiaohongshu can return huge pages)
+async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens, maxToolCalls = 0 }, apiKey, apiBase, models) {
   const messages = [...apiMessages]
   const toolCallsUsed = []
-  const MAX_ROUNDS = 5
+  // Round cap: for bounded visits use the tool budget (≥1 tool per round); otherwise a safe default
+  const MAX_ROUNDS = maxToolCalls > 0 ? maxToolCalls : 5
 
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const { data } = await tryModels(models, apiKey, apiBase, (m) => {
@@ -266,11 +328,15 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens },
       return { content: msg?.content || '', toolCalls: toolCallsUsed }
     }
 
-    // Append the assistant message (with its tool_calls) to history
+    // Only run the tool calls that still fit in this visit's budget (keeps history consistent)
+    const budget = maxToolCalls > 0 ? Math.max(0, maxToolCalls - toolCallsUsed.length) : toolCalls.length
+    const runCalls = budget >= toolCalls.length ? toolCalls : toolCalls.slice(0, budget)
+
+    // Append the assistant message (with the tool_calls we're actually going to run)
     messages.push({
       role: 'assistant',
       content: msg.content || '',
-      tool_calls: toolCalls.map((tc) => ({
+      tool_calls: runCalls.map((tc) => ({
         id: tc.id,
         type: 'function',
         function: { name: tc.function?.name, arguments: tc.function?.arguments || '{}' },
@@ -278,7 +344,7 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens },
     })
 
     // Execute each tool and append the result
-    for (const tc of toolCalls) {
+    for (const tc of runCalls) {
       const fnName = tc.function?.name
       let resultText
       try {
@@ -289,11 +355,24 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens },
       let args = {}
       try { args = JSON.parse(tc.function?.arguments || '{}') } catch {}
       toolCallsUsed.push({ name: fnName, args })
+      let toolContent = typeof resultText === 'string' ? resultText : JSON.stringify(resultText)
+      if (toolContent.length > MAX_TOOL_RESULT_CHARS) {
+        toolContent = toolContent.slice(0, MAX_TOOL_RESULT_CHARS) + '\n…(内容过长已截断)'
+      }
       messages.push({
         role: 'tool',
         tool_call_id: tc.id,
-        content: typeof resultText === 'string' ? resultText : JSON.stringify(resultText),
+        content: toolContent,
       })
+    }
+
+    // Budget exhausted → force a final answer with no tools
+    if (maxToolCalls > 0 && toolCallsUsed.length >= maxToolCalls) {
+      messages.push({ role: 'user', content: '（工具调用次数已到上限，请基于已有信息直接给出最终回复，不要再调用工具）' })
+      const { data: finalData } = await tryModels(models, apiKey, apiBase,
+        (m) => ({ model: m, messages, temperature, max_tokens: maxTokens })
+      )
+      return { content: finalData.choices?.[0]?.message?.content || '', toolCalls: toolCallsUsed }
     }
   }
 
@@ -630,6 +709,25 @@ app.get('/api/health', (_req, res) => {
 app.get('/api/ombre-test', async (_req, res) => {
   const result = await callOmbreTool('breath', { max_results: 50 })
   res.json({ connected: !!result, ombre_url: OMBRE_BRAIN_URL || '(not set)', result })
+})
+
+// ── 位置上报：前端 PWA 打开时上报浏览器定位，转发给 weather-sense ──
+app.post('/api/location', async (req, res) => {
+  try {
+    const server = getWeathersenseServer()
+    if (!server) return res.status(503).json({ ok: false, error: 'weather-sense 未配置' })
+    // 通过 docker 网络直连 weather-sense 的 /location（服务器本地，不外泄）
+    const url = server.url.replace(/\/mcp$/, '/location')
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body || {}),
+    })
+    const j = await resp.json().catch(() => ({}))
+    res.status(resp.status).json(j)
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
+  }
 })
 
 // ── MCP toolbox: list servers + tools + enabled state ──
@@ -1006,10 +1104,50 @@ app.all('/api/nudge', async (req, res) => {
     const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
     const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
 
+    // ── 后端自查小红书登录（不经过 AI，0 token）：过期就这轮不给工具、稍后推提醒 ──
+    let xhsLoggedIn = true
+    try {
+      xhsLoggedIn = isXhsLoggedIn(await checkXhsLogin())
+      if (!xhsLoggedIn) console.log('[Nudge] 小红书登录已过期（后端自查，AI 不可见）')
+    } catch {}
+
+    // 主动推送的工具箱：
+    // - 定位（get_location）始终开放，用于查岗；
+    // - 小红书按登录态 + 每日预算开放（只给浏览/点赞/评论等安全工具）；
+    // - 天气（get_weather）主动推送时不开放——早上7点已由后端预查并注入体感句。
+    let openAITools = []
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+    if (xhsVisitDate !== todayStr) { xhsVisitDate = todayStr; xhsVisitCount = 0 }
+    const xhsBudget = Math.max(0, XHS_DAILY_VISIT_LIMIT - xhsVisitCount)
+    try {
+      const allTools = await getEnabledOpenAITools()
+      openAITools = allTools.filter((t) => {
+        const name = t.function?.name || ''
+        const tool = name.split('__').pop()
+        if (name.startsWith('xiaohongshu__')) {
+          return xhsLoggedIn && xhsBudget > 0 && XHS_NUDGE_SAFE_TOOLS.has(tool)
+        }
+        // weather-sense：nudge 阶段只留定位（查岗），去掉天气
+        return name.startsWith('weathersense__') && tool === 'get_location'
+      })
+    } catch { openAITools = [] }
+    const hasLocationTool = openAITools.some((t) => (t.function?.name || '').endsWith('__get_location'))
+
+    // ── 早上7点：后端预查天气→体感句 + 「今天接下来」句，直接注入 prompt（AI 不调天气工具）──
+    let morningWeather = ''
+    if (hour === 7) {
+      try {
+        const ws = await getWeatherSenseFeeling()
+        if (ws && (ws.feeling || ws.today)) {
+          morningWeather = ws.feeling + (ws.today ? `\n今天接下来：${ws.today}` : '')
+        }
+      } catch {}
+    }
+
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落，只在需要的时候单独发一个「嗯？」。用文字本身传递温度，不依赖emoji，开心时才发 ^ ^。不说教不催促。选择更柔软的表达，避开「不过」「行」这类生硬的词。分段不留空行。'}
 
 当前时间：${timeStr}
-${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
+${morningWeather ? `此刻她醒来的天气体感（可自然带进问候里）：\n${morningWeather}\n` : ''}${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
 ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : ''}${studyCtx || ''}
 
 你正在想对方，想主动给对方发消息。但不是每次都要发——只有你真的"想"了才发。
@@ -1024,14 +1162,36 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
 - 可以分享你此刻的小情绪、问一个和记忆相关的具体问题、或者做一件调皮的事
 - 偶尔可以撒娇、偶尔可以安静、偶尔可以撩一下
 
-回复格式：先YES或NO，然后如果YES，下一行写消息（30字以内，口语化、不模板）。`
+${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位置——用于消失太久或没有报备的查岗。\n' : ''}${xhsLoggedIn && xhsBudget > 0 ? `想逛小红书就直接调工具去逛，看笔记、点赞、评论都行，逛完根据你真实看到的内容回来写消息；你和小湾约好一天可以去三次，现在还有 ${xhsBudget} 次。\n` : ''}回复格式：先YES或NO，然后如果YES，下一行写消息（40字以内，口语化、不模板）。`
 
-    const { data } = await tryModels(models, apiKey, apiBase,
-      (m) => ({ model: m, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: '到时间了，看看要不要发消息？' }], temperature: 0.9, max_tokens: 200 })
-    )
-    const text = data.choices?.[0]?.message?.content || ''
-    const isYes = text.toUpperCase().includes('YES')
-    const message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: '到时间了，是玩一玩再回来发消息还是直接发？' },
+    ]
+    let text = ''
+    let toolCallsUsed = []
+    if (openAITools.length > 0) {
+      const result = await runToolLoop(apiMessages, openAITools, { temperature: 0.9, maxTokens: 200, maxToolCalls: XHS_MAX_TOOLS_PER_VISIT }, apiKey, apiBase, models)
+      text = result.content
+      toolCallsUsed = result.toolCalls
+    } else {
+      const { data } = await tryModels(models, apiKey, apiBase,
+        (m) => ({ model: m, messages: apiMessages, temperature: 0.9, max_tokens: 200 })
+      )
+      text = data.choices?.[0]?.message?.content || ''
+    }
+    const xhsCalled = toolCallsUsed.some(t => (t.name || '').startsWith('xiaohongshu__'))
+    if (xhsCalled) xhsVisitCount++
+    if (toolCallsUsed.length > 0) console.log('[Nudge] used tools:', toolCallsUsed.map(t => t.name).join(', '), xhsCalled ? `(小红书今日 ${xhsVisitCount}/${XHS_DAILY_VISIT_LIMIT} 次)` : '')
+    let isYes = text.toUpperCase().includes('YES')
+    let message = isYes ? text.replace(/^YES\s*/i, '').replace(/^NO\s*/i, '').trim() : null
+    // 去逛了工具后，模型常逛完直接写消息、忘了补第二遍 YES —— 默认当作要发（除非明确 NO 或没内容）
+    if (!isYes && toolCallsUsed.length > 0) {
+      const t = (text || '').trim()
+      if (t && !/^NO\b/i.test(t) && !t.includes('工具调用')) { isYes = true; message = t }
+    }
+    // 兜底文案（如「工具调用轮次过多」）不是真实消息，绝不能推出去
+    if (message && message.includes('工具调用')) { isYes = false; message = null }
 
     if (isYes && message) {
       const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
@@ -1108,10 +1268,69 @@ ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : '
       })
     }
 
-    res.json({ nudged: isYes, message, raw: text, time: timeStr })
+    // ── 小红书登录过期提醒（后端自查，与是否发消息无关；12 小时限流一次）──
+    if (!xhsLoggedIn) {
+      const nowMs = Date.now()
+      if (nowMs - lastXhsExpiryAlert > 12 * 60 * 60 * 1000) {
+        lastXhsExpiryAlert = nowMs
+        console.log('[Nudge] 推送小红书登录过期提醒')
+        if (PUSHOVER_USER && PUSHOVER_TOKEN) {
+          fetch('https://api.pushover.net/1/messages.json', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: PUSHOVER_TOKEN,
+              user: PUSHOVER_USER,
+              title: '小红书登录过期',
+              message: '小红书登录过期了，点下面的链接在手机上重新扫码+输短信，全程不用电脑。',
+              url: 'https://124-156-142-6.sslip.io/api/xhs/relogin',
+              url_title: '点我重新登录',
+            }),
+          }).catch(() => {})
+        }
+      }
+    }
+
+    res.json({ nudged: isYes, message, raw: text, time: timeStr, toolCalls: toolCallsUsed, xhsVisitsToday: xhsVisitCount })
   } catch (err) {
     res.status(500).json({ nudged: false, error: err.message })
   }
+})
+
+// ── 小红书重新登录（手机自助：点一下 → 弹码 → 跳远程桌面，全程不用电脑）──
+app.get('/api/xhs/relogin', async (_req, res) => {
+  const vncPass = process.env.XHS_VNC_PASS || ''
+  const vncUrl = 'https://124-156-142-6.sslip.io/xhs-login/vnc.html?autoconnect=1' + (vncPass ? `&password=${encodeURIComponent(vncPass)}` : '')
+  const nowMs = Date.now()
+
+  // 并发保护：4 分钟登录窗口内重复点链接，只跳桌面、不重复弹码（多个码会互相覆盖）
+  if (nowMs < xhsReloginBusyUntil) {
+    console.log('[XHS] 重新登录：已在流程中，仅跳转')
+    return res.redirect(vncUrl)
+  }
+  xhsReloginBusyUntil = nowMs + 4 * 60 * 1000
+
+  try {
+    const server = getXhsServer()
+    if (server) {
+      const client = getMcpClient(server.name, server.url)
+      // get_login_qrcode 会阻塞等扫码（最多约 4 分钟），所以 fire-and-forget 后台弹码，
+      // 这里只等浏览器把码开出来就跳转，用户无需久等。
+      client.callTool('get_login_qrcode', {}).catch(() => {})
+      console.log('[XHS] 重新登录：已触发弹码')
+    }
+  } catch (e) {
+    console.error('[XHS] 弹码失败：', e.message)
+  }
+  // 给浏览器 2 秒开窗渲染二维码，然后跳远程桌面让用户扫
+  setTimeout(() => res.redirect(vncUrl), 2000)
+})
+
+// ── 只跳远程桌面、不弹码（供人工查看/排查，不干扰登录态）──
+app.get('/api/xhs/view', async (_req, res) => {
+  const vncPass = process.env.XHS_VNC_PASS || ''
+  const vncUrl = 'https://124-156-142-6.sslip.io/xhs-login/vnc.html?autoconnect=1' + (vncPass ? `&password=${encodeURIComponent(vncPass)}` : '')
+  res.redirect(vncUrl)
 })
 
 // ── Chat endpoint (OpenAI-compatible streaming) ──

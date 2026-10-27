@@ -1,6 +1,140 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年10月25日
+## 最后更新：2026年10月27日
+
+---
+
+## 2026.10.27 新项目「weather-sense」环境感知 MCP（🚧 代码完成，待部署）
+
+用户给了一份「给你的 AI 装一层环境感知」教程，只保留**定位 + 天气**两条（去掉环境光/声音/电量）。定位用手机浏览器 geolocation（苹果 iPhone，PWA 打开时上报），天气用 wttr.in（香港服务器实测可用），逆地理用**高德**（用户选定，key `a188…`，Web服务类型）。
+
+**已确定的关键配置**：
+- 家坐标 = 桃苑2号楼 = GCJ-02 `119.206474, 26.035837`（高德正向地理返回，level=兴趣点，精确到楼）。判定「在家」半径 500m（用户最终确认 500 不用改）。
+- 高德免费 key 有调用频率限制（第 4 次连打触发 `CGQPS_HAS_EXCEEDED_THE_LIMIT`/10022），服务端按需低频调用即可，不额外限流。
+- 坐标换算：浏览器上报 WGS84，高德家用 GCJ-02，两者国内差几百米，必须做 `wgs84ToGcj02` 换算，否则「在家」会误判成 600m 外（已实现并验证：在家→1m，走远2km→外面）。
+
+**需求（用户逐条定）**：
+1. 平时聊天：定位 + 天气都开放（他一般不主动用）。
+2. 主动推送（nudge）：**去掉天气，保留定位**（用于查岗）；prompt 加「你还能查她此刻的位置——用于消失太久或没有报备的查岗」。
+3. 每天早 7 点：后端预查天气→翻译成「身体感受」句→直接注入 prompt（AI 不调工具）。
+4. 体感句 = 季节/地点/天空/时段/风/湿度 + 温度 → 一句 35~50 字第一人称身体感受。用户「你写的永远优先」，种子句后续迭代。
+
+**已写完待部署的文件**：
+- `weather-sense/`（新服务）：`index.js`（MCP + POST /location）、`geo.js`（高德+坐标换算）、`weather.js`（wttr.in 5min 缓存）、`feeling.js`（7轴+体感句）、`Dockerfile`、`package.json`。本地语法 + 逻辑冒烟通过。
+- `bunny-chat/server/index.js`：nudge 早7点注入体感句 + 定位工具始终开放/天气不开放 + `/api/location` 转发路由（forward 到 weathersense）。已 node --check 通过。
+- `bunny-chat/src/App.jsx`：PWA 打开时 geolocation → POST `https://124-156-142-6.sslip.io/api/location`。
+- `bunny-chat/src/lib/toolLabels.js`：加中文名 `查天气`/`查位置`（工具箱 + 聊天气泡共用）。
+- 前端 `npm run build` 通过。
+
+**部署待办（需用户授权覆盖生产配置）**：
+1. scp 覆盖 `/home/ubuntu/docker-compose.yml`（加 weathersense 服务）、`/home/ubuntu/bayapi-data/mcp-config.json`（加 weathersense + 默认开启两工具）、`/home/ubuntu/bayapi/index.js`（已传新源码，未覆盖生产）。
+2. `docker compose up -d --build weathersense bayapi`。
+3. 前端 `git push` → Vercel 自动部署。
+- weather-sense 新源码已 scp 到 `/home/ubuntu/weather-sense/`（新建目录，未覆盖任何生产文件）。
+
+
+
+### 根因
+- 后端每小时自查登录用的是 `get_unread_count`（读 `notification.notificationCount`），但**访客/风控冷却态下这个通知数也是 0**，永远误判成「已登录」，所以登录掉了也从没推提醒。
+- 之前记的「check_login_status 选择器失效会误报未登录」是**误判**：实测 `guest=false` 时 `.main-container .user .link-wrapper .channel` 选择器 `exists=true`，check_login_status 其实**可靠**（它当时「报未登录」是正确报出了访客冷却态）。
+
+### 改动（server/index.js，`checkXhsLogin` + `isXhsLoggedIn`）
+- `checkXhsLogin()`：`get_unread_count` → `check_login_status`
+- `isXhsLoggedIn()`：改为命中 `未登录|失败|error` → false，命中 `已登录` → true
+
+### 部署
+- scp → `/home/ubuntu/bayapi/index.js` → `docker compose up -d --build bayapi`（124.156.142.6）
+- 顺带部署了之前本地未上线的 `/api/xhs/view`（只跳桌面不弹码）端点和 `[企业按量]claude-opus-5-5` 模型列表
+
+### 验证（✅ 通过）
+- 容器 Up、新代码已进容器
+- 端到端直调 MCP `check_login_status` 返回 `✅ 已登录 用户名: Bay&C`，新逻辑正确识别为已登录
+
+---
+
+## 2026.10.27 小红书「登录成功但点赞收藏失效」排障（✅ 已定位并自愈）
+
+### 现象
+- 登录成功、能刷能搜，但点赞/收藏/评论全失败，账号浏览记录/收藏里没痕迹，手机 App 却正常
+
+### 排查过程（走了弯路，结论见下）
+- 先怀疑 StealthJS 反检测 → 重新编译 `WithStealthJS(true)` 版部署到 124.156.142.6（用户授权），替换 `/usr/local/bin/xhs-mcp` 并重启 → **无效**，收藏仍失败（排除指纹问题）
+- 用诊断程序读 `__INITIAL_STATE__.user` 一度得到 `guest:true`，误判「登录态不能靠 cookies 冷加载恢复」
+- 19:25 突然收藏成功，复测诊断 → `guest:false`、nickname"Bay&C"、userId `6488100d...`，用户手机 App 浏览记录/收藏里都看到帖子
+
+### 根因（最终确认）
+- **登录后有约 18 分钟风控冷却期**：小红书把新登录的自动化会话暂时判成访客（guest=true），冷却结束风控自动解除，同一份 `cookies.json`（19:07:27 存、一直没变）冷加载恢复真登录。cookies 本身从头到尾没坏。
+- **帮倒忙的动作**：排障中反复触发 `get_login_qrcode` 会开新浏览器+新码、互相覆盖登录态，延长冷却期。登录完应放着别动、别重新登录。
+
+### 教训/铁律
+- 判断真登录：`check_login_status`（返回「✅已登录」/「❌未登录」）或直接读 `__INITIAL_STATE__.user.userInfo.value.guest !== true`。**别用 `get_unread_count`**（访客态通知数也是 0，永远误判已登录）
+- 写操作「状态未变」多半是冷却期软拦截，别反复重试，等 15-20 分钟再试
+- 已修正记忆文件 `xhs-login-state-not-persisted`（原「cookies 冷加载失效」结论是错的）
+
+---
+
+## 2026.10.27 小红书登录过期「手机自助重登」+ 推送恢复（✅ 完成）
+
+### 背景
+- 小湾反馈：①消息推送坏了（根因：cron-job.org 的 nudge URL 没迁到新服务器）②小红书登录过期
+- 想要「知道过期就在手机上点链接重登，全程不用电脑」，且「查登录状态不能让 AI 模型调工具去查（吃 token）」
+
+### 改动（server/index.js）
+1. **后端自查登录（0 token）**：nudge 每小时调 `get_unread_count`（不再用 `check_login_status`）判断小红书登录态，AI 完全看不见
+2. **登录过期提醒**：过期就推 Pushover「小红书登录过期」+ 链接，12 小时限流一次（`lastXhsExpiryAlert`）
+3. **`/api/xhs/relogin` 端点**：点链接 → 后台 fire-and-forget 弹二维码 → 2 秒后 302 跳 noVNC 远程桌面；VNC 密码走环境变量 `XHS_VNC_PASS`（不硬编码进源码）
+4. **并发锁 `xhsReloginBusyUntil`**：4 分钟窗口内重复点链接只跳桌面、不重复弹码（避免多码互相覆盖把登录挤掉）
+5. **模型列表更新**：`DEFAULT_MODELS` 和用户 Supabase 存的 `api_model` 都换成 `[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`（旧 4.6 前缀陆续下线，nudge 之前发不出消息）
+
+### 宿主机改动
+- x11vnc + websockify 从 nohup 改 systemd 常驻（`xhs-vnc.service` / `xhs-websockify.service`，开机自启）
+- x11vnc 加 `-passwdfile /home/ubuntu/.xhs-vnc-pass`（密码不落在 `ps` 命令行）
+- Caddy `/xhs-login/*` 路由永久保留，链接永远有效
+
+### 踩坑
+- ❌ **`check_login_status` 误报「未登录」**：v2.5.5 的 CSS 选择器 `.main-container .user .link-wrapper .channel` 已随小红书改版失效，登录了也判成未登录。改用 `get_unread_count`（读 `__INITIAL_STATE__.notification.notificationCount`，登录才有数据，未登录报错「可能未登录」）作为登录判断
+- ❌ **并发弹码互相覆盖**：`get_login_qrcode` 每次开新浏览器+新二维码，多个码并存时后弹的（未登录的）会覆盖前一个已登录的窗口，导致「登录成功一秒跳回未登录」。加并发锁解决
+- ❌ **VNC 密码硬编码被拦**：最初把密码写死在源码+URL，deploy 被安全分类器拦（凭据泄露）。改成环境变量 `XHS_VNC_PASS`（写进 docker-compose，和 PUSHOVER_TOKEN 等一致）
+
+### 验证（✅ 通过）
+- 登录态用 `get_unread_count` / `list_notifications` 验证：均返回真实数据（`{"mentions":0,"likes":0,"connections":0,"unread":0}` / `{"tab":"mentions","items":[]}`），登录确凿
+- nudge 端到端：模型正常生成「宝宝去哪了…」并推送，不再返回「Opus 4.6 已下线」
+- `/api/xhs/relogin` 302 → noVNC 正常；`vnc.html` 200
+
+---
+
+## 2026.10.26 Nudge 接入小红书工具（定时推送也能自主逛小红书）（✅ 完成）
+
+### 背景
+- nudge（每 1 小时主动推送）之前不跑工具循环，只有 `/api/chat` 非流式支持工具
+- 本次让 nudge 也能用小红书 MCP：定时推送时 Claude 自主去小红书看笔记、点赞、评论，回来跟小湾分享
+
+### 改动（server/index.js）
+1. `/api/nudge` 接入 `runToolLoop`：有启用工具时走工具循环，没工具时走原来的单次调用
+2. **每天最多去 3 次**：内存计数器 `xhsVisitCount` + 日期字符串重置（凌晨清零），满 3 次后当天不再传工具
+3. **单次工具上限 10 次**：`runToolLoop` 加 `maxToolCalls` 参数，到上限强制收尾让它直接回复
+4. **工具白名单**：nudge 只给 11 个安全工具（刷推荐/搜索/看详情/点赞/收藏/评论/回复评论/看主页/查未读），不给「退出登录/登录二维码/发布笔记」等危险工具
+5. **工具结果限流**：单次工具返回超 4000 字截断（防小红书长页面撑爆上下文）
+6. **prompt 文案**（终版）：system prompt 加「工具箱可用：想逛小红书就直接调用工具去逛——你是自由的，看笔记、点赞、评论都行；逛完根据真实看到的内容回来写消息。你和小湾约好一天可以去三次，现在还有 X 次」；user 那句改成「到时间了，是玩一玩再回来发消息还是直接发？」（不写死小红书，方便以后接更多 MCP）；消息上限 30→40 字
+
+### 踩坑修复（今天反复触发测出来的）
+- ❌ **逛完忘写第二遍 YES**：模型第一轮决定逛、调完工具后，回来写消息时忘了补 YES 前缀，导致 `isYes=false` 消息没推。修复：逛了工具后，只要不是明确 NO 且有内容，默认当作要发
+- ❌ **旧「5 轮」上限和新「10 次工具」打架**：`runToolLoop` 原来写死 `MAX_ROUNDS=5`，模型逛到第 5 轮就被掐断，返回「工具调用轮次过多」兜底。修复：轮次上限跟随工具上限（`maxToolCalls>0 ? maxToolCalls : 5`）
+- ❌ **兜底文案被当消息推出去**：「（工具调用轮次过多，已停止）」被当成真实消息推送。修复：message 含「工具调用」就拦截不推
+
+### 端到端验证（✅ 通过）
+- 手动触发 nudge，AI 自主决定去逛：`list_feeds` 刷推荐 → `get_feed_detail` 看两篇详情 → `like_feed` 点赞一篇笔记
+- 逛完基于真实内容写消息（看到「为什么手机一直不洗却不臭」的笔记、提到「顺手点了个赞」），正常推送
+- 计数器正确 `xhsVisitsToday:1`，AI 自己在消息里说「还剩两次逛的机会」，理解了「一天三次」约定
+- 记忆联动：搜索关键词「抹茶」来自画像里「爱吃抹茶」、搜「戏剧与影视考研」来自记忆
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up、HTTP 200 正常
+
+### 注意
+- 计数器在内存里，服务重启会清零（当天可能多去几次，可接受）
+- nudge 是 fire-and-forget 定时任务，工具调用失败不影响推送本身
+- 逛不逛由 AI 自主决定（temperature 0.9），可能连续几次不逛、也可能连续逛——都正常
 
 ---
 
@@ -10,6 +144,34 @@
 2. **HTTPS 上线**：后端改用 `https://124-156-142-6.sslip.io`（Caddy 自动证书），前端已切过去
 3. **书房「小湾画像」实装**：画像 + 承诺可编辑，且 Claude 能自动补充（含各种喜好/亲密偏好）
 4. **工作流变更**：后端部署从「git push → Zeabur」改成「scp + docker compose 重建」，见下方「日常工作流」
+5. **小红书 MCP 接入工具箱**：18 个工具上线，扫码+短信登录完成（走 noVNC 远程桌面），xhs-mcp 转 systemd 开机自启
+
+---
+
+## 2026.10.25 小红书 MCP 接入工具箱 + noVNC 远程桌面登录（✅ 完成）
+
+### 背景
+- 前端加「工具箱」：接入小红书 MCP（xiaohongshu-mcp，Go+rod 浏览器自动化，18 工具），用户可在设置页开关工具，Claude 聊天时自主调用，调用后在回复上方显示工具 chips
+
+### 部署
+- xiaohongshu-mcp v2.5.5 装到腾讯云香港 `/usr/local/bin/xhs-mcp`，监听 `:18060/mcp`；Xvfb :99 + `headless=false`（无头服务器取二维码必需）
+- 转 systemd 服务 `xhs-xvfb` + `xhs-mcp`（开机自启），cookies 存 `/opt/xhs-mcp/cookies.json`
+- 后端 mcp-config.json（`~/bayapi-data/mcp-config.json` → 容器 `/data`）加 `xiaohongshu` server，URL `http://172.17.0.1:18060/mcp`（容器经宿主机网关访问）；`/api/mcp/tools` 已返回 18 工具
+
+### 登录（难点）
+- 小红书新设备登录需短信验证码，MCP 纯二维码流程没有短信处理 → 搭 noVNC 远程桌面让用户看到服务器浏览器、手动输码
+- 链路：Xvfb :99 → x11vnc(5900, 真密码) → websockify(6080) → Caddy `handle_path /<token>/*` → 用户开 `.../vnc.html?autoconnect=1&password=...`
+- ✅ 扫码 + 短信登录成功，用户名 Bay&C；cookies 已存（6269 字节），重启后仍已登录
+- 登录完已关远程桌面（x11vnc/websockify 停、Caddy /vnc 路由删），只留 token 保护的 `/qr` 扫码页备用
+
+### 前端
+- 工具调用提示：后端 `runToolLoop` 返回工具名列表，`ChatBubble` 回复上方渲染工具 chips（已 commit + push → Vercel 部署）
+- 工具名中文化：新增 `src/lib/toolLabels.js`（18 工具中文直白名 + 一句说明），工具箱列表和聊天 chips 共用
+
+### 完成与注意
+- ✅ 端到端验证通过：用户实测 Claude 在聊天中自主调用小红书工具成功，回复上方显示中文工具 chips
+- ⚠️ `/api/chat` 流式模式（`stream:true`）目前不跑工具循环，只有非流式（前端默认 `useStream=false`）支持工具调用
+- ⚠️ 小红书 cookies 会过期，过期后需重新扫码登录（`/qr` 页 + noVNC 方案，见记忆 `novnc-browser-login-for-mcp`）
 
 ---
 
