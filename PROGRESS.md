@@ -33,6 +33,13 @@
 3. 前端 `git push`（commit `eaa995d`）→ Vercel 自动部署。
 - 验证：`get_weather` 返回「现在数字 + 接下来」，无体感句、无风向（保留风力）；公网 `/api/location` 上报 `{"ok":true}`；`judgeHome` 坐标换算在家 1m / 走远 2km 在外面。
 
+**排障：定位一度显示 589m「在外面」**：
+- 根因 = 我测试时把「家」的 GCJ-02 坐标 `119.206474, 26.035837` 当成 WGS84 POST 到了服务器，被二次换算正好偏 589m（高德逆地理落到「室外游泳池」）。用户查岗看到的就是这份残留数据，**不是手机真实定位**。
+- 已清掉服务器残留（`location.json` 删除 + 重启 weathersense，`hasLocation:false`）。
+- 坐标换算逻辑本身**正确**：已查证 iOS `navigator.geolocation` 返回 WGS-84 原始坐标（不是火星坐标），`wgs84ToGcj02` 换算方向对，无需改。参考 Apple 开发者论坛、腾讯云「App 定位和地图的坑」。
+
+**遗留（下次验证）**：用户手机尚未真实上报过一次定位（之前查到的是残留数据）。下次让用户彻底关 App 重开 + 允许定位后，去 `/home/ubuntu/weathersense-data/location.json` 看原始坐标，确认 judgeHome 判「在家」（约 0~100m）即可闭环。
+
 
 
 ### 根因
