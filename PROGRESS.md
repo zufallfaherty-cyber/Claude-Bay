@@ -4,7 +4,7 @@
 
 ---
 
-## 2026.10.28 两个小修复：聊天历史带工具记录 + 关闭小红书每小时登录自查（✅ 已上线）
+## 2026.10.28 几个优化：工具记录、关闭自查、工具箱折叠、画像弹窗（✅ 已上线）
 
 ### 1. AI 读历史看不到工具调用 → 误以为瞎编道歉（前端）
 - 现象：加工具箱后，AI 读之前聊天记录时看不到自己调用了什么工具，把天气/位置等内容当成自己编的，总道歉。
@@ -18,6 +18,16 @@
 - 处理：`server/index.js` nudge 里加 `XHS_LOGIN_AUTO_CHECK = false` 开关，暂时跳过 `checkXhsLogin()`，**代码完整保留**，需要时改回 true。默认 `xhsLoggedIn = true`（小红书工具仍按登录态+预算开放，但不再每小时自查）。
 - 部署：scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up、HTTP 200、新代码已进容器。
 - 注意：nudge 里 AI 自主逛小红书（刷推荐/点赞/评论）的自动化访问仍在，若警告未停，下一步可考虑降低「一天三次」或关掉 nudge 逛小红书。
+
+### 3. 工具箱工具服务折叠（前端）
+- 现象：小红书 18 个工具全铺开，列表太长。
+- 修复：`src/pages/ToolboxPage.jsx` 加 `expandedServers` 状态，所有工具服务默认折叠（只显示标题 + 「X 个工具 · 已开 Y」+「展开 N 个工具」按钮），点展开才显示工具列表。小红书、天气定位统一折叠。
+- 部署：git push（commit `f90b74c`）→ Vercel 自动部署。
+
+### 4. 画像编辑弹窗改居中大气版（前端）
+- 现象：画像「编辑」按钮小、点开是底部小弹窗、保存是细长一条很难点。
+- 修复：`src/pages/ClaudeSpace.jsx` 编辑按钮改成带边框的 pill；弹窗改居中（`items-center`）更大（`max-w-lg`），textarea 加大（rows 9、16px），保存/取消并排大按钮；`src/index.css` 加 `modalPop` 弹出动画。
+- 部署：git push（commit `92ccc18`）→ Vercel 自动部署。
 
 ---
 
