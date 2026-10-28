@@ -1,6 +1,23 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年10月27日
+## 最后更新：2026年10月28日
+
+---
+
+## 2026.10.28 两个小修复：聊天历史带工具记录 + 关闭小红书每小时登录自查（✅ 已上线）
+
+### 1. AI 读历史看不到工具调用 → 误以为瞎编道歉（前端）
+- 现象：加工具箱后，AI 读之前聊天记录时看不到自己调用了什么工具，把天气/位置等内容当成自己编的，总道歉。
+- 根因：前端把历史消息发给 `/api/chat` 时只传 `{role, content}`，把 assistant 消息上的 `tools` 字段丢了。
+- 修复：`src/pages/ChatPage.jsx` 新增 `buildApiMessage`，对带 `tools` 的 assistant 消息，在上下文里加一行 `[本条消息使用了工具：查天气、查位置]`（只在发给 AI 的内部上下文里，不影响界面显示）。`handleSend` / `handleRegenerate` 两处改用。
+- 部署：git push（commit `670e850`）→ Vercel 自动部署。
+
+### 2. 关闭小红书每小时登录自查（后端）
+- 现象：小红书给账号发安全警告。
+- 根因：nudge 每小时触发，后端调 `check_login_status`，它用带反检测指纹的自动化浏览器（伪装 Chrome）访问小红书读登录态，每次约 10 秒；每小时固定整点的机器访问触发风控。
+- 处理：`server/index.js` nudge 里加 `XHS_LOGIN_AUTO_CHECK = false` 开关，暂时跳过 `checkXhsLogin()`，**代码完整保留**，需要时改回 true。默认 `xhsLoggedIn = true`（小红书工具仍按登录态+预算开放，但不再每小时自查）。
+- 部署：scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up、HTTP 200、新代码已进容器。
+- 注意：nudge 里 AI 自主逛小红书（刷推荐/点赞/评论）的自动化访问仍在，若警告未停，下一步可考虑降低「一天三次」或关掉 nudge 逛小红书。
 
 ---
 

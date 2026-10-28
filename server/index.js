@@ -1105,10 +1105,14 @@ app.all('/api/nudge', async (req, res) => {
     const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
 
     // ── 后端自查小红书登录（不经过 AI，0 token）：过期就这轮不给工具、稍后推提醒 ──
+    // 2026.10.28 暂时关闭：每小时用反检测浏览器访问小红书触发风控警告。代码保留，需要时改回 true。
+    const XHS_LOGIN_AUTO_CHECK = false
     let xhsLoggedIn = true
     try {
-      xhsLoggedIn = isXhsLoggedIn(await checkXhsLogin())
-      if (!xhsLoggedIn) console.log('[Nudge] 小红书登录已过期（后端自查，AI 不可见）')
+      if (XHS_LOGIN_AUTO_CHECK) {
+        xhsLoggedIn = isXhsLoggedIn(await checkXhsLogin())
+        if (!xhsLoggedIn) console.log('[Nudge] 小红书登录已过期（后端自查，AI 不可见）')
+      }
     } catch {}
 
     // 主动推送的工具箱：
