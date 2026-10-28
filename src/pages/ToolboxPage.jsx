@@ -13,6 +13,7 @@ export default function ToolboxPage() {
   const [newName, setNewName] = useState('')
   const [newUrl, setNewUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const [expandedServers, setExpandedServers] = useState({})
 
   const load = useCallback(async () => {
     try {
@@ -158,6 +159,8 @@ export default function ToolboxPage() {
         {!isLoading && (servers || []).map((s, i) => {
           const onCount = s.tools.filter((t) => t.enabled).length
           const allOn = s.tools.length > 0 && onCount === s.tools.length
+          const isExpanded = !!expandedServers[s.name]
+          const visibleTools = isExpanded ? s.tools : []
           return (
             <motion.div
               key={s.name}
@@ -193,7 +196,7 @@ export default function ToolboxPage() {
                 <p className="text-[13px] text-warm-gray/50 italic py-3">没有发现工具（服务可能没连上）</p>
               ) : (
                 <div className="space-y-3">
-                  {s.tools.map((t) => (
+                  {visibleTools.map((t) => (
                     <button
                       key={t.name}
                       onClick={() => toggleTool(s.name, t.name, !t.enabled)}
@@ -209,6 +212,12 @@ export default function ToolboxPage() {
                       </span>
                     </button>
                   ))}
+                  <button
+                    onClick={() => setExpandedServers((prev) => ({ ...prev, [s.name]: !prev[s.name] }))}
+                    className="w-full py-2.5 text-[13px] font-medium text-sage-deep/80 hover:text-sage-deep active:scale-[0.98] transition-all"
+                  >
+                    {isExpanded ? '收起 ▲' : `展开 ${s.tools.length} 个工具 ▼`}
+                  </button>
                 </div>
               )}
             </motion.div>
