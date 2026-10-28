@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchSessions, createSession, updateSession, fetchMessages, insertMessages, fetchSettings } from '../lib/supabase'
+import { toolMeta } from '../lib/toolLabels'
 import ChatBubble from '../components/ChatBubble'
 import ChatInput from '../components/ChatInput'
 
@@ -442,6 +443,21 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     return parts
   }
 
+  // Build the API "messages" entry for a stored message. For assistant turns we
+  // surface which tools produced that reply, so when the model re-reads its own
+  // history it knows the facts (weather/location/小红书…) came from real tool
+  // results instead of apologizing for "making them up".
+  const buildApiMessage = (m) => {
+    if (m.role === 'user') return { role: 'user', content: buildApiContent(m) }
+    const tools = m.tools || []
+    if (tools.length > 0) {
+      const labels = tools.map(t => toolMeta(t.name).label).filter(Boolean)
+      const note = `[本条消息使用了工具：${labels.join('、')}]`
+      return { role: 'assistant', content: note + '\n' + (m.content || '') }
+    }
+    return { role: 'assistant', content: m.content || '' }
+  }
+
   const handleRegenerate = useCallback(async () => {
     if (streamingRef.current || regenerating) return
     const msgs = messagesRef.current
@@ -460,7 +476,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
     const recentMsgs = trimmed.slice(-maxRounds * 2)
-    const apiMessages = recentMsgs.map(m => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
+    const apiMessages = recentMsgs.map(buildApiMessage)
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
@@ -535,7 +551,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     // Context window truncation
     const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
-    const apiMessages = recentMessages.map((m) => ({ role: m.role, content: m.role === 'user' ? buildApiContent(m) : m.content }))
+    const apiMessages = recentMessages.map(buildApiMessage)
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
