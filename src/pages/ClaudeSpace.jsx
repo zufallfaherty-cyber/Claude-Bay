@@ -165,7 +165,7 @@ export default function ClaudeSpace() {
         <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
           {/* Portrait */}
           <div className="glass rounded-2xl p-4 border border-white/30 mb-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-semibold text-warm-dark">关于小湾</p>
               <button
                 onClick={() => { setPortraitDraft(portrait); setEditingPortrait(true) }}
@@ -263,19 +263,19 @@ export default function ClaudeSpace() {
 
       {/* ── Portrait edit modal ── */}
       {editingPortrait && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5" onClick={() => setEditingPortrait(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => setEditingPortrait(false)}>
           <div className="absolute inset-0 bg-black/40" />
           <div
             className="relative bg-cream rounded-3xl w-full max-w-lg flex flex-col overflow-hidden animate-[modalPop_0.25s_ease-out]"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-6 pt-5 pb-3">
+            <div className="flex items-center justify-between px-6 pt-6 pb-4">
               <p className="text-[17px] font-semibold text-warm-dark">编辑画像</p>
               <button onClick={() => setEditingPortrait(false)} className="text-warm-gray active:scale-90 p-1">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            <div className="px-6 pb-6">
+            <div className="px-6 pb-6 flex flex-col gap-6">
               <textarea
                 value={portraitDraft}
                 onChange={e => setPortraitDraft(e.target.value)}
@@ -283,7 +283,7 @@ export default function ClaudeSpace() {
                 rows={9}
                 placeholder="写一段关于小湾的描述…"
               />
-              <div className="flex gap-3 mt-5">
+              <div className="flex gap-3">
                 <button
                   onClick={() => setEditingPortrait(false)}
                   className="flex-1 py-3.5 rounded-2xl border border-sage-deep/30 text-sage-deep text-[15px] font-medium active:scale-[0.98] transition-all"
