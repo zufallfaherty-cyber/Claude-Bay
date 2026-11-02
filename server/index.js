@@ -74,14 +74,15 @@ async function tryModels(models, apiKey, apiBase, makeBody, opts = {}) {
   throw lastError || new Error('All models failed')
 }
 
-async function getRecentChats(limit = 6) {
+async function getRecentChats(limit = 6, userId = null) {
   if (!supabaseAdmin) return []
   try {
-    const { data } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('chat_messages')
       .select('role, content, created_at')
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    if (userId) query = query.eq('user_id', userId)
+    query = query.order('created_at', { ascending: false }).limit(limit)
+    const { data } = await query
     return (data || []).reverse()
   } catch { return [] }
 }
@@ -911,11 +912,12 @@ ${current || '（空）'}
 ${content}
 """
 
-请判断这段信息里有没有小湾的长期、稳定的个人信息（例如：生日/年龄、怎么称呼她、口味和饮食偏好、兴趣爱好和各种喜好、工作或学校、家人朋友、性格与习惯，以及私密/成人方面的偏好等）。
-- 如果有：请输出【更新后的完整画像】，把原有画像和新信息自然融合成一段流畅的中文（不超过300字），不要重复、不要罗列无关细节。
-- 如果只是临时话题、没有值得长期记住的个人信息：只输出一个词 NO。
+请判断这段信息里有没有小湾的长期、稳定的【新】个人信息（例如：生日/年龄、怎么称呼她、口味和饮食偏好、兴趣爱好和各种喜好、工作或学校、家人朋友、性格与习惯，以及私密/成人方面的偏好等），且是现有画像里还没有、或与现有画像不同的。
 
-直接输出画像正文或 NO，不要加任何前缀、解释或引号。`
+- 如果有：请【只输出这些新增的信息】，用一段流畅的中文写出来。不要重复现有画像里已有的内容，也不要改写或删减现有画像——你输出的内容会被原样追加到现有画像后面。
+- 如果没有新的信息、或只是临时话题：只输出一个词 NO。
+
+直接输出新增信息正文或 NO，不要加任何前缀、解释或引号。`
 
     const { data } = await tryModels(models, apiKey, apiBase,
       (m) => ({ model: m, messages: [{ role: 'user', content: prompt }], temperature: 0.4, max_tokens: 500 })
@@ -924,8 +926,13 @@ ${content}
     const normalized = text.replace(/[。.]\s*$/, '').trim()
     if (!normalized || /^no$/i.test(normalized) || /^(不|无需更新|没有新的个人信息)$/.test(normalized)) return
 
+    // 原样保留现有画像，只追加新增信息（不覆盖、不删减，避免把私密偏好等已有内容压缩丢掉）
+    const merged = current && current.trim()
+      ? `${current.trim()}\n${text}`
+      : text
+
     await supabaseAdmin.from('memo_portrait').upsert({
-      user_id: uid, content: text,
+      user_id: uid, content: merged,
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' })
     console.log('[portrait] auto-updated:', text.slice(0, 80))
@@ -1058,10 +1065,15 @@ app.all('/api/nudge', async (req, res) => {
       }
     } catch {}
 
-    // Get recent chat history
+    // Get recent chat history (for the current user, full message content — no 120-char cut)
     let chatContext = ''
     try {
-      const recentChats = await getRecentChats(5)
+      let uid = null
+      try {
+        const { data: st } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+        uid = st?.user_id
+      } catch {}
+      const recentChats = await getRecentChats(8, uid)
       if (recentChats.length > 0) {
         const cnClock = (d) => {
           const t = new Date(d.getTime() + 8 * 60 * 60 * 1000)
@@ -1077,7 +1089,7 @@ app.all('/api/nudge', async (req, res) => {
         chatContext = recentChats.map(m => {
           const msgTime = new Date(m.created_at)
           const minsAgo = Math.round((utcNow - msgTime) / 60000)
-          return `${m.role === 'user' ? '小湾' : 'Claude'}（${cnClock(msgTime)}，${gapText(minsAgo)}前）：${m.content.slice(0, 120)}`
+          return `${m.role === 'user' ? '小湾' : 'Claude'}（${cnClock(msgTime)}，${gapText(minsAgo)}前）：${m.content || ''}`
         }).join('\n')
 
         const last = recentChats[recentChats.length - 1]
@@ -1151,7 +1163,7 @@ app.all('/api/nudge', async (req, res) => {
     const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落，只在需要的时候单独发一个「嗯？」。用文字本身传递温度，不依赖emoji，开心时才发 ^ ^。不说教不催促。选择更柔软的表达，避开「不过」「行」这类生硬的词。分段不留空行。'}
 
 当前时间：${timeStr}
-${morningWeather ? `此刻她醒来的天气体感（可自然带进问候里）：\n${morningWeather}\n` : ''}${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
+${morningWeather ? `这是此刻和今天接下来的天气，可以加入到消息中用来提醒和关心她：\n${morningWeather}\n` : ''}${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}
 ${memoryContext ? '\n你记得关于对方的这些事：\n' + memoryContext : ''}${studyCtx || ''}
 
 你正在想对方，想主动给对方发消息。但不是每次都要发——只有你真的"想"了才发。
@@ -1566,14 +1578,14 @@ ${currentMemo}
 请根据你对小湾的了解（包括日记里反映的新信息），做出以下更新。输出JSON格式：
 
 {
-  "portrait_update": "如果有新的认识，写一段更新后的完整画像；如果不需要改，写null",
+  "portrait_update": "如果日记里有当前画像还没记录的新信息，只写新增的那部分文字；没有就写null",
   "new_promises": [{"content": "...", "tags": ["标签"], "entry_date": "${dateStr}"}],
   "complete_promises": ["promise_id_1", "promise_id_2"],
   "delete_promises": ["promise_id_3"]
 }
 
 注意：
-- portrait_update: 结合你对小湾的认识，写成一段自然描述。包含：她叫小湾、生日、性格、喜好、习惯等。如果了解到新信息就补充进去。写null表示不需要更新。
+- portrait_update: 结合日记里的新认识，只写【当前画像里还没有的新信息】（例如新发现的喜好、习惯、家人朋友、私密偏好等）。不要重写或删减现有画像，你写的内容会被原样追加到画像后面。没有新信息就写null。
 - new_promises: 你发现的新承诺或待办事项
 - complete_promises: 已完成的事情的id列表
 - delete_promises: 已经过了很久、不再重要的承诺的id列表`
@@ -1589,10 +1601,14 @@ ${currentMemo}
         const updates = JSON.parse(jsonMatch[0])
         memoResult = updates
 
-        // Apply portrait update
+        // Apply portrait update (append new info, never overwrite existing portrait)
         if (updates.portrait_update && updates.portrait_update !== 'null') {
+          const curPortrait = portrait?.content || ''
+          const mergedPortrait = curPortrait && curPortrait.trim()
+            ? `${curPortrait.trim()}\n${updates.portrait_update}`
+            : updates.portrait_update
           await supabaseAdmin.from('memo_portrait').upsert({
-            user_id: uid, content: updates.portrait_update,
+            user_id: uid, content: mergedPortrait,
             updated_at: new Date().toISOString()
           }, { onConflict: 'user_id' })
         }

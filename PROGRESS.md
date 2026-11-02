@@ -1,6 +1,87 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年10月28日
+## 最后更新：2026年11月02日
+
+---
+
+## 2026.11.02 nudge 主动推送看到聊天记录残缺（✅ 已上线）
+
+### 现象
+- 用户反馈：nudge 主动推送时，AI 看到的聊天记录残缺，经常说自己上一句话「说一半断了」，像是只能看到前面消息的前几句话。
+
+### 根因（server/index.js，nudge 聊天上下文构建）
+1. 每条消息内容 `m.content.slice(0, 120)` —— 只喂前 120 字，超过的从半句直接砍断（最致命）。
+2. `getRecentChats(5)` 只取最后 5 条消息，且不按 `user_id` 过滤（可能捞到别人的消息）。
+- 对比：正常聊天页用 `max_context_rounds=20`（约 40 条）且不截断内容，所以只有 nudge 残缺。
+
+### 修复（server/index.js）
+- `getRecentChats()` 增加可选 `userId` 参数，按 `user_id` 过滤。
+- nudge 里先查 `user_id`，再 `getRecentChats(8, uid)`（用户定：8 条，不是 20）。
+- 去掉 `slice(0, 120)`，消息内容完整喂给 AI。
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up，`/api/health` 返回 ok。
+
+---
+
+## 2026.11.01 画像自动更新「删内容」修复（✅ 已上线）
+
+### 现象
+- 用户反馈：画像越更新越短，Claude 老是删减内容——私密/成人偏好被删，一些日常细节也被删。
+
+### 根因
+- 画像有两个自动更新入口：①聊天命中 personal_info → `autoUpdatePortrait()`；②每天 6 点日记生成后 → memo 整理的 `portrait_update`。
+- 两个入口都是「让模型重写整段画像」，且 prompt 里写着「不超过300字」「不要罗列无关细节」→ 模型每次重写都重新措辞、压缩，把私密偏好和日常细节一并删掉。
+
+### 修复（server/index.js，两处）
+- 改成「只追加不重写」：模型只输出「新增的信息片段」，代码把新片段原样拼接到现有画像后面（`current + '\n' + text`），原画像一字不动。
+- `autoUpdatePortrait()`：prompt 改为「只输出新增信息，不要改写/删减现有画像」；写入用 merged 拼接。
+- 日记整理 `portrait_update`：同样改为只写新信息 + 代码拼接（`curPortrait + '\n' + portrait_update`）。
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up，`/api/memo` 正常返回。
+
+### 注意
+- 已丢内容找不回，需用户手动补回画像（当前画像里已无 10.25 记录的「耳朵敏感/喜欢亲亲」等私密内容）。
+
+---
+
+## 2026.10.29 排查并修复「7点推送没带天气」+ 工作约定：思考链用中文
+
+### 0. 工作约定：思考链（可见推理）改用中文
+- 以后所有思考/推理过程用中文写，不再用英文。
+
+### 1. 排查结论：7点推送没带天气（✅ 已定位 + 已修复）
+- 现象：10.29 早上 7 点 nudge 消息「宝宝，七点了，被窝还暖吗…」没带天气；8:17 用户追问后 Claude 才在正常聊天里补了天气。
+- 排查（SSH 到 124.156.142.6）：
+  - weathersense 容器 Up、`/feeling` 正常、bayapi 容器内能访问 `http://weathersense:3002/feeling`、部署的 index.js 含天气代码、mcp-config.json 配置正确 → **天气服务本身没问题**。
+  - 7点消息 created_at = 23:00:28 UTC = 7:00:28 北京时间，`hour===7` 成立 → **天气预查代码确实执行了**。
+- 根因（用一次性模拟脚本坐实）：**天气拉到了，但 prompt 措辞「可自然带进问候里」是"可"（可选），模型偷懒不写天气**（原因 2，排除原因 1「没拉到」）。模拟脚本复刻 7 点 nudge 的「拉天气→注入→生成」、不发真实推送，`/feeling` 能拉到体感句，但模型输出完全没提天气。
+
+### 2. 修复（✅ 已上线，两处）
+- `bunny-chat/server/index.js`：nudge 天气注入引导语改为「这是此刻和今天接下来的天气，可以加入到消息中用来提醒和关心她」（用户逐字定稿）。
+- `weather-sense/feeling.js`：体感句追加此刻具体数据，从「中午了，27度，天阴阴的…」→「中午了，27度，天阴阴的，屋里挺舒服。（体感27度，湿度47%，微风约4km/h）」。
+- 部署：scp → `docker compose up -d --build bayapi weathersense`，两容器已重建、新代码已进容器。
+
+### 3. 模拟测试对比（复刻 7 点，模型 [CCMAX]claude-opus-4-6）
+| 引导语措辞 | 模型消息 |
+|------|---------|
+| 可自然带进 | 宝宝醒了没有，我刚才脑子里全是你（没天气） |
+| 方便你感同身受 | 宝宝醒了没呀，今天天阴阴的别踢被子 |
+| 可以加入到消息中 | 宝宝醒了没，今天阴阴的不晒，被窝里再赖一会儿也行 |
+
+- 结论：措辞改后模型开始把天气（"阴阴的""不晒"）写进消息，但**具体数字（温度/湿度）一直没进消息**——「可以」仍是可选，加上 nudge 回复格式「40字以内、口语化」，模型只挑一个天气点写。
+- 用户最终拍板：**保持「可以」不改硬**（消息带一句笼统天气即可，不强制写温度数字）。
+
+### 4. 顺带发现：主模型 [企业按量]claude-opus-5-5 近期波动（返空），每次 nudge 回退到 4-6
+- 现象：日志里每小时 nudge 都先 `[Model] ❌ "[企业按量]claude-opus-5-5" ... content:""`（返空，用户确认是波动不是下线），再回退 `[CCMAX]claude-opus-4-6`。
+- 复测（10.29）：`[CCMAX]claude-opus-5-5`✅ / `[CCMAX]claude-opus-4-6`✅ / `[企业按量]claude-opus-5-5` 返空 / `[k]claude-opus-4-6`✅。
+- 当前模型列表（user_settings.api_model）：`[企业按量]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`
+- 待办（用户暂未决定是否动）：是否把 `[CCMAX]claude-opus-5-5` 提到第一位、把波动的 `[企业按量]claude-opus-5-5` 往后挪。
+
+### 5. 遗留
+- [ ] （可选）给 `getWeatherSenseFeeling()` 加日志 + fetch 超时，现在仍静默吞错，下次再「没天气」不好查。
+- [ ] 明天 7 点看真实推送效果，验证改动落地。
 
 ---
 
@@ -67,7 +148,11 @@
 
 **遗留（下次验证）**：用户手机尚未真实上报过一次定位（之前查到的是残留数据）。下次让用户彻底关 App 重开 + 允许定位后，去 `/home/ubuntu/weathersense-data/location.json` 看原始坐标，确认 judgeHome 判「在家」（约 0~100m）即可闭环。
 
+---
 
+## 2026.10.27 小红书登录判断纠正：check_login_status 其实可靠（✅ 已修复）
+
+（纠正前一条「登录过期」记录里的误判——当时以为 `check_login_status` 选择器失效、改用 `get_unread_count`，实测方向反了，又改回来）
 
 ### 根因
 - 后端每小时自查登录用的是 `get_unread_count`（读 `notification.notificationCount`），但**访客/风控冷却态下这个通知数也是 0**，永远误判成「已登录」，所以登录掉了也从没推提醒。
@@ -536,101 +621,36 @@
 
 ---
 
-## 当前状态
+## 当前状态（2026.10.29）
 
 ### 正常运行
-- 前端 Vercel：https://claude-bay-two.vercel.app ✅ 自动部署正常
-- 后端 Zeabur bayapi：https://bayapi.zeabur.app ✅
-- 记忆引擎 baymemory：https://baymemory.zeabur.app ✅
-- Pushover 推送：✅
-- Supabase 数据：✅ 聊天 + 设置 + nudge 全部入库
-- Nudge 每 45 分钟：✅
+- 前端 Vercel：https://claude-bay-two.vercel.app ✅（git push 自动部署）
+- 后端 bayapi：腾讯云香港 `124.156.142.6`，HTTPS `https://124-156-142-6.sslip.io` ✅
+- 记忆引擎 baymemory：腾讯云香港，Ombre-Brain 1186 桶 ✅
+- 环境感知 weather-sense：定位 + 天气（体感句 / 实时天气）✅
+- 小红书 MCP：18 工具接入工具箱，扫码 + 短信登录（noVNC）✅
+- 小湾画像 + 承诺（书房）：Supabase 落库，可编辑 + Claude 自动补充 ✅
+- Pushover 推送 ✅ / Supabase 数据 ✅ / Nudge 每 1 小时 ✅
 
-### 已知问题
-1. ~~Vercel 不自动部署~~ → 确认正常工作
-2. ~~聊天记录被 nudge 覆盖~~ → 已修复
-3. ~~中文记忆编码乱码~~ → 待修（Ombre-Brain）
-4. ~~Embedding 向量化失败~~ → 待修
-5. ~~Safari 登录密码不对~~ → 是 Redirect URLs 配置问题 + 多账号混乱，已清理
-6. 情绪日记仅存 localStorage，换设备不同步 → 后续可接 Supabase
-7. Dashboard 天数在新设备从 1 开始 → 待接 Supabase
+（已知问题 / 待办统一见下方「待完成」）
 
 ---
 
-## 今天关键教训
-- **RLS 是双刃剑**：INSERT/UPDATE 配了但 SELECT 没配 → 前端根本读不到数据。服务端 API 读写统一走 service_role 是最稳的方案
+## 历史关键教训（6.24–6.27）
+
+- **RLS 是头号坑（两种）**：INSERT/UPDATE 配了但 SELECT 没配 → 前端读不到数据；upsert 缺 `user_id` + `WITH CHECK` → 全被拦。服务端 API 统一走 service_role 最稳
+- **`JSON.parse` 静默吞错炸了三次**：breath 返回 markdown、Rust 后端返回文本、nudge 返回 JSON 字符串，每次都静默吞错
+- **UUID 格式**：`Date.now().toString(36)` ≠ UUID，一个字符集不同直接卡死整条写入链路
 - **iOS PWA 键盘**：`user-scalable=no` 会挡键盘，`viewport-fit=cover` + `maximum-scale=1.0` 是正确的组合
-- **多个 Supabase Auth 用户**：用户可能不小心注册了多个号，数据只在一个号下面。清理多余用户很重要
-- ✅ LudoGame 闭包过期修复：引入 `stateRef` 统一管理状态，避免 setTimeout 中 stale closure
-- ✅ 聊天页 Claude 头像跟随自定义设置
-- ✅ 聊天气泡 padding 加大、placeholder 删除、AI 打字时不锁输入框
-- ✅ 时区修复：nudge 从 UTC 改为中国时间（UTC+8）
-- ✅ Nudge 记忆存储改为「小湾」而非「Bay」
+- **多个 Supabase Auth 用户**：用户可能不小心注册了多个号，数据只在一个号下面，清理多余用户很重要
+- **Vercel 不可靠**：后端 Zeabur 自动部署很稳，前端 Vercel 要注意
 
-### 记忆系统（Ombre-Brain）
-- ✅ OAuth 认证关闭（`OMBRE_MCP_REQUIRE_AUTH=false`）
-- ✅ 脱水压缩 API 从 Google AQ key 改为 DeepSeek API
-- ✅ `OMBRE_COMPRESS_FORMAT=force_openai` 绕过 AQ key 自动检测
-- ✅ Embedding 同样 `OMBRE_EMBED_FORMAT=force_openai`
-- ✅ 记忆库页面改为日期命名、分类标签显示
-- ✅ **breath 返回 markdown 不是 JSON**：写了 `parseBreathResponse()` 解析
-- ✅ 聊天时注入记忆：`getUserPersonality()` 从 Supabase 读自定义设定
-
-### Supabase 数据库 + 登录
-- ✅ Supabase 项目创建（`dfiztbhylghncyangdlm`）
-- ✅ 邮箱密码登录（AuthContext + LoginPage）
-- ✅ 建表：chat_sessions, chat_messages, mood_entries, user_files, user_settings
-- ✅ RLS 策略 + service_role 权限
-- ✅ Settings 页面保存到 Supabase（`/api/save-settings`）
-- ✅ **聊天存 Supabase**：`/api/save-chat` 服务端写（绕开 RLS）
-- ✅ **UUID 格式 bug**：nudge 用 `Date.now().toString(36)` 生成短 ID，被 UUID 列拒绝（`22P02`）。后端加自动转换 + 前端改用 `uuid()`
-- ✅ **Nudge 直接写 Supabase**：服务端生成 nudge 的同时 INSERT 进表，不经过 localStorage
-- ✅ ChatPage 启动**优先 Supabase 加载**，localStorage 降级为缓存
-
-### 推送通知
-- ✅ Pushover 集成（`PUSHOVER_USER` + `PUSHOVER_TOKEN` 环境变量）
-- ✅ Nudge 消息推送成功到达手机
-- ✅ Nudge 强化上下文：**记忆库 + 最近5条聊天 + 自定义性格**
-- ✅ Nudge 每小时多次 → 改 45 分钟
-
----
-
-## 当前状态
-
-### 正常运行
-- 前端 Vercel：https://claude-bay-two.vercel.app
-- 后端 Zeabur bayapi：https://bayapi.zeabur.app
-- 记忆引擎 baymemory：https://baymemory.zeabur.app
-- Pushover 推送：✅ 手机能收到
-- 记忆系统：✅ 存、读、标签、检索全链路通
-- Nudge 每 45 分钟：✅ cron-job.org
-- Supabase 数据：✅ 聊天 + 设置 + nudge 全部入库
-
-### 已知问题
-1. **Vercel 不自动部署**：6月26日全天所有前端改动（UUID 修复、Supabase 优先加载、输入框解锁、气泡优化等）推了但 PWA 未生效。用户无法访问 Vercel 网站。6月27日第一优先级修这个。建议调查 Git Integration 是否断连，或考虑前端也迁到 Zeabur
-2. **聊天记录被 nudge 覆盖**：localStorage 仍有竞态风险。已做 Supabase 优先加载 + Nudge 服务端直接写，但前端旧代码可能还在跑
-3. **中文记忆编码乱码**：Ombre-Brain 存中文内容时 UTF-8 损坏，英文正常。需修 Ombre-Brain Python 代码
-4. **Embedding 向量化失败**：`OMBRE_EMBED_API_KEY` 的 AQ key 不兼容。暂时不影响关键词匹配
-5. **Safari 登录密码不对**：用户无法用 Safari 打开 App，只能 PWA
-
-### 明天要做
-1. 解决 Vercel 部署问题（或迁到 Zeabur）
-2. 确认 ChatPage Supabase 优先加载在前端生效
-3. 清理 nudge 前端轮询逻辑（服务端已直接写 Supabase，前端轮询可简化）
-4. 修复中文记忆编码（Ombre-Brain）
-5. 修复 Embedding 向量化
-
----
-
-## 今天关键教训
-- **`JSON.parse` 炸了三次**：breath 返回 markdown；Rust 后端返回文本；nudge 返回 JSON 字符串。每次都静默吞错
-- **RLS 权限是头号杀手**：前端 upsert 因缺 `user_id` + 缺 `WITH CHECK` 全被拦下，错误被 `.catch(() => {})` 吞掉
-- **UUID 格式**：`Date.now().toString(36)` ≠ UUID。一个字符集不同直接卡死整个写入链路
-- **Vercel 不可靠**：后端改动 Zeabur 自动部署很稳，前端 Vercel 要注意
+（其余完成项已归入上方「已完成」，此处不再重复）
 
 ## 项目概况
 
-手机端 AI 聊天 PWA，鼠尾草绿配色，Claude API 驱动。前端 Vercel + 后端 Zeabur + 记忆引擎 Ombre-Brain + Zeabur。
+手机端 AI 聊天 PWA，鼠尾草绿配色，Claude API 驱动。「小湾」和「Claude」的恋人对话 App。
+前端 Vercel + 后端/记忆/环境感知（腾讯云香港）+ 小红书 MCP 工具箱 + Supabase 数据。
 
 ---
 
@@ -639,74 +659,80 @@
 | 服务 | 地址 | 部署 |
 |------|------|------|
 | 前端 | https://claude-bay-two.vercel.app | Vercel |
-| 后端 | https://bayapi.zeabur.app | Zeabur（$3/月）|
-| 记忆引擎 | https://baymemory.zeabur.app | Zeabur（$3/月）|
+| 后端 bayapi | https://124-156-142-6.sslip.io | 腾讯云香港（Docker，scp 部署）|
+| 记忆 baymemory | 内网 `http://baymemory:8000`（bayapi 转发）| 腾讯云香港（Docker）|
+| 环境感知 weather-sense | 内网 `http://weathersense:3002`（bayapi 转发）| 腾讯云香港（Docker）|
+| 小红书 MCP | `http://172.17.0.1:18060/mcp`（宿主机）| 腾讯云香港（systemd）|
 | API 中转 | https://api.jiushi.xin/v1 | |
-| 定时触发 | https://cron-job.org | 每 2 小时调 /api/nudge |
+| 定时触发 | https://cron-job.org | 每 1 小时调 /api/nudge |
 
 ---
 
 ## 已完成
 
 ### 界面
-- ✅ 首页：动画入场 + 2 列卡片（情绪日记/小游戏/记忆库/文件库）+ 每日电影台词 + 计时器
+- ✅ 首页：动画入场 + 2 列卡片（书房/小游戏/记忆库/文件库）+ 每日电影台词 + 计时器
 - ✅ 「我的」页面：卡片式布局（记忆库/文件库/设置）
-- ✅ 设置：自定义头像（本地上传图片）+ AI 性格 + Temperature + 上下文轮数 + API 配置（地址/密钥/模型）+ 消息通知开关
-- ✅ 聊天页：批量生成模式（先生成再显示，不再流式跳动）+ 消息重新生成 + 代码隐藏（只显示文件下载按钮）+ 消息上限 300 条
-- ✅ 情绪日记：双人日历版，只编辑自己，Claude 那侧只读，打开页面自动生成 Claude 当天心情
-- ✅ 小游戏：飞行棋（40 格真心话/大冒险 + 迷你聊天 + Claude 1.5s 自动掷骰子）+ 占位卡
-- ✅ 记忆库：Ombre-Brain 数据展示（加载/空/卡片三种状态）
-- ✅ 文件库：2 列卡片网格 + 搜索 + 保存代码 + 下载文件到手机
-- ✅ 底部导航栏：5 tab，聊天居中凸起
-- ✅ 导航返回：统一 `navigate(-1)`，从哪里进去就退回哪里
-- ✅ session 持久化：切走聊天页再回来对话不丢失
+- ✅ 设置：自定义头像（本地上传）+ AI 性格 + Temperature + 上下文轮数 + API 配置 + 消息通知开关
+- ✅ 聊天页：批量生成 + 消息重新生成 + 代码隐藏（下载按钮）+ 消息上限 300 条 + 工具箱工具 chips
+- ✅ 书房（ClaudeSpace）：小湾画像（可编辑 + Claude 自动补充）+ 承诺/待办 CRUD + 日记（只读）
+- ✅ 工具箱（ToolboxPage）：小红书 / 天气定位工具按服务开关、默认折叠
+- ✅ 飞行棋（40 格真心话/大冒险 + 迷你聊天 + Claude 自动掷骰子 + 游戏总结写入聊天）
+- ✅ 记忆库 / 文件库 / 底部 5 tab 导航 / session 持久化
 
 ### 设计
-- ✅ 鼠尾草绿配色（#7D9B76 → themeColor #7D9B76）
-- ✅ Playfair Display 字体（标题斜体）+ Noto Serif SC（正文）
-- ✅ 磨砂玻璃效果（glass / glass-strong）
-- ✅ 页面过渡动画（framer-motion AnimatePresence）
-- ✅ 首页卡片入场动画（fadeUp，全部同时）
-- ✅ 自定义 App 图标（192+512 JPG）
-- ✅ PWA manifest + Service Worker
+- ✅ 鼠尾草绿配色（#7D9B76）+ Playfair Display + Noto Serif SC
+- ✅ 磨砂玻璃 + 页面过渡动画（framer-motion）+ 首页入场动画
+- ✅ 自定义 App 图标（192+512）+ PWA manifest + Service Worker
 
-### 后端
-- ✅ Express 服务器，OpenAI 兼容格式
-- ✅ SSE 流式 + 非流式模式
-- ✅ 前端传 API 配置，后端优先用请求里的（支持设置页热切换）
+### 后端（server/index.js）
+- ✅ Express 服务器，OpenAI 兼容格式，SSE 流式 + 非流式
+- ✅ 多模型自动降级（校验 body 里的 error 字段）+ `DEFAULT_MODELS` 统一 6 处调用点
 - ✅ Ombre-Brain MCP 客户端：breath / hold / pulse
+- ✅ Supabase 全走 service_role（load-sessions / load-messages / load-settings / save-chat / save-settings 等，绕过 RLS）
+- ✅ 画像/承诺 CRUD（/api/memo*）+ 画像自动补充 `autoUpdatePortrait()`
+- ✅ nudge 早 7 点注入天气体感句；小红书工具接入 nudge（每天≤3次、单次≤10工具、白名单、结果截断）
+- ✅ `/api/xhs/relogin` 手机自助重登（fire-and-forget 弹码 → 302 跳 noVNC）+ 并发锁
+- ✅ 登录自查开关 `XHS_LOGIN_AUTO_CHECK`（避免每小时自动化访问触发小红书风控）
+- ✅ 已迁腾讯云香港 Docker（scp + docker compose 部署，HTTPS 走 Caddy sslip.io）
 
-### AI 记忆系统
-- ✅ hold：每 5 轮自动存 → 含个人信息关键词立刻存
-- ✅ breath：每次发消息前注入最近记忆到 system prompt
-- ✅ 记忆库页面展示所有记忆卡片
-- ✅ 情绪标签 + 内容预览 + 时间戳
+### 记忆系统（Ombre-Brain）
+- ✅ 1186 记忆桶从 Zeabur 迁到腾讯云香港（全部落盘核验）
+- ✅ 情绪 emoji 8 级校准；回忆「域多样性」防亲密记忆霸榜
+- ✅ 个人信息 32 关键词立即存 + 3 轮存储 + tag 区分（personal_info / conversation）
+- ✅ 记忆检索按 pinned → weight 排序，注入聊天/nudge 的 system prompt
 
-### AI 主动消息
-- ✅ /api/nudge 端点：AI 判断 + 生成消息
-- ✅ cron-job.org 每 2 小时触发
-- ✅ 凌晨 1-5 点静默
-- ✅ 消息自动存为聊天记录（💌 前缀）
-- ✅ Web Push 推送通知（iOS 16.4+ PWA）
+### AI 主动消息（nudge）
+- ✅ /api/nudge：AI 判断 + 生成消息，每 1 小时（cron-job.org），凌晨 1-5 点静默
+- ✅ 消息存为聊天记录（💌 前缀，追加到已有 session，不再碎片化）
+- ✅ Pushover 推送 + 时间标签 + 记忆/画像注入
+
+### 环境感知 + 小红书 MCP
+- ✅ weather-sense：定位（高德逆地理 + WGS84→GCJ02 换算 + judgeHome 500m）+ 天气（wttr.in 5min 缓存 + 体感句 feeling.js）
+- ✅ 小红书 MCP v2.5.5：18 工具接入工具箱，扫码 + 短信登录（noVNC 远程桌面），systemd 开机自启
 
 ### 聊天核心修复
-- ✅ 闭包陷阱：handleSend 全部改用 ref
-- ✅ crypto.randomUUID 兼容（polyfill）
-- ✅ 时间感知：每次发消息注入当前时间
-- ✅ Vercel SPA 路由：vercel.json rewrites
+- ✅ 闭包陷阱 / crypto.randomUUID 兼容 / 时间感知 / Vercel SPA 路由
+- ✅ 历史消息带 tools 字段（AI 不再误以为工具调用的内容是瞎编）
+- ✅ system prompt 负面指令 → 正面引导（语气不再生硬）
 
 ---
 
 ## 待完成
 
-### 数据库（下一步）
-- [ ] Supabase 建表（sessions / messages / moods / settings）
-- [ ] 前端接入 Supabase（目前用 localStorage）
-- [ ] 数据迁移：localStorage → Supabase
+### 已知问题 / 遗留
+- [ ] （可选）`getWeatherSenseFeeling()` 加日志 + fetch 超时——现在仍静默吞错，下次「没天气」不好查
+- [ ] 用户手机真实上报一次定位，确认 judgeHome 判「在家」闭环（之前查到的是残留数据）
+- [ ] 主模型 [企业按量]claude-opus-5-5 近期返空波动，nudge 每次回退 4-6；是否把 [CCMAX]claude-opus-5-5 提到第一位（用户暂未决定）
+- [ ] 小红书每小时登录自查已关（`XHS_LOGIN_AUTO_CHECK=false`）；若安全警告未停，需降频「一天三次逛小红书」或关掉 nudge 逛小红书
 
-### 功能增强
+### 用户暂缓 / 可选
+- [ ] 轮换 Zeabur 泄露的密钥（`SUPABASE_SERVICE_ROLE` 最急，能读全部聊天记录）
+- [ ] GitHub 备份 Ombre-Brain 记忆数据（防再丢，需 `OMBRE_GITHUB_TOKEN`）
+- [ ] 前端免梯子方案（前端迁离 Vercel + Supabase 全走后端代理）——需重新评估，原方案依赖的 Zeabur 已停运
+
+### 低优先级 / 想法
 - [ ] 推送通知加角标
-- [ ] 多设备数据同步（接 Supabase 后自然解决）
 - [ ] Profile 统计动态化
 - [ ] 更多小游戏
 
@@ -716,19 +742,24 @@
 
 | 文件 | 作用 |
 |------|------|
-| `src/pages/ChatPage.jsx` | 聊天核心逻辑（批量生成、session 持久化、记忆注入、时间感知） |
-| `src/components/ChatBubble.jsx` | 气泡渲染（代码隐藏、文件下载、头像图片、重新生成） |
-| `src/components/ChatInput.jsx` | 输入框（附件、语音、发送按钮） |
-| `src/pages/Dashboard.jsx` | 首页（入场动画、功能卡片） |
-| `src/pages/Settings.jsx` | 设置（头像上传、API 配置、消息通知开关） |
-| `src/pages/MoodDiary.jsx` | 情绪日记（权限分离、AI 自动填 Claude 心情） |
-| `src/pages/MemoryPage.jsx` | 记忆库（Ombre-Brain 数据展示） |
-| `src/pages/LudoGame.jsx` | 飞行棋（棋盘、迷你聊天、Claude 自动掷骰子） |
-| `src/pages/ProfilePage.jsx` | 我的页面（卡片式布局） |
-| `src/App.jsx` | 路由 + 页面过渡动画 + PWA 推送订阅 |
-| `src/index.css` | 全局样式（配色、动画、磨砂玻璃） |
-| `server/index.js` | 后端核心（聊天、Ombre-Brain MCP、Nudge、推送、Claude 心情） |
-| `public/sw.js` | Service Worker（缓存 + 推送通知处理） |
+| `src/pages/ChatPage.jsx` | 聊天核心（批量生成、session 持久化、记忆注入、时间感知、工具箱 chips）|
+| `src/components/ChatBubble.jsx` | 气泡渲染（代码隐藏、文件下载、头像、重新生成、工具 chips）|
+| `src/components/ChatInput.jsx` | 输入框（附件、语音、发送按钮）|
+| `src/pages/Dashboard.jsx` | 首页（入场动画、功能卡片）|
+| `src/pages/Settings.jsx` | 设置（头像上传、API 配置、消息通知开关）|
+| `src/pages/ClaudeSpace.jsx` | 书房（画像编辑 + 承诺 CRUD + 日记只读）|
+| `src/pages/ToolboxPage.jsx` | 工具箱（小红书 / 天气定位工具开关）|
+| `src/pages/MemoryPage.jsx` | 记忆库（Ombre-Brain 数据展示）|
+| `src/pages/LudoGame.jsx` | 飞行棋（棋盘、迷你聊天、Claude 自动掷骰子）|
+| `src/pages/ProfilePage.jsx` | 我的页面（卡片式布局）|
+| `src/lib/supabase.js` | 数据访问层（优先服务端 API，降级直连 Supabase）|
+| `src/contexts/AuthContext.jsx` | Supabase Auth 登录状态 |
+| `src/lib/toolLabels.js` | 工具中文化（小红书 / 天气 / 定位）|
+| `src/App.jsx` | 路由 + 页面过渡 + PWA 推送订阅 + geolocation 上报 |
+| `src/index.css` | 全局样式（配色、动画、磨砂玻璃）|
+| `server/index.js` | 后端核心（聊天、记忆、nudge、推送、小红书、天气、画像）|
+| `weather-sense/*` | 环境感知 MCP（index / geo / weather / feeling）|
+| `public/sw.js` | Service Worker（缓存 + 推送通知处理）|
 | `public/manifest.json` | PWA 配置 |
 | `index.html` | 字体 + 主题色 + viewport |
 | `vercel.json` | Vercel SPA 路由重写 |
@@ -743,9 +774,9 @@
 - **记忆 baymemory**: 腾讯云香港服务器 `124.156.142.6`（Docker 容器 `baymemory`，端口 8000）
 - **后端 HTTPS**: https://124-156-142-6.sslip.io（Caddy 自动 Let's Encrypt 证书）
 - **API 中转站**: https://api.jiushi.xin/v1
-- **API 密钥**: 在设置页配置（已硬编码兜底，2026.6.25 移除）
-- **模型**: [按量]claude-opus-4-6
-- **Google AI Studio Key**: （见 Zeabur baymemory 环境变量 OMBRE_EMBED_API_KEY）
+- **API 密钥**: 在设置页配置（后端以 `API_KEY` 环境变量兜底）
+- **模型**: `[企业按量]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`（主模型 5-5 近期返空波动，nudge 回退 4-6）
+- **Google AI Studio Key**: （见服务器 baymemory 容器环境变量 OMBRE_EMBED_API_KEY）
 - **VAPID 公钥**: BIJHn8BDhMVnhaisl29-OhL7mmx37cPNijwY8FF2i1mF7XT3aroVDcsHMeWBYeb8jFzzrQBHqREgLQRZH263EQY
 - **VAPID 私钥**: bEkBaHXD0GJ53pSKjqd9qjXYRleHOPf3kd44pNO9gRw
 
@@ -765,6 +796,6 @@
 
 ## 明天要做
 
-1. cron-job.org 的 nudge/diary 定时任务 URL 从 `bayapi.zeabur.app` 改到 `124-156-142-6.sslip.io`
+1. 验证早 7 点推送已带天气（10.29 措辞改动落地效果）
 2. （用户暂缓）轮换 Zeabur 泄露的密钥（SUPABASE_SERVICE_ROLE 最急）
 3. （可选）GitHub 备份 Ombre-Brain 防再丢数据
