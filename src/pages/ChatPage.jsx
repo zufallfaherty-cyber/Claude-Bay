@@ -129,6 +129,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
   const scrollRef = useRef(null)
+  // Whether the list should follow the bottom. Updated only by real user scrolls
+  // (programmatic scrolls land at the bottom, so they keep it true). This replaces
+  // the old geometric "nearBottom" check, which mis-read the still-unmeasured
+  // typing bubble as "the user scrolled up" and stopped following.
+  const stickRef = useRef(true)
 
   // Refs to avoid any closure issues
   const streamingRef = useRef(false)
@@ -342,21 +347,40 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }).catch(() => {})
   }, [supabase])
 
-  // Auto-scroll: instant on load and while streaming, smooth on a finished message.
-  // While streaming, a smooth scroll is interrupted by every new token chunk and never
-  // reaches the bottom, so jump directly instead.
+  // Auto-scroll: follow the bottom whenever the list is "stuck", which is true by
+  // default and goes false only when the user deliberately scrolls up. Jump
+  // instantly — a smooth scroll gets interrupted by each re-layout and stalls short
+  // of the bottom.
   const isFirstRender = useRef(true)
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
-    if (isFirstRender.current || streamingRef.current) {
+    if (isFirstRender.current || stickRef.current) {
       el.scrollTop = el.scrollHeight
-    } else if (nearBottom) {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
     }
     if (messages.length > 0) isFirstRender.current = false
   }, [messages])
+
+  // Bubble height, keyboard height and web fonts all change after the messages
+  // effect has run, which used to leave the typing bubble sitting above the fold.
+  // Re-pin on any size change while stuck to the bottom.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const pin = () => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight
+    }
+    const ro = new ResizeObserver(pin)
+    ro.observe(el)
+    if (el.firstElementChild) ro.observe(el.firstElementChild)
+    return () => ro.disconnect()
+  }, [])
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+  }
 
   // Persist messages after streaming completes
   useEffect(() => {
@@ -475,6 +499,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const msgs = messagesRef.current
     if (msgs.length < 2) return
 
+    // A new reply is coming: resume following the bottom even if the reader
+    // had scrolled up to re-read history.
+    stickRef.current = true
+
     // Find and remove last assistant message
     let cutIdx = msgs.length - 1
     while (cutIdx >= 0 && msgs[cutIdx].role !== 'assistant') cutIdx--
@@ -537,6 +565,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (streamingRef.current) return
     if (!text.trim() && attachments.length === 0) return
 
+    stickRef.current = true
     streamingRef.current = true
     setStreaming(true)
 
@@ -750,7 +779,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       </header>
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
         <div className={`flex flex-col min-h-full pb-3 ${messages.length === 0 ? 'justify-center' : 'justify-end'}`}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center px-8">

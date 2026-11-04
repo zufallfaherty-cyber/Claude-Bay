@@ -4,6 +4,20 @@
 
 ---
 
+## 2026.11.04 流式气泡真正贴底（stick-to-bottom 重写）
+
+- 症状：发消息后等待回复的打字气泡不在最底部；回复生成完也不自动回到底部，像是被判成「在看历史」。
+- 根因有两个：
+  1. 旧逻辑用几何判断 `scrollHeight - scrollTop - clientHeight < 120` 决定是否跟随。发消息那一帧 DOM 还没把打字气泡算进高度，等 effect 跑完、气泡撑开，列表就「看起来」离底了，下次判断直接被当成用户上翻。
+  2. 流式结束时先 `setMessages(...)` 再 `streamingRef.current = false` —— React 的 effect 在提交后异步执行，那时 ref 已经是 `false`，所以最后一条消息反而走了「nearBottom 才滚动」的分支。
+- 改法：
+  - 引入 `stickRef`：默认 `true`，只由真实的 `onScroll` 更新（离底 < 60px 为 `true`）。程序滚动到底本身也会触发 `scroll`，所以跟随状态能自我维持。发消息 / 重新生成时显式置回 `true`，不会因为刚才上翻过就不跟。
+  - 消息变化时：只要 `stick` 就直接 `scrollTop = scrollHeight`，不做平滑滚动（会被后续重排打断）。
+  - 新增 `ResizeObserver` 同时观察滚动容器与内容容器：键盘弹起（`--chat-vvh` 变高变矮）、字体加载、气泡换行都会改变高度，`messages` 不变 effect 不重跑 —— 这个观察者负责在这些时刻重新贴底。
+- 验证（CDP 402×874，12 条消息撑满）：加载后 gap=0；把 `--chat-vvh` 压到 470px 模拟键盘，gap=0 且 scrollTop 自动从 668 → 1072；键盘收起回到 gap=0；手动上翻到 scrollTop=80 后停住不动（gap=588），不再被强行拽回。
+
+---
+
 ## 2026.11.04 去掉返回首页的双重动画
 
 - 原转场：`AnimatePresence mode="wait"` + `exit`（淡出 + 上移 6px，0.28s）→ 再 `initial`（淡入 + 下移 10px，0.28s）。返回首页时先退出再进入，看起来像闪两下。
