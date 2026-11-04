@@ -159,7 +159,8 @@ export default function ToolboxPage() {
         {!isLoading && (servers || []).map((s, i) => {
           const onCount = s.tools.filter((t) => t.enabled).length
           const allOn = s.tools.length > 0 && onCount === s.tools.length
-          const isExpanded = !!expandedServers[s.name]
+          // Built-ins open by default so the on/off switch is visible right away.
+          const isExpanded = s.builtin ? expandedServers[s.name] !== false : !!expandedServers[s.name]
           const visibleTools = isExpanded ? s.tools : []
           return (
             <motion.div
@@ -171,16 +172,18 @@ export default function ToolboxPage() {
             >
               <div className="flex items-center justify-between mb-2">
                 <div className="min-w-0">
-                  <h3 className="text-[16px] font-semibold text-warm-dark truncate">{s.name}</h3>
+                  <h3 className="text-[16px] font-semibold text-warm-dark truncate">{s.displayName || s.name}</h3>
                   <p className="text-[12px] text-warm-gray/50 truncate mt-0.5">{s.url}</p>
                 </div>
-                <button
-                  onClick={() => deleteServer(s.name)}
-                  className="w-11 h-11 -mr-2 flex items-center justify-center text-warm-gray/40 hover:text-red-400 active:scale-90 flex-shrink-0"
-                  title="删除"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
+                {!s.builtin && (
+                  <button
+                    onClick={() => deleteServer(s.name)}
+                    className="w-11 h-11 -mr-2 flex items-center justify-center text-warm-gray/40 hover:text-red-400 active:scale-90 flex-shrink-0"
+                    title="删除"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                )}
               </div>
 
               <div className="flex items-center justify-between mb-3">

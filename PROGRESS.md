@@ -13,6 +13,12 @@
 - 上传超时从 4.5s 放宽到 25s，真机慢网不再误判失败而回落本地。
 - 容量：每张压缩到 1500px / q0.8，约 200–500KB；Supabase Storage 免费额度 1GB ≈ 2000–4000 张。
 
+**联网开关（放进工具箱）**
+- 工具箱（`/profile/tools`）原本只列 MCP 服务；内置联网工具加了一个伪服务 `web` / 显示名「联网」，`builtin: true`，排在最前、默认展开、不显示删除按钮。
+- 开关复用现有的 `POST /api/mcp/toggle` 与 `/toggle-all`，状态写进 `mcp-config.json` 的 `enabled.web`（`["search","fetch"]`）。未写过该字段视为默认全开；单个/整组开关都实测过。
+- `getEnabledOpenAITools()` 按该状态过滤 `WEB_TOOL_DEFS`，所以工具箱里一关，下一次聊天请求就不再带这个工具。
+- 保护：内置服务不能删除、不能重名添加。
+
 **联网搜索**
 - 后端新增两个内置工具（不走 MCP、不需要额外 API key）：`web__search`（Bing HTML 结果页解析，取标题/链接/摘要）和 `web__fetch`（打开网页读正文，截 6000 字）。
 - 接在 `getEnabledOpenAITools()` 的工具列表末尾，`executeOpenAITool()` 开头拦截；nudge 的工具过滤只放行小红书/定位，所以主动消息不会误用搜索。

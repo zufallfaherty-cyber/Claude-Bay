@@ -294,6 +294,25 @@ const WEB_TOOL_DEFS = [
   },
 ]
 
+// Built-in tools also appear in the toolbox, under the pseudo-server "web".
+// A missing `enabled.web` entry means "never touched" → on by default.
+const WEB_BUILTIN = {
+  name: 'web',
+  displayName: '联网',
+  url: '内置功能，不用配置',
+  builtin: true,
+  tools: [
+    { name: 'search', description: '联网搜索网页：实时新闻、价格、赛事、最近发生的事' },
+    { name: 'fetch', description: '打开一个网页并读取正文' },
+  ],
+}
+
+function enabledWebTools() {
+  const cfg = loadMcpConfig()
+  const saved = cfg.enabled?.web
+  return new Set(Array.isArray(saved) ? saved : WEB_BUILTIN.tools.map((t) => t.name))
+}
+
 // ── MCP registry: multiple servers + tool discovery + enable/disable ──
 const mcpClients = new Map()    // server name -> client
 const mcpToolsCache = new Map() // server name -> { tools, at }
@@ -346,7 +365,12 @@ async function getEnabledOpenAITools() {
       })
     }
   }
-  return [...out, ...WEB_TOOL_DEFS]
+  const webOn = enabledWebTools()
+  for (const def of WEB_TOOL_DEFS) {
+    const short = def.function.name.split('__').pop()
+    if (webOn.has(short)) out.push(def)
+  }
+  return out
 }
 
 // Execute an OpenAI tool call by its namespaced name ("server__tool").
@@ -999,6 +1023,14 @@ app.get('/api/mcp/tools', async (_req, res) => {
         tools: tools.map((t) => ({ name: t.name, description: t.description || '', enabled: enabledSet.has(t.name) })),
       })
     }
+    const webOn = enabledWebTools()
+    servers.unshift({
+      name: WEB_BUILTIN.name,
+      displayName: WEB_BUILTIN.displayName,
+      url: WEB_BUILTIN.url,
+      builtin: true,
+      tools: WEB_BUILTIN.tools.map((t) => ({ ...t, enabled: webOn.has(t.name) })),
+    })
     res.json({ servers })
   } catch (e) {
     res.json({ servers: [], error: e.message })
@@ -1011,7 +1043,11 @@ app.post('/api/mcp/toggle', (req, res) => {
   if (!server || !tool) return res.json({ ok: false, error: 'missing server/tool' })
   const cfg = loadMcpConfig()
   if (!cfg.enabled) cfg.enabled = {}
-  const list = new Set(cfg.enabled[server] || [])
+  // Built-ins default to on, so start from the default set instead of empty.
+  const current = server === WEB_BUILTIN.name
+    ? [...enabledWebTools()]
+    : (cfg.enabled[server] || [])
+  const list = new Set(current)
   if (enabled) list.add(tool); else list.delete(tool)
   cfg.enabled[server] = [...list]
   saveMcpConfig(cfg)
@@ -1023,9 +1059,14 @@ app.post('/api/mcp/toggle-all', async (req, res) => {
   const { server, enabled } = req.body || {}
   if (!server) return res.json({ ok: false, error: 'missing server' })
   const cfg = loadMcpConfig()
+  if (!cfg.enabled) cfg.enabled = {}
+  if (server === WEB_BUILTIN.name) {
+    cfg.enabled[server] = enabled ? WEB_BUILTIN.tools.map((t) => t.name) : []
+    saveMcpConfig(cfg)
+    return res.json({ ok: true, enabled: cfg.enabled[server] })
+  }
   const srv = (cfg.servers || []).find((s) => s.name === server)
   if (!srv) return res.json({ ok: false, error: 'server not found' })
-  if (!cfg.enabled) cfg.enabled = {}
   if (enabled) {
     let tools = []
     try { tools = await discoverTools(srv) } catch { tools = [] }
@@ -1041,6 +1082,9 @@ app.post('/api/mcp/toggle-all', async (req, res) => {
 app.post('/api/mcp/servers', (req, res) => {
   const { name, url, oldName } = req.body || {}
   if (!name || !url) return res.json({ ok: false, error: 'missing name/url' })
+  if (name === WEB_BUILTIN.name || name === WEB_BUILTIN.displayName) {
+    return res.json({ ok: false, error: '这个名字被内置服务占用了' })
+  }
   const cfg = loadMcpConfig()
   cfg.servers = cfg.servers || []
   const target = oldName || name
@@ -1059,6 +1103,7 @@ app.post('/api/mcp/servers', (req, res) => {
 
 // ── Remove an MCP server ──
 app.delete('/api/mcp/servers/:name', (req, res) => {
+  if (req.params.name === WEB_BUILTIN.name) return res.json({ ok: false, error: '内置服务不能删除' })
   const cfg = loadMcpConfig()
   cfg.servers = (cfg.servers || []).filter((s) => s.name !== req.params.name)
   if (cfg.enabled) delete cfg.enabled[req.params.name]
