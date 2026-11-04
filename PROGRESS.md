@@ -4,6 +4,24 @@
 
 ---
 
+## 2026.11.04 相册上云 + 后端内置联网搜索
+
+**相册**
+- 后端相册代码（`/api/album` 增删改查 + Supabase Storage `bay-album`）其实早就写好了，只是服务器上跑的还是旧版 index.js → 线上一直 404，前端一直走「存 localStorage」的降级分支。
+- 部署：scp `server/index.js` → 备份 → `docker compose up -d --build bayapi`。线上实测 上传 → 列表 → 取图（`/api/album/file/:id`，走 bayapi 代理，绕开被墙的 supabase.co）→ 删除，全链路 200。
+- 补传：以前离线存的照片是 `local: true` + base64 data URL，会撑爆 localStorage 的 ~5MB（十几张就满）。新增 `syncLocalPhotos()`：打开相册页 / 设置页时后台逐张上传，成功后把本地那条换成服务器 URL（只留指针，不占空间），再刷新列表。
+- 上传超时从 4.5s 放宽到 25s，真机慢网不再误判失败而回落本地。
+- 容量：每张压缩到 1500px / q0.8，约 200–500KB；Supabase Storage 免费额度 1GB ≈ 2000–4000 张。
+
+**联网搜索**
+- 后端新增两个内置工具（不走 MCP、不需要额外 API key）：`web__search`（Bing HTML 结果页解析，取标题/链接/摘要）和 `web__fetch`（打开网页读正文，截 6000 字）。
+- 接在 `getEnabledOpenAITools()` 的工具列表末尾，`executeOpenAITool()` 开头拦截；nudge 的工具过滤只放行小红书/定位，所以主动消息不会误用搜索。
+- 前端 `toolLabels.js` 补了「联网搜索 / 读网页」标签，聊天里的工具小胶囊能正常显示。
+- 上游协议探测：中转 `api.jiushi.xin` 支持「非流式 + tools」和「流式 + tools」，但 **不支持 `tool_choice` 强制指定**（返回 500），所以未使用强制调用。
+- 线上实测（`/api/chat`）：模型能自动调用 `web__search` 拿到实时结果再回答。
+
+---
+
 ## 2026.11.04 流式气泡真正贴底（stick-to-bottom 重写）
 
 - 症状：发消息后等待回复的打字气泡不在最底部；回复生成完也不自动回到底部，像是被判成「在看历史」。

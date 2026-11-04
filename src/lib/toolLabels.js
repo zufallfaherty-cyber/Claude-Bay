@@ -21,6 +21,9 @@ const TOOL_META = {
   // ── 环境感知（weather-sense）──
   get_weather:           { label: '查天气',       desc: '查询此刻天气的具体数字，以及今天接下来的天气（会不会降温、下雨、出太阳）' },
   get_location:          { label: '查位置',       desc: '查她此刻的位置（在家还是外面）' },
+  // ── 内置联网（后端 web__search / web__fetch）──
+  search:                { label: '联网搜索',     desc: '搜网页找实时信息' },
+  fetch:                 { label: '读网页',       desc: '打开网页看正文' },
 }
 
 // 后端返回的工具名可能是 "server__tool" 命名空间形式，先取最后一段

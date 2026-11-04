@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadAlbum } from '../lib/album'
+import { loadAlbum, syncLocalPhotos } from '../lib/album'
 import PhotoViewer from '../components/PhotoViewer'
 import { SAMPLE_PHOTOS } from '../lib/albumSamples'
 
@@ -16,6 +16,13 @@ export default function AlbumPage() {
       if (!alive) return
       setPhotos(list)
       setLoaded(true)
+      // Offline uploads from before the cloud endpoint existed: push them up
+      // quietly, then reload so the grid switches to the server copies.
+      if (list.some((p) => p.local)) {
+        syncLocalPhotos().then((n) => {
+          if (n > 0 && alive) loadAlbum().then((next) => { if (alive) setPhotos(next) })
+        })
+      }
     })
     return () => { alive = false }
   }, [])

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchSettings } from '../lib/supabase'
-import { compressImage, loadAlbum, uploadPhoto, deletePhoto } from '../lib/album'
+import { compressImage, loadAlbum, uploadPhoto, deletePhoto, syncLocalPhotos } from '../lib/album'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -17,7 +17,15 @@ export default function Settings() {
 
   useEffect(() => {
     let alive = true
-    loadAlbum().then((list) => { if (alive) setAlbumPhotos(list) })
+    loadAlbum().then((list) => {
+      if (!alive) return
+      setAlbumPhotos(list)
+      if (list.some((p) => p.local)) {
+        syncLocalPhotos().then((n) => {
+          if (n > 0 && alive) loadAlbum().then((next) => { if (alive) setAlbumPhotos(next) })
+        })
+      }
+    })
     return () => { alive = false }
   }, [])
 

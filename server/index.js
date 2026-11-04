@@ -191,6 +191,109 @@ async function callOmbreTool(toolName, args = {}) {
   return await ombreClient.callTool(toolName, args)
 }
 
+// ── Built-in web search (no extra MCP server or API key needed) ──
+// Reads Bing's HTML result page, which is free and reachable from the HK box.
+// Good enough for "what happened today / how much is X" questions, and lets
+// Claude verify facts instead of answering from stale memory.
+const WEB_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
+const decodeEntities = (s) => String(s)
+  .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+  .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+  .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&nbsp;/g, ' ')
+
+const stripTags = (html) =>
+  decodeEntities(String(html).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
+
+// Bing wraps result links in /ck/a?...&u=a1<base64url>
+function unwrapBingUrl(href) {
+  try {
+    const u = new URL(decodeEntities(href), 'https://www.bing.com')
+    const v = u.searchParams.get('u')
+    if (u.hostname.endsWith('bing.com') && v && v.startsWith('a1')) {
+      return Buffer.from(v.slice(2), 'base64url').toString('utf8')
+    }
+  } catch {}
+  return decodeEntities(href)
+}
+
+async function webSearch(query, limit = 6) {
+  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-Hans&count=10`
+  const res = await fetch(url, {
+    headers: { 'User-Agent': WEB_UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6' },
+    signal: AbortSignal.timeout(12000),
+  })
+  if (!res.ok) throw new Error(`search failed: HTTP ${res.status}`)
+  const html = await res.text()
+  const items = []
+  const blockRe = /<li class="b_algo"[\s\S]*?<\/li>/g
+  let m
+  while ((m = blockRe.exec(html)) && items.length < limit) {
+    const block = m[0]
+    const link = block.match(/<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/)
+    if (!link) continue
+    const snippet = block.match(/<p[^>]*>([\s\S]*?)<\/p>/)
+    const title = stripTags(link[2])
+    if (!title) continue
+    items.push({
+      title,
+      url: unwrapBingUrl(link[1]),
+      snippet: snippet ? stripTags(snippet[1]).slice(0, 320) : '',
+    })
+  }
+  if (!items.length) return `没有找到「${query}」的结果。`
+  return items.map((it, i) => `${i + 1}. ${it.title}\n${it.url}\n${it.snippet}`).join('\n\n')
+}
+
+async function webFetch(url) {
+  const target = new URL(url)
+  if (!/^https?:$/.test(target.protocol)) throw new Error('only http/https')
+  const res = await fetch(target, {
+    headers: { 'User-Agent': WEB_UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6' },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(15000),
+  })
+  const type = res.headers.get('content-type') || ''
+  if (!/text\/(html|plain)/i.test(type)) throw new Error(`unsupported content: ${type}`)
+  const html = await res.text()
+  const text = stripTags(
+    html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+      .replace(/<(br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, '\n')
+  )
+  return `${res.url}\n\n${text.slice(0, 6000)}`
+}
+
+const WEB_TOOL_DEFS = [
+  {
+    type: 'function',
+    function: {
+      name: 'web__search',
+      description: '联网搜索网页。遇到实时信息（新闻、赛事、价格、政策、这两天发生的事）或你不确定的事实，先搜索再回答，不要凭记忆编造。返回标题、链接和摘要。',
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string', description: '搜索关键词，尽量具体' } },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'web__fetch',
+      description: '打开一个网页并读取正文。搜索之后想看某个页面的具体内容时使用。',
+      parameters: {
+        type: 'object',
+        properties: { url: { type: 'string', description: '完整网址，http/https' } },
+        required: ['url'],
+      },
+    },
+  },
+]
+
 // ── MCP registry: multiple servers + tool discovery + enable/disable ──
 const mcpClients = new Map()    // server name -> client
 const mcpToolsCache = new Map() // server name -> { tools, at }
@@ -243,11 +346,17 @@ async function getEnabledOpenAITools() {
       })
     }
   }
-  return out
+  return [...out, ...WEB_TOOL_DEFS]
 }
 
 // Execute an OpenAI tool call by its namespaced name ("server__tool").
 async function executeOpenAITool(fullName, argsStr) {
+  if (fullName === 'web__search' || fullName === 'web__fetch') {
+    let args = {}
+    try { args = JSON.parse(argsStr || '{}') } catch {}
+    if (fullName === 'web__search') return await webSearch(String(args.query || '').slice(0, 300))
+    return await webFetch(String(args.url || ''))
+  }
   const sep = fullName.indexOf('__')
   if (sep < 0) throw new Error(`unknown tool: ${fullName}`)
   const srvName = fullName.slice(0, sep)

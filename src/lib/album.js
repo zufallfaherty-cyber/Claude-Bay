@@ -20,9 +20,9 @@ function writeLocal(list) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(list)) } catch {}
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, timeoutMs = 4500) {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 4500)
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const res = await fetch(`${API_BASE}${path}`, { ...options, signal: ctrl.signal })
     const json = await res.json()
@@ -78,7 +78,7 @@ export async function uploadPhoto(dataUrl, meta = {}) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: dataUrl, ...meta }),
-    })
+    }, 25000)
     if (json?.ok && json.photo) {
       const photo = normalize(json.photo)
       const list = [photo, ...readLocal().filter((p) => p.id !== photo.id)]
@@ -97,6 +97,32 @@ export async function uploadPhoto(dataUrl, meta = {}) {
   }
   writeLocal([photo, ...readLocal()])
   return { photo, synced: false }
+}
+
+// Photos taken while the server was unreachable live in localStorage as data
+// URLs, which fills the ~5MB quota after a dozen shots. Push them up in the
+// background and swap each entry for the server copy (just a URL, no payload).
+export async function syncLocalPhotos() {
+  const pending = readLocal().filter(
+    (p) => p.local && typeof p.url === 'string' && p.url.startsWith('data:image/')
+  )
+  if (!pending.length) return 0
+  let synced = 0
+  for (const p of pending) {
+    try {
+      const json = await api('/api/album', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: p.url, title: p.title || '', date: p.date || '' }),
+      }, 25000)
+      if (json?.ok && json.photo) {
+        const photo = normalize(json.photo)
+        writeLocal(readLocal().map((x) => (x.id === p.id ? photo : x)))
+        synced++
+      }
+    } catch {}
+  }
+  return synced
 }
 
 export async function updatePhoto(id, patch) {
