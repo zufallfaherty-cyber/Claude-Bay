@@ -4,6 +4,13 @@
 
 ---
 
+## 2026.11.04 聊天气泡缩小 + 流式自动贴底
+
+- 气泡：`px-4 py-2.5 text-[14px] leading-[1.85]` → `px-3.5 py-2 text-[13px] leading-[1.72]`，圆角 18→16，头像 32→28（续用消息的占位同步 28），打字点气泡同步收小。一屏能多放一两轮对话。
+- 自动滚动：原来用 `bottomRef.scrollIntoView({ behavior: 'smooth' })`，流式时会被后续更新打断、停在半路。改为直接操作消息容器 `scrollRef.scrollTop = scrollHeight`：首屏与流式期间瞬时贴底，普通新消息仅在用户本来就在底部（距底 <120px）时平滑滚动。
+
+---
+
 ## 2026.11.04 键盘贴合定稿 + 设置页模型输入框
 
 - 键盘空隙真正的修法：前两次靠 `visualViewport` / `innerHeight` 都不可靠（PWA 里 `innerHeight` 会随键盘一起缩小，判定恒为 0）。最终改为由 `ChatInput` 的 `textarea` **focus/blur** 驱动 `html.kb-open`，键盘一弹起就把 composer 底部内边距从 `safe-area + 8px` 收到 6px；`blur` 延迟 120ms 再检查 `activeElement`，避免点附件/语音时误恢复。`--chat-vvh` 仍由 visualViewport 维护，作为增强，不再是唯一依据。

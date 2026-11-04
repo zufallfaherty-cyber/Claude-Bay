@@ -128,6 +128,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [diag, setDiag] = useState(null)
   const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
+  const scrollRef = useRef(null)
 
   // Refs to avoid any closure issues
   const streamingRef = useRef(false)
@@ -341,10 +342,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }).catch(() => {})
   }, [supabase])
 
-  // Auto-scroll: instant on load, smooth on new messages
+  // Auto-scroll: instant on load and while streaming, smooth on a finished message.
+  // While streaming, a smooth scroll is interrupted by every new token chunk and never
+  // reaches the bottom, so jump directly instead.
   const isFirstRender = useRef(true)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: isFirstRender.current ? 'instant' : 'smooth' })
+    const el = scrollRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    if (isFirstRender.current || streamingRef.current) {
+      el.scrollTop = el.scrollHeight
+    } else if (nearBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
     if (messages.length > 0) isFirstRender.current = false
   }, [messages])
 
@@ -740,7 +750,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       </header>
 
       {/* ── Messages ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
         <div className={`flex flex-col min-h-full pb-3 ${messages.length === 0 ? 'justify-center' : 'justify-end'}`}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center px-8">

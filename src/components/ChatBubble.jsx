@@ -74,10 +74,10 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
   return (
     <div className={`flex gap-2 items-start msg-enter ${isUser ? 'flex-row-reverse' : ''} ${isContinuation ? 'mt-1.5' : 'mt-3.5'}`}>
       {isContinuation ? (
-        <div className="w-8 shrink-0" aria-hidden="true" />
+        <div className="w-7 shrink-0" aria-hidden="true" />
       ) : (
-        <div className={`chat-avatar w-8 h-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden border ${
-          isUser ? 'border-white/70 bg-sage/75 text-[13px] text-white' : 'border-white/80 bg-white/85 text-[14px]'
+        <div className={`chat-avatar w-7 h-7 rounded-full shrink-0 flex items-center justify-center overflow-hidden border ${
+          isUser ? 'border-white/70 bg-sage/75 text-[12px] text-white' : 'border-white/80 bg-white/85 text-[13px]'
         }`}>
           {avatarSrc?.startsWith('data:') ? (
             <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
@@ -126,16 +126,16 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
 
         {/* Text bubble */}
         {hasDisplayContent && (
-          <div className={`w-fit max-w-full px-4 py-2.5 text-[14px] leading-[1.85] whitespace-pre-wrap break-words ${
+          <div className={`w-fit max-w-full px-3.5 py-2 text-[13px] leading-[1.72] whitespace-pre-wrap break-words ${
             isUser ? 'bubble-user' : 'bubble-claude'
-          } ${isUser ? 'rounded-[18px] rounded-tr-[7px]' : 'rounded-[18px] rounded-tl-[7px]'}`}>
+          } ${isUser ? 'rounded-[16px] rounded-tr-[6px]' : 'rounded-[16px] rounded-tl-[6px]'}`}>
             {displayContent}
           </div>
         )}
 
         {/* Typing dots (no content yet) */}
         {!hasDisplayContent && !(attachments && attachments.length > 0) && (
-          <div className="bubble-claude px-4 py-3 rounded-[18px] rounded-tl-[7px]">
+          <div className="bubble-claude px-3.5 py-2.5 rounded-[16px] rounded-tl-[6px]">
             <span className="inline-flex gap-1.5 items-center">
               <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
               <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
