@@ -23,9 +23,9 @@ import Settings from './pages/Settings'
 function PageWrapper({ children }) {
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.16, ease: 'easeOut' }}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       className="h-full"
     >
       {children}
@@ -97,7 +97,21 @@ function App() {
   return (
     <div className="h-full flex flex-col max-w-lg mx-auto bg-cream relative overflow-hidden">
       {(isHome || isChat) && (
-        <div className={isHome ? 'home-water-bg' : 'chat-water-bg'} aria-hidden="true" />
+        <>
+          {/* Both layers stay mounted so switching pages cross-fades instead of
+              swapping the class, which made backdrop-filter cards flash white
+              while they re-sampled the new background. */}
+          <div
+            className="home-water-bg"
+            style={{ opacity: isHome ? 1 : 0, transition: 'opacity 0.22s ease' }}
+            aria-hidden="true"
+          />
+          <div
+            className="chat-water-bg"
+            style={{ opacity: isChat ? 1 : 0, transition: 'opacity 0.22s ease' }}
+            aria-hidden="true"
+          />
+        </>
       )}
       <main className={isChat
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'

@@ -7,7 +7,9 @@
 ## 2026.11.04 去掉返回首页的双重动画
 
 - 原转场：`AnimatePresence mode="wait"` + `exit`（淡出 + 上移 6px，0.28s）→ 再 `initial`（淡入 + 下移 10px，0.28s）。返回首页时先退出再进入，看起来像闪两下。
-- 改为：移除 `AnimatePresence` 与 `exit`，`PageWrapper` 只做 0.16s 纯淡入（无位移），旧页面立即卸载。每次切页只有一次短淡入。
+- 改为：移除 `AnimatePresence` 与 `exit`，旧页面立即卸载，`PageWrapper` 只做一次淡入。
+- 第二轮：0.16s 无位移太生硬 → 调到 0.3s + 6px 上移的柔和淡入。
+- 岛里闪白：原来背景 div 靠切 className（`chat-water-bg` ↔ `home-water-bg`）换背景，`backdrop-filter` 卡片会短暂采样到聊天页的白色蒙版。改为两层背景常驻、用 `opacity` 0.22s 交叉淡化，卡片就不会闪白。
 
 ---
 
