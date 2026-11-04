@@ -663,11 +663,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       )
       const keyboardUp = visibleH < screenH * 0.8
       if (keyboardUp) {
+        // height + offsetTop = distance from the page top to the bottom of the visible area
         root.style.setProperty('--chat-vvh', `${Math.round(visibleH)}px`)
-        root.classList.add('kb-open')
       } else {
         root.style.removeProperty('--chat-vvh')
-        root.classList.remove('kb-open')
       }
       if (showDiag) {
         const c = document.querySelector('.chat-composer')

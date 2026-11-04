@@ -168,6 +168,15 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
+          onFocus={() => document.documentElement.classList.add('kb-open')}
+          onBlur={() => {
+            // Wait a tick: tapping a toolbar button blurs first but keeps the keyboard
+            setTimeout(() => {
+              if (document.activeElement?.tagName !== 'TEXTAREA') {
+                document.documentElement.classList.remove('kb-open')
+              }
+            }, 120)
+          }}
           placeholder="说点什么…"
           rows={1}
           disabled={disabled}
