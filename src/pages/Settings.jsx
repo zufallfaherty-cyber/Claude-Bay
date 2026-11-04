@@ -2,12 +2,49 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchSettings } from '../lib/supabase'
+import { compressImage, loadAlbum, uploadPhoto, deletePhoto } from '../lib/album'
 
 export default function Settings() {
   const navigate = useNavigate()
   const { supabase, user } = useAuth()
   const bayFileRef = useRef(null)
   const claudeFileRef = useRef(null)
+  const albumFileRef = useRef(null)
+
+  const [albumPhotos, setAlbumPhotos] = useState([])
+  const [albumBusy, setAlbumBusy] = useState(false)
+  const [albumHint, setAlbumHint] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    loadAlbum().then((list) => { if (alive) setAlbumPhotos(list) })
+    return () => { alive = false }
+  }, [])
+
+  const handleAlbumUpload = async (files) => {
+    const picked = Array.from(files || []).filter((f) => f.type.startsWith('image/'))
+    if (!picked.length) return
+    setAlbumBusy(true)
+    setAlbumHint(`正在处理 ${picked.length} 张照片…`)
+    let synced = 0
+    for (const file of picked) {
+      try {
+        const dataUrl = await compressImage(file, 1500, 0.8)
+        const { photo, synced: ok } = await uploadPhoto(dataUrl)
+        if (ok) synced++
+        setAlbumPhotos((list) => [photo, ...list])
+      } catch {}
+    }
+    setAlbumBusy(false)
+    setAlbumHint(synced ? `已上传并同步 ${synced} 张` : '网络未连接，照片先保存在这台设备')
+    setTimeout(() => setAlbumHint(''), 4000)
+  }
+
+  const handleAlbumDelete = async (id) => {
+    if (!confirm('删除这张照片吗？')) return
+    await deletePhoto(id)
+    setAlbumPhotos((list) => list.filter((p) => p.id !== id))
+  }
 
   const [pushOn, setPushOn] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
@@ -220,6 +257,63 @@ export default function Settings() {
               <p className="text-xs text-warm-gray">Claude</p>
             </div>
           </div>
+        </div>
+
+        {/* Album */}
+        <div className="glass rounded-2xl p-5 border border-white/40">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-[10px] tracking-[0.25em] text-warm-gray/60 uppercase">回忆相册</p>
+              <p className="text-[11px] text-warm-gray/60 mt-1.5 leading-relaxed">
+                上传你们的照片，首页「最近的回忆」会同步显示
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/album')}
+              className="text-[10px] text-sage-deep whitespace-nowrap mt-0.5 active:opacity-60"
+            >
+              查看相册 →
+            </button>
+          </div>
+
+          <input
+            ref={albumFileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => { handleAlbumUpload(e.target.files); e.target.value = '' }}
+            className="hidden"
+          />
+          <button
+            onClick={() => albumFileRef.current?.click()}
+            disabled={albumBusy}
+            className="w-full h-11 rounded-xl border border-dashed border-sage/35 bg-white/45 text-[12px] text-sage-deep flex items-center justify-center gap-2 active:scale-[0.99] transition-transform disabled:opacity-60"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {albumBusy ? '处理中…' : '选择照片上传'}
+          </button>
+
+          {albumHint && <p className="text-[10px] text-warm-gray/70 mt-2 text-center">{albumHint}</p>}
+
+          {albumPhotos.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar mt-3 -mx-1 px-1">
+              {albumPhotos.map((p) => (
+                <div key={p.id} className="relative flex-shrink-0 group">
+                  <img src={p.url} alt={p.title || ''} className="w-[64px] h-[54px] object-cover rounded-lg border border-white/60" />
+                  <button
+                    onClick={() => handleAlbumDelete(p.id)}
+                    aria-label="删除照片"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#5C6B54]/90 text-white text-[10px] leading-none flex items-center justify-center shadow"
+                  >
+                    ×
+                  </button>
+                  <p className="w-[64px] text-[9px] text-warm-gray/70 mt-1 truncate">{p.title || '未命名'}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* API Settings */}

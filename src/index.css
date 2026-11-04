@@ -15,10 +15,13 @@
 }
 
 /* ── Base ── */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* Keep the reset inside @layer base so Tailwind's px/py/m utilities can override it */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 html, body, #root {
@@ -51,10 +54,10 @@ body {
 
 /* ── Message Entrance ── */
 @keyframes messageIn {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.msg-enter { animation: messageIn 0.35s ease-out both; }
+.msg-enter { animation: messageIn 0.26s ease-out both; }
 
 /* ── Slide In (Drawer) ── */
 @keyframes slideIn {
@@ -85,6 +88,258 @@ body {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
+
+/* ── Liquid glass — thin rim, local highlight, light shadow ── */
+.glass-water {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.26),
+    rgba(255, 255, 255, 0.09) 55%,
+    rgba(232, 240, 224, 0.14)
+  );
+  backdrop-filter: blur(9px) saturate(1.22) brightness(1.01);
+  -webkit-backdrop-filter: blur(9px) saturate(1.22) brightness(1.01);
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  box-shadow:
+    0 10px 26px -6px rgba(70, 85, 62, 0.16),
+    0 3px 10px rgba(70, 85, 62, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+}
+/* One soft patch of sunlight, not a full-surface sheen */
+.glass-water::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    58% 62% at 22% 4%,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0) 62%
+  );
+}
+/* Inner rim — the second optical edge of the glass */
+.glass-water::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  pointer-events: none;
+}
+
+/* The main entry keeps a touch of green light inside the glass */
+.chat-glass {
+  background:
+    radial-gradient(120% 150% at 14% 50%, rgba(150, 180, 135, 0.24) 0%, rgba(150, 180, 135, 0) 52%),
+    linear-gradient(135deg,
+      rgba(255, 255, 255, 0.34),
+      rgba(255, 255, 255, 0.13) 58%,
+      rgba(232, 240, 224, 0.20));
+}
+
+/* ── Unified soft geometry, with a hair of organic irregularity ── */
+.shape-chat   { border-radius: 48px 52px 46px 50px / 42px 44px 46px 42px; }
+.shape-island { border-radius: 38px 42px 36px 40px / 40px 36px 42px 38px; }
+.shape-panel  { border-radius: 28px 30px 26px 30px / 28px 26px 30px 28px; }
+.shape-date   { border-radius: 50%; }
+
+/* Home water background — the light lives here, not in the glass */
+.home-water-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/bg-water.jpg') center top / cover no-repeat;
+  filter: saturate(0.94) contrast(1.03);
+  transform-origin: 50% 38%;
+  animation: waterBreathe 46s ease-in-out infinite alternate;
+  will-change: transform;
+}
+/* Very slow breathing of the water surface */
+@keyframes waterBreathe {
+  from { transform: scale(1.02); }
+  to   { transform: scale(1.06); }
+}
+/* Slow sunlight drifting across the water */
+.home-water-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(42% 34% at 28% 18%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 62%),
+    linear-gradient(112deg,
+      rgba(255, 255, 255, 0) 18%,
+      rgba(255, 255, 255, 0.10) 36%,
+      rgba(255, 255, 255, 0) 52%,
+      rgba(255, 255, 255, 0.07) 70%,
+      rgba(255, 255, 255, 0) 86%);
+  background-size: 100% 100%, 240% 240%;
+  animation: waterLight 42s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+@keyframes waterLight {
+  0%   { background-position: 0% 0%, 0% 0%; }
+  100% { background-position: 0% 0%, 100% 100%; }
+}
+/* Depth: soft vignette + bottom haze */
+.home-water-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(118% 82% at 50% 32%, rgba(255, 255, 255, 0) 34%, rgba(58, 76, 50, 0.17) 100%),
+    linear-gradient(
+      180deg,
+      rgba(252, 251, 247, 0.18) 0%,
+      rgba(252, 251, 247, 0.00) 30%,
+      rgba(252, 251, 247, 0.06) 68%,
+      rgba(252, 251, 247, 0.26) 100%
+    );
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-water-bg,
+  .home-water-bg::before { animation: none; }
+}
+
+/* ── Chat: same water, quieter ── */
+.chat-water-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/bg-water.jpg') center 26% / cover no-repeat;
+  filter: saturate(0.58) contrast(0.9) brightness(1.04);
+}
+/* Cream veil: keeps the middle of the screen calm behind text */
+.chat-water-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(252, 251, 247, 0.62) 0%,
+      rgba(252, 251, 247, 0.46) 16%,
+      rgba(252, 251, 247, 0.54) 52%,
+      rgba(252, 251, 247, 0.72) 100%),
+    radial-gradient(72% 46% at 50% 44%, rgba(252, 251, 247, 0.52) 0%, rgba(252, 251, 247, 0) 100%);
+}
+
+/* Keyboard-aware height (set from ChatPage via visualViewport) */
+.chat-shell { height: var(--chat-vvh, 100%); }
+
+/* Header overflow menu */
+.chat-menu {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(252, 251, 247, 0.8));
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 16px 32px -20px rgba(70, 85, 62, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+/* Thin frosted header */
+.chat-header {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.26));
+  backdrop-filter: blur(14px) saturate(1.04);
+  -webkit-backdrop-filter: blur(14px) saturate(1.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 6px 18px -16px rgba(70, 85, 62, 0.45);
+}
+
+/* Bubbles: steady geometry, two optical edges, barely-there shadow */
+.bubble-claude {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.80), rgba(252, 251, 247, 0.62));
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.30),
+    0 4px 14px -10px rgba(70, 85, 62, 0.34);
+  color: #3D3A38;
+  backdrop-filter: blur(8px) saturate(1.04);
+  -webkit-backdrop-filter: blur(8px) saturate(1.04);
+}
+.bubble-user {
+  background: linear-gradient(150deg, rgba(176, 196, 163, 0.66), rgba(150, 175, 138, 0.54));
+  border: 1px solid rgba(192, 210, 178, 0.88);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 4px 14px -10px rgba(70, 85, 62, 0.36);
+  color: #2E3C29;
+  backdrop-filter: blur(8px) saturate(1.04);
+  -webkit-backdrop-filter: blur(8px) saturate(1.04);
+}
+
+/* Avatars: uniform circle with a hairline rim */
+.chat-avatar {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.85),
+    0 2px 8px -4px rgba(70, 85, 62, 0.35);
+}
+
+/* Floating glass composer */
+.chat-input-bar {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.74), rgba(252, 251, 247, 0.58));
+  backdrop-filter: blur(16px) saturate(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.08);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 8px 24px -16px rgba(70, 85, 62, 0.48);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.chat-input-bar:focus-within {
+  border-color: rgba(176, 196, 163, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 26px -14px rgba(70, 85, 62, 0.5);
+}
+
+/* Typing dots: slow luminance, no bounce */
+@keyframes dotGlow {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.9; }
+}
+.typing-dot { animation: dotGlow 1.9s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.24s; }
+.typing-dot:nth-child(3) { animation-delay: 0.48s; }
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot { animation: none; opacity: 0.55; }
+}
+
+/* Tall viewport (full-screen PWA / iPhone 18 Pro 874pt): let the islands breathe again */
+@media (min-height: 800px) {
+  .island { padding-top: 8px; padding-bottom: 14px; }
+  .island-icon { width: 28px; height: 28px; }
+  .island-title { font-size: 15px; }
+  .island-en { font-size: 10.5px; }
+  .island-sub { font-size: 8px; }
+  .island-title,
+  .island-en,
+  .island-sub { margin-top: 3px; }
+
+  .album-panel { padding: 12px 16px 12px; }
+  .album-item { width: 80px; }
+  .album-thumb { height: 76px; }
+  .album-title { font-size: 14px; }
+  .album-name { font-size: 10px; }
+  .album-date { font-size: 8px; }
+  .home-quote { margin-top: 10px; }
+}
+
+/* Short phones (e.g. iPhone SE): let the page scroll instead of crushing the islands */
+@media (max-height: 700px) {
+  .home-shell { height: auto; min-height: 100%; }
+  .home-cards { flex: none; justify-content: flex-start; padding-block: 10px; }
+}
+
+/* Hide scrollbar for horizontal memory rail */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 /* ── Shimmer ── */
 @keyframes shimmer {

@@ -123,16 +123,16 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
   }, [listening])
 
   return (
-    <div className="px-3 py-3 border-t border-warm-line/50">
+    <div className="relative">
       {/* Attachment previews */}
       {attachments.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2 px-1">
+        <div className="flex flex-wrap gap-2 mb-1.5 px-1">
           {attachments.map((a, i) => (
             <div key={i} className="relative group">
               {a.type === 'image' ? (
-                <img src={a.data} alt={a.name} className="w-16 h-16 object-cover rounded-xl border border-warm-line/50" />
+                <img src={a.data} alt={a.name} className="w-16 h-16 object-cover rounded-[14px] border border-white/70" />
               ) : (
-                <div className="w-16 h-16 bg-white rounded-xl border border-warm-line/50 flex items-center justify-center text-2xl">📄</div>
+                <div className="w-16 h-16 bg-white/80 rounded-[14px] border border-white/70 flex items-center justify-center text-2xl">📄</div>
               )}
               <button
                 onClick={() => removeAttachment(i)}
@@ -143,7 +143,7 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         </div>
       )}
 
-      <div className="flex items-end gap-2 glass rounded-2xl px-3 py-2 shadow-sm border border-white/40">
+      <div className="chat-input-bar flex items-end gap-1 rounded-[24px] px-1.5 py-1.5">
         {/* File attachment */}
         <input
           ref={fileRef}
@@ -155,10 +155,10 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         />
         <button
           onClick={() => fileRef.current?.click()}
-          className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl text-warm-gray hover:bg-mint/50 transition-colors active:scale-90"
+          className="flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full text-[#6B7364] active:bg-white/60 transition-colors active:scale-95"
           aria-label="添加附件"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
             <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
           </svg>
         </button>
@@ -168,21 +168,21 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
           value={text}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder=""
+          placeholder="说点什么…"
           rows={1}
           disabled={disabled}
-          className="flex-1 resize-none outline-none text-[15px] text-warm-dark placeholder-warm-gray py-1.5 max-h-[120px] bg-transparent"
+          className="flex-1 resize-none outline-none text-[15px] leading-[1.6] text-warm-dark placeholder:text-warm-gray/40 py-2 max-h-[120px] bg-transparent"
         />
 
         {/* Voice */}
         <button
           onClick={toggleVoice}
-          className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
-            listening ? 'bg-sage-deep text-white animate-pulse' : 'text-warm-gray hover:bg-mint/50'
+          className={`flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-all active:scale-95 ${
+            listening ? 'bg-sage-deep text-white' : 'text-[#6B7364] active:bg-white/60'
           }`}
           aria-label="语音输入"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
             <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
             <line x1="12" y1="19" x2="12" y2="23" />
@@ -194,14 +194,14 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         <button
           onClick={handleSubmit}
           disabled={(!text.trim() && attachments.length === 0) || disableSend}
-          className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-xl transition-all active:scale-90 ${
+          className={`flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-all active:scale-95 ${
             (text.trim() || attachments.length > 0) && !disableSend
-              ? 'bg-sage-deep text-white'
-              : 'bg-warm-line/50 text-warm-gray cursor-not-allowed'
+              ? 'bg-sage-deep text-white shadow-[0_4px_10px_-5px_rgba(60,82,54,0.6)]'
+              : 'bg-white/45 text-warm-gray/45 cursor-not-allowed'
           }`}
           aria-label="发送"
         >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />
             <polygon points="22 2 15 22 11 13 2 9 22 2" />
           </svg>

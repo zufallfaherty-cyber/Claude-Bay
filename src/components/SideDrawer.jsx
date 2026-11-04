@@ -21,7 +21,6 @@ export default function SideDrawer({
   const handleItemClick = (item) => {
     if (item.action === 'new') {
       onNewSession()
-      navigate('/')
     } else if (item.path) {
       navigate(item.path)
     }
@@ -29,11 +28,19 @@ export default function SideDrawer({
   }
 
   return (
-    <aside className="fixed top-0 left-0 h-full w-72 bg-white z-50 shadow-2xl rounded-r-2xl flex flex-col animate-[slideIn_0.25s_ease-out]">
+    <aside
+      className="fixed top-0 left-0 h-full w-72 z-50 rounded-r-[24px] flex flex-col animate-[slideIn_0.25s_ease-out] border-r border-white/70"
+      style={{
+        background: 'linear-gradient(160deg, rgba(255,255,255,0.94), rgba(250,249,245,0.9))',
+        backdropFilter: 'blur(20px) saturate(1.04)',
+        WebkitBackdropFilter: 'blur(20px) saturate(1.04)',
+        boxShadow: '0 0 44px -14px rgba(60,76,50,0.38)',
+      }}
+    >
       {/* Drawer Header */}
-      <div className="px-5 py-5 border-b border-warm-line flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-rose-light flex items-center justify-center text-lg">
-          💕
+      <div className="px-5 py-5 border-b border-white/70 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-mint flex items-center justify-center text-lg">
+          🌿
         </div>
         <div>
           <p className="font-semibold text-[15px] text-warm-dark">Claude&Bay</p>
@@ -42,12 +49,12 @@ export default function SideDrawer({
       </div>
 
       {/* Menu Items */}
-      <div className="px-3 py-3 border-b border-warm-line">
+      <div className="px-3 py-3 border-b border-white/70">
         {menuItems.map((item) => (
           <button
             key={item.label}
             onClick={() => handleItemClick(item)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] text-warm-dark hover:bg-rose-light/30 transition-colors active:scale-[0.98]"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] text-warm-dark hover:bg-white/60 transition-colors active:scale-[0.98]"
           >
             <span className="text-lg">{item.icon}</span>
             <span>{item.label}</span>
@@ -68,13 +75,12 @@ export default function SideDrawer({
               key={s.id}
               onClick={() => {
                 onSelectSession(s.id)
-                navigate('/')
                 onClose()
               }}
               className={`w-full text-left px-3 py-2.5 rounded-xl text-[14px] mb-1 transition-colors active:scale-[0.98] ${
                 s.id === currentSessionId
-                  ? 'bg-rose-light/40 text-warm-dark font-medium'
-                  : 'text-warm-dark hover:bg-rose-light/20'
+                  ? 'bg-white/70 text-warm-dark font-medium shadow-[inset_0_0_0_1px_rgba(255,255,255,0.85)]'
+                  : 'text-warm-dark hover:bg-white/60'
               }`}
             >
               <p className="truncate">{s.name || '新对话'}</p>
@@ -85,7 +91,7 @@ export default function SideDrawer({
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-warm-line text-center">
+      <div className="px-5 py-3 border-t border-white/70 text-center">
         <p className="text-[11px] text-warm-gray">Bunny Style · Claude API</p>
       </div>
     </aside>

@@ -4,6 +4,83 @@
 
 ---
 
+## 2026.11.04 聊天页视觉升级：与首页同一套植物水境（🚧 本地完成，未上线）
+
+### 背景与容器
+- 新增 `.chat-water-bg`：同一张 `/bg-water.jpg`，`saturate(.58) contrast(.9) brightness(1.04)`，静态不做水波动画；叠奶油白渐变 + 中心柔光蒙版，保证文字区干净、花朵留在边缘。
+- `App.jsx` 首页与聊天页都渲染水背景（分别用 `.home-water-bg` / `.chat-water-bg`）；聊天页 `main` 改为 `overflow-hidden`，并隐藏五栏底栏（`{!isChat && <BottomNav />}`）。
+
+### 顶部导航
+- `.chat-header` 轻薄磨砂条（blur 14 / 白 0.54→0.26 / 1px 白描边），左侧返回，中间 34px Claude 头像 + Claude + Always here，右侧历史（`.SideDrawer`）与「⋯」菜单（新对话 / 情绪日记 / 设置）。
+- `SideDrawer` 从白色实体改为玻璃抽屉，修掉未定义的 `rose-light` 类；选择历史后不再 `navigate('/')`（原 bug 会跳回首页）。
+
+### 消息气泡
+- `.bubble-claude`：乳白半透明 + 双层内描边 + `0 4px 14px -10px` 极浅投影，规整 `rounded-[18px]`，仅朝向头像一角 7px。
+- `.bubble-user`：低饱和鼠尾草绿玻璃 + 浅绿描边，文字 `#2E3C29` 深灰绿。
+- 头像统一 32px 圆形 + 细白环（`.chat-avatar`）；同角色 5 分钟内连续消息隐藏头像但保留 32px 占位，间距 `mt-3.5 → mt-1.5`，归属不变。
+- 时间戳 9px / 45% 透明度，旁边新增「复制」；工具标签、代码块、附件卡片一并玻璃化；保留重新生成、语音、附件、存文件库/下载。
+
+### 输入框
+- `.chat-input-bar`：奶油白半透明、细白边、`focus-within` 时边框转浅绿；左侧附件、中间多行 textarea、右侧语音与鼠尾草绿圆形发送键；底部 `env(safe-area-inset-bottom)`。
+- 键盘跟随：`visualViewport.resize` 只在大幅收缩（>80px）时写入 `--chat-vvh`，`.chat-shell` 用它作为高度，避免地址栏抖动。
+
+### 动画
+- 新消息 `messageIn` 从 12px/0.35s 收紧到 6px/0.26s；打字点由弹跳改为 `dotGlow` 缓慢明暗（1.9s），尊重 `prefers-reduced-motion`。
+
+### 验证
+- 402×874 / 402×740 截图：消息页、菜单、空状态；首页与「我的」页无回归。
+- `npm run build` 通过。
+
+---
+
+## 2026.11.04 首页视觉改版：Liquid Glass × Botanical Water（🚧 本地完成，未上线）
+
+### 方向调整
+- 用户否掉初版「发光果冻岛」：白色外发光过强、深绿投影太重、每张卡形状各异、Emoji 封面像占位符。
+- 新方向：背景负责水面与光影，玻璃负责透明度、双层边缘与轻度折射；卡片不再上下漂浮。
+
+### 改动
+- `.glass-water` 重做：`linear-gradient` 半透明填充（白 0.26 → 0.09）、`blur(9px) saturate(1.22)`、1px 白 0.64 外边缘 + 3px 内缩 1px 白 0.34 内边缘；阴影从 `0 34px 58px -20px rgba(28,48,23,.66)` 降到 `0 10px 26px -6px rgba(70,85,62,.16)`。
+- 去掉每张卡不同的 blob 圆角，统一为 `.shape-island`（38/42/36/40 四角轻微不对称）、`.shape-chat`、`.shape-panel`、`.shape-date`（正椭圆）。
+- 删除 `.glass-float` 浮动动画；改由背景 `.home-water-bg` 做 46s 缓慢缩放 + 42s 阳光带漂移（`prefers-reduced-motion` 关闭）。
+- 最近回忆：不再用 Emoji + 渐变占位，改从 `public/bg-water.jpg` 裁 4 张 264×202 低饱和照片封面（`public/covers/cover-1..4.jpg`，共约 29KB），仅第一张叠加日期。
+- 底栏：玻璃条 `bg-white/40`、h 58、浅阴影；中间聊天钮 56→52px，凸起 25→17px，去掉厚白环。
+- 排版：功能岛标题字距 0.12em→0.06em，回忆标题 9.5px，回忆卡宽 72px 保证 375 宽不溢出。
+- 短屏兜底：`@media (max-height: 700px)` 下首页改为可滚动（`home-shell`/`home-cards`），避免 667 高被压扁截断。
+- 预览工具：`shot.mjs` 先注销 Service Worker + 清 cache 再截图（此前 cache-first 导致截到旧代码）；`eval.mjs` 支持传入宽高。
+
+### 第二轮（同日，按用户反馈）
+- 标题 30 → 36px；日期滴卡固定显示纪念日 `Jun. 28 2026`（天数仍从 6/28 起算）。
+- 「开始聊天」92 → 98px；三张功能岛上下 padding 收紧，换回一屏。
+- 删除手写小字「想和你 / 看更多风景」。
+- 每日台词移到底部右侧、导航栏正上方。
+- 「最近的回忆」改为相册：照片 74×64（原 70×54），点击打开 `PhotoViewer` 可命名 / 改日期 / 删除；「查看全部」进 `/album`；与记忆库彻底断开。
+- 新增相册上传：设置页「回忆相册」多选上传（前端 canvas 压到 1500px / JPEG 0.8）。
+- 新增后端：`GET/POST /api/album`、`PATCH/DELETE /api/album/:id`，图片存 Supabase Storage `bay-album/photos/*`，顺序与命名存 `bay-album/album.json`（自动建 public bucket，无需建表）。
+- 图片不直连 Supabase（国内被墙）：`album.json` 只存 Storage 内 `path`，前端拿到的 `url` 是 `/api/album/file/:id`，由 bayapi 代理 `GET /api/album/file/:id` 下载并缓存 1 天；删除时按 `path` 移除对象。
+- 新增 `src/lib/album.js`（服务器优先 + localStorage 兜底）、`PhotoViewer`（portal 到 body，避免被 z-20 底栏盖住）、`AlbumPage`、`albumSamples`。
+- 尚未部署后端，因此本地/线上当前上传只落 localStorage；部署 bayapi 后自动切到云端并跨设备同步。
+
+### 第三轮（适配 iPhone 18 Pro，402pt 宽）
+- 只按 402×874（全屏）/ 402×740（Safari 带工具栏）两档适配，不再追求 667 一屏。
+- 问题：Safari 工具栏吃掉 ~134px 后 `main` 只剩 670，三张岛（原 108/110/105 高）把聊天卡和相册都顶穿了。
+- 三张岛压缩到 ~74px 内容高：`pt-0.5 pb-2.5`、icon 22px、标题 13px、英文 8.5px、小字 7px，文字距卡底 10px，重叠时不被盖住。
+- 岛之间 `-mt-1` 轻微重叠（视觉交叠约 10px），不再挤压聊天卡（740 下聊天卡底 234 / 记忆库顶 245，留 11px）。
+- 相册面板内边距收紧（`pt-2 pb-1.5`、照片条 `mt-1.5`），整块压到底；740 下相册底 612、台词 616–644、底栏 645。
+- header `pt-6 → pt-5`，多让 4px 给内容区。
+- 全屏（`@media (min-height: 800px)`，即 PWA / 874pt）反向放大：岛 `pt-8 pb-14`、icon 28px、标题 15px、英文 10.5px、小字 8px，卡片 ~106 高；相册照片 80×76、标题 14px、照片名 10px（保证「一起看过的电影」不截断）、台词 `mt-10`。
+- 底栏「游戏」图标从纸飞机换成长柄手柄，与首页 `.island-icon` 的 `IconGame` 同一套 path，视觉统一。
+
+### 验证
+- 402×740 与 402×874：`main.scrollHeight == clientHeight`，一屏无滚动、三岛与聊天卡/相册均不重叠。
+- 375×667：内容完整、页面可滚动（兜底）。
+- 聊天页 / 我的页 / 书房页截图确认底栏与 padding 未被破坏。
+- 相册页、照片编辑弹窗、设置上传区截图确认。
+- `npm run build` 与 `node --check server/index.js` 通过。
+- 未 commit / 未 push / 未部署，等用户确认视觉；确认后需部署 bayapi 才能跨设备同步。
+
+---
+
 ## 2026.11.04 聊天成本优化 + 记忆浮现带日期（✅ 已上线）
 
 ### 背景

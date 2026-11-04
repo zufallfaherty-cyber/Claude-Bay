@@ -5,7 +5,7 @@ const tabs = [
     path: '/',
     label: '首页',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         <polyline points="9 22 9 12 15 12 15 22"/>
       </svg>
@@ -15,7 +15,7 @@ const tabs = [
     path: '/moods',
     label: '书房',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
         <line x1="16" y1="2" x2="16" y2="6"/>
         <line x1="8" y1="2" x2="8" y2="6"/>
@@ -23,14 +23,14 @@ const tabs = [
       </svg>
     ),
   },
-  // Chat — center, bigger
+  // Chat — center floating button
   {
     path: '/chat',
     label: '聊天',
     center: true,
-    icon: (active) => (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    icon: () => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 14.5a2 2 0 0 1-2 2H8l-4 3.5V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z"/>
       </svg>
     ),
   },
@@ -38,9 +38,11 @@ const tabs = [
     path: '/games',
     label: '游戏',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="5 3 19 12 12 19 5 3"/>
-        <line x1="12" y1="19" x2="12" y2="22"/>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2.4" y="7" width="19.2" height="10.8" rx="5.4" />
+        <path d="M7.4 10.2v4.2M5.3 12.3h4.2" />
+        <circle cx="16.4" cy="11.1" r=".85" />
+        <circle cx="18.2" cy="13.2" r=".85" />
       </svg>
     ),
   },
@@ -48,7 +50,7 @@ const tabs = [
     path: '/profile',
     label: '我的',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
@@ -61,46 +63,45 @@ export default function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="flex-shrink-0 glass-strong border-t border-white/30 px-2 pb-[env(safe-area-inset-bottom,4px)] pt-1">
-      <div className="flex items-center justify-around">
-        {tabs.map((tab) => {
-          const active = location.pathname === tab.path ||
-            (tab.path === '/profile' && location.pathname.startsWith('/profile'))
+    <nav className="relative z-20 flex-shrink-0 px-3.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom,0px)+6px)]">
+      <div className="relative">
+        <div className="h-[58px] rounded-[22px] border border-white/50 bg-white/40 backdrop-blur-xl shadow-[0_6px_20px_-10px_rgba(70,85,62,0.26)] flex items-center justify-around px-1">
+          {tabs.map((tab) => {
+            const active = location.pathname === tab.path ||
+              (tab.path === '/profile' && location.pathname.startsWith('/profile'))
 
-          if (tab.center) {
+            if (tab.center) {
+              return <div key={tab.path} className="w-[58px] flex-shrink-0" aria-hidden="true" />
+            }
+
             return (
               <button
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all active:scale-90 -mt-3 ${
-                  active ? 'text-white' : 'text-white/80'
+                className={`flex-1 flex flex-col items-center gap-[3px] py-1.5 rounded-xl transition-all active:scale-90 ${
+                  active ? 'text-sage-deep' : 'text-warm-gray/55'
                 }`}
               >
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${
-                  active ? 'bg-sage-deep shadow-lg shadow-sage-deep/30' : 'bg-sage shadow-md'
-                }`}>
-                  {tab.icon(active)}
-                </div>
+                {tab.icon(active)}
                 <span className="text-[10px] tracking-[0.06em] font-medium">{tab.label}</span>
+                <span className={`w-1 h-1 rounded-full transition-colors ${active ? 'bg-sage-deep' : 'bg-transparent'}`} />
               </button>
             )
-          }
+          })}
+        </div>
 
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-xl transition-all active:scale-90 ${
-                active ? 'text-sage-deep' : 'text-warm-gray/50'
-              }`}
-            >
-              {tab.icon(active)}
-              <span className={`text-[10px] tracking-[0.06em] font-medium ${active ? 'opacity-100' : 'opacity-50'}`}>
-                {tab.label}
-              </span>
-            </button>
-          )
-        })}
+        {/* Floating chat button */}
+        <button
+          onClick={() => navigate('/chat')}
+          aria-label="聊天"
+          className="absolute left-1/2 -translate-x-1/2 -top-[17px] z-10 active:scale-95 transition-transform"
+        >
+          <span className="w-[52px] h-[52px] rounded-full flex items-center justify-center text-white ring-[4px] ring-white/45 shadow-[0_6px_16px_-6px_rgba(56,76,50,0.55)]"
+            style={{ background: 'linear-gradient(145deg, #93AD88 0%, #64825B 58%, #55724D 100%)' }}
+          >
+            {tabs.find((t) => t.center).icon(true)}
+          </span>
+        </button>
       </div>
     </nav>
   )

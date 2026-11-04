@@ -694,6 +694,143 @@ app.post('/api/admin/cleanup', async (req, res) => {
   }
 })
 
+// ── Album (photo wall) ──
+// Images → Supabase Storage `bay-album/photos/*`; order + titles → `album.json`.
+const ALBUM_BUCKET = 'bay-album'
+const ALBUM_INDEX = 'album.json'
+
+async function ensureAlbumBucket() {
+  if (!supabaseAdmin) throw new Error('no supabase')
+  const { data } = await supabaseAdmin.storage.getBucket(ALBUM_BUCKET)
+  if (data) return
+  const { error } = await supabaseAdmin.storage.createBucket(ALBUM_BUCKET, { public: true })
+  if (error && !/already exists/i.test(error.message)) throw error
+}
+
+async function readAlbum() {
+  await ensureAlbumBucket()
+  const { data, error } = await supabaseAdmin.storage.from(ALBUM_BUCKET).download(ALBUM_INDEX)
+  if (error || !data) return []
+  try {
+    const parsed = JSON.parse(await data.text())
+    return Array.isArray(parsed) ? parsed : []
+  } catch { return [] }
+}
+
+async function writeAlbum(list) {
+  await ensureAlbumBucket()
+  const { error } = await supabaseAdmin.storage
+    .from(ALBUM_BUCKET)
+    .upload(ALBUM_INDEX, Buffer.from(JSON.stringify(list)), {
+      contentType: 'application/json',
+      upsert: true,
+    })
+  if (error) throw error
+}
+
+// Serve through bayapi so photos also load where supabase.co is blocked.
+const albumPublic = (p) => ({ id: p.id, title: p.title, date: p.date, created: p.created, url: `/api/album/file/${p.id}` })
+
+app.get('/api/album', async (_req, res) => {
+  if (!supabaseAdmin) return res.json({ photos: [] })
+  try {
+    const list = await readAlbum()
+    res.json({ photos: list.map(albumPublic) })
+  } catch (e) {
+    res.json({ photos: [], error: e.message })
+  }
+})
+
+app.get('/api/album/file/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.status(404).end()
+  try {
+    const list = await readAlbum()
+    const photo = list.find((p) => p.id === req.params.id)
+    if (!photo) return res.status(404).end()
+    const path = photo.path || String(photo.url || '').split(`/${ALBUM_BUCKET}/`)[1]
+    if (!path) return res.status(404).end()
+    const { data, error } = await supabaseAdmin.storage.from(ALBUM_BUCKET).download(path)
+    if (error || !data) return res.status(404).end()
+    const buf = Buffer.from(await data.arrayBuffer())
+    res.set('Content-Type', data.type || 'image/jpeg')
+    res.set('Cache-Control', 'public, max-age=86400')
+    res.send(buf)
+  } catch {
+    res.status(404).end()
+  }
+})
+
+app.post('/api/album', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const { data, title = '', date = '' } = req.body || {}
+    const match = String(data || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
+    if (!match) return res.json({ ok: false, error: 'invalid image' })
+    const mime = match[1]
+    const ext = mime === 'image/jpeg' ? 'jpg' : mime.split('/')[1]
+    const buf = Buffer.from(match[2], 'base64')
+    if (buf.length > 8 * 1024 * 1024) return res.json({ ok: false, error: 'too large' })
+
+    await ensureAlbumBucket()
+    const id = crypto.randomUUID()
+    const path = `photos/${id}.${ext}`
+    const { error: upErr } = await supabaseAdmin.storage
+      .from(ALBUM_BUCKET)
+      .upload(path, buf, { contentType: mime, upsert: false })
+    if (upErr) throw upErr
+
+    const photo = {
+      id,
+      path,
+      title: String(title).slice(0, 60),
+      date: String(date).slice(0, 10),
+      created: new Date().toISOString(),
+    }
+    const list = await readAlbum()
+    list.unshift(photo)
+    await writeAlbum(list)
+    res.json({ ok: true, photo: albumPublic(photo) })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
+app.patch('/api/album/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const list = await readAlbum()
+    const i = list.findIndex((p) => p.id === req.params.id)
+    if (i < 0) return res.json({ ok: false, error: 'not found' })
+    const { title, date } = req.body || {}
+    if (title !== undefined) list[i].title = String(title).slice(0, 60)
+    if (date !== undefined) list[i].date = String(date).slice(0, 10)
+    await writeAlbum(list)
+    res.json({ ok: true, photo: albumPublic(list[i]) })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
+app.delete('/api/album/:id', async (req, res) => {
+  if (!supabaseAdmin) return res.json({ ok: false, error: 'no supabase' })
+  try {
+    const list = await readAlbum()
+    const photo = list.find((p) => p.id === req.params.id)
+    if (!photo) return res.json({ ok: false, error: 'not found' })
+    let path = photo.path
+    if (!path) {
+      const marker = `/object/public/${ALBUM_BUCKET}/`
+      const idx = String(photo.url || '').indexOf(marker)
+      if (idx >= 0) path = decodeURIComponent(String(photo.url).slice(idx + marker.length))
+    }
+    if (path) await supabaseAdmin.storage.from(ALBUM_BUCKET).remove([path]).catch(() => {})
+    await writeAlbum(list.filter((p) => p.id !== req.params.id))
+    res.json({ ok: true })
+  } catch (e) {
+    res.json({ ok: false, error: e.message })
+  }
+})
+
 // ── Health check ──
 app.get('/api/health', (_req, res) => {
   const mem = process.memoryUsage()

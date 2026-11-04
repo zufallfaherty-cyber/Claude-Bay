@@ -644,42 +644,86 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     }
   }, []) // empty deps — everything is via refs
 
+  // iOS Safari / PWA: follow the visual viewport so the composer sits above the keyboard
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const root = document.documentElement
+    const apply = () => {
+      // Only react to a real keyboard (large shrink), not the address bar nudging
+      const gap = window.innerHeight - vv.height
+      if (gap > 80) root.style.setProperty('--chat-vvh', `${Math.round(vv.height)}px`)
+      else root.style.removeProperty('--chat-vvh')
+    }
+    apply()
+    vv.addEventListener('resize', apply)
+    vv.addEventListener('scroll', apply)
+    return () => {
+      vv.removeEventListener('resize', apply)
+      vv.removeEventListener('scroll', apply)
+      root.style.removeProperty('--chat-vvh')
+    }
+  }, [])
+
+  const claudeAvatar = localStorage.getItem('avatar_claude') || ''
+
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <header className="flex items-center gap-3 px-4 py-3 glass-strong border-b border-white/30 sticky top-0 z-30">
-        <button onClick={() => navigate('/')} className="w-9 h-9 flex items-center justify-center rounded-xl text-warm-gray hover:bg-mint/50 transition-colors active:scale-95">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <div className="chat-shell flex flex-col h-full relative">
+      {/* ── Header ── */}
+      <header className="chat-header shrink-0 z-30 flex items-center gap-0.5 px-2.5 py-2">
+        <button
+          onClick={() => navigate('/')}
+          aria-label="返回"
+          className="w-9 h-9 flex items-center justify-center rounded-full text-[#5D6856] active:scale-95 active:bg-white/40 transition"
+        >
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div className="flex items-center gap-2 flex-1">
-          {(() => {
-            const src = localStorage.getItem('avatar_claude') || ''
-            if (src?.startsWith('data:')) {
-              return <img src={src} alt="" className="w-7 h-7 rounded-full object-cover" />
-            }
-            return <div className="w-7 h-7 rounded-full bg-mint flex items-center justify-center text-sm">{src || '🌿'}</div>
-          })()}
-          <span className="font-medium text-[15px] text-warm-dark">Claude</span>
+
+        <div className="flex-1 flex items-center justify-center gap-2.5 min-w-0">
+          {claudeAvatar?.startsWith('data:') ? (
+            <img src={claudeAvatar} alt="" className="chat-avatar w-[34px] h-[34px] rounded-full object-cover" />
+          ) : (
+            <div className="chat-avatar w-[34px] h-[34px] rounded-full bg-white/80 flex items-center justify-center text-[17px] border border-white/70">
+              {claudeAvatar || '🌿'}
+            </div>
+          )}
+          <div className="leading-none">
+            <p className="text-[14.5px] text-[#3D3A38] tracking-[0.04em]">Claude</p>
+            <p className="italic text-[9px] text-warm-gray/70 mt-[3px]" style={{ fontFamily: '"Playfair Display", serif' }}>
+              Always here
+            </p>
+          </div>
         </div>
+
+        <div className="w-9 h-9 shrink-0" aria-hidden="true" />
       </header>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="flex flex-col justify-end min-h-full space-y-3">
+      {/* ── Messages ── */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
+        <div className={`flex flex-col min-h-full pb-3 ${messages.length === 0 ? 'justify-center' : 'justify-end'}`}>
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center px-6">
-              <div className="text-4xl mb-4 opacity-80">🌿</div>
-              <h2 className="text-xl font-semibold text-warm-dark mb-2">Claude&Bay</h2>
-              <p className="text-sm text-warm-gray leading-relaxed">
-                有什么想聊的，都可以告诉我<br />
-                我会一直在这里听着
+            <div className="flex flex-col items-center justify-center text-center px-8">
+              <div className="w-14 h-14 rounded-full glass-water flex items-center justify-center mb-4">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#647359" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+                </svg>
+              </div>
+              <h2 className="italic text-[22px] text-[#4C4945]" style={{ fontFamily: '"Playfair Display", serif' }}>
+                Claude &amp; Bay
+              </h2>
+              <p className="text-[12px] text-warm-gray leading-[1.9] mt-2.5">
+                想说点什么都可以<br />
+                我一直在这里
               </p>
             </div>
           ) : (
             messages.map((msg, i) => {
               const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
+              const prev = messages[i - 1]
+              const isContinuation = !!prev && prev.role === msg.role && (msg.timestamp - prev.timestamp) < 5 * 60 * 1000
               return (
                 <ChatBubble
                   key={msg.id}
@@ -688,6 +732,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
                   attachments={msg.attachments}
                   tools={msg.tools}
                   timestamp={msg.timestamp}
+                  isContinuation={isContinuation}
                   canRegenerate={isLastAssistant && !streaming && !regenerating}
                   onRegenerate={handleRegenerate}
                 />
@@ -698,7 +743,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         </div>
       </div>
 
-      <ChatInput onSend={handleSend} disabled={false} disableSend={streaming} />
+      {/* ── Composer ── */}
+      <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+8px)]">
+        <ChatInput onSend={handleSend} disabled={false} disableSend={streaming} />
+      </div>
     </div>
   )
 }

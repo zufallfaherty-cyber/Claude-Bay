@@ -12,10 +12,27 @@ function parseCodeBlocks(text) {
   return blocks
 }
 
-export default function ChatBubble({ role, content, attachments, tools, timestamp, canRegenerate, onRegenerate }) {
+export default function ChatBubble({ role, content, attachments, tools, timestamp, isContinuation, canRegenerate, onRegenerate }) {
   const isUser = role === 'user'
   const time = timestamp ? new Date(timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : ''
   const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    if (!content) return
+    try {
+      await navigator.clipboard.writeText(content)
+    } catch {
+      const el = document.createElement('textarea')
+      el.value = content
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1600)
+  }
 
   const codeBlocks = !isUser && content ? parseCodeBlocks(content) : []
   const displayContent = codeBlocks.length > 0
@@ -52,19 +69,25 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
     URL.revokeObjectURL(url)
   }
 
-  return (
-    <div className={`flex gap-2.5 mt-3 msg-enter items-start ${isUser ? 'flex-row-reverse' : ''}`}>
-      <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-sm overflow-hidden ${
-        isUser ? 'bg-sage-deep text-white' : 'bg-white text-lg border border-warm-line'
-      }`}>
-        {(isUser ? bayAvatar : claudeAvatar)?.startsWith('data:') ? (
-          <img src={isUser ? bayAvatar : claudeAvatar} alt="" className="w-full h-full object-cover" />
-        ) : (
-          (isUser ? bayAvatar : claudeAvatar) || (isUser ? '💗' : '🌿')
-        )}
-      </div>
+  const avatarSrc = isUser ? bayAvatar : claudeAvatar
 
-      <div className={`flex flex-col max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
+  return (
+    <div className={`flex gap-2 items-start msg-enter ${isUser ? 'flex-row-reverse' : ''} ${isContinuation ? 'mt-1.5' : 'mt-3.5'}`}>
+      {isContinuation ? (
+        <div className="w-8 shrink-0" aria-hidden="true" />
+      ) : (
+        <div className={`chat-avatar w-8 h-8 rounded-full shrink-0 flex items-center justify-center overflow-hidden border ${
+          isUser ? 'border-white/70 bg-sage/75 text-[13px] text-white' : 'border-white/80 bg-white/85 text-[14px]'
+        }`}>
+          {avatarSrc?.startsWith('data:') ? (
+            <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
+          ) : (
+            avatarSrc || (isUser ? '💗' : '🌿')
+          )}
+        </div>
+      )}
+
+      <div className={`flex flex-col max-w-[78%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Attachments (images) */}
         {attachments && attachments.length > 0 && (
           <div className={`flex flex-col gap-1.5 mb-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
@@ -74,10 +97,10 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
                   key={i}
                   src={a.data}
                   alt={a.name}
-                  className="max-w-full max-h-64 rounded-2xl object-cover shadow-sm border border-warm-line/30"
+                  className="max-w-full max-h-64 rounded-[16px] object-cover border border-white/70 shadow-[0_4px_14px_-10px_rgba(70,85,62,0.34)]"
                 />
               ) : (
-                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-warm-line/50 text-sm">
+                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/80 backdrop-blur-sm rounded-[14px] border border-white/70 text-sm">
                   <span>📄</span>
                   <span className="text-warm-dark text-[13px] truncate max-w-[160px]">{a.name}</span>
                 </div>
@@ -92,7 +115,7 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
             {tools.map((t, i) => {
               const name = toolMeta(t.name).label
               return (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-mint/50 text-sage-deep text-[11px] font-medium border border-sage/20">
+                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/55 backdrop-blur-sm text-sage-deep/90 text-[10.5px] font-medium border border-white/70">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
                   {name}
                 </span>
@@ -103,22 +126,20 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
 
         {/* Text bubble */}
         {hasDisplayContent && (
-          <div className={`min-w-[60px] px-[28px] py-[18px] text-[14px] leading-[1.8] whitespace-pre-wrap break-words transition-all duration-150 ${
-            isUser
-              ? 'bg-sage/70 text-white rounded-2xl rounded-tr-md backdrop-blur-sm'
-              : 'bg-white/70 text-warm-dark rounded-2xl rounded-tl-md shadow-sm border border-white/40 backdrop-blur-sm'
-          }`}>
+          <div className={`w-fit max-w-full px-4 py-2.5 text-[14px] leading-[1.85] whitespace-pre-wrap break-words ${
+            isUser ? 'bubble-user' : 'bubble-claude'
+          } ${isUser ? 'rounded-[18px] rounded-tr-[7px]' : 'rounded-[18px] rounded-tl-[7px]'}`}>
             {displayContent}
           </div>
         )}
 
-        {/* Streaming dots (no content yet) */}
+        {/* Typing dots (no content yet) */}
         {!hasDisplayContent && !(attachments && attachments.length > 0) && (
-          <div className="px-4 py-2.5 bg-white rounded-2xl rounded-tl-md shadow-sm border border-warm-line/50">
-            <span className="inline-flex gap-1 items-center">
-              <span className="w-1.5 h-1.5 bg-sage rounded-full dot-bounce animate-[dotBounce_1.4s_infinite]" />
-              <span className="w-1.5 h-1.5 bg-sage rounded-full dot-bounce animate-[dotBounce_1.4s_infinite]" />
-              <span className="w-1.5 h-1.5 bg-sage rounded-full dot-bounce animate-[dotBounce_1.4s_infinite]" />
+          <div className="bubble-claude px-4 py-3 rounded-[18px] rounded-tl-[7px]">
+            <span className="inline-flex gap-1.5 items-center">
+              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
+              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
+              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
             </span>
           </div>
         )}
@@ -129,7 +150,7 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
             {codeBlocks.map((block, i) => {
               const { name } = getFileInfo(block)
               return (
-                <div key={i} className="flex items-center gap-1.5 bg-white rounded-xl border border-warm-line/40 px-2 py-1.5">
+                <div key={i} className="flex items-center gap-1.5 bg-white/75 backdrop-blur-sm rounded-[14px] border border-white/70 px-2 py-1.5">
                   <span className="text-[10px] text-warm-gray/60 flex items-center gap-1">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                     {name}
@@ -163,12 +184,18 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
           </button>
         )}
 
-        {/* Timestamp */}
-        {time && (
-          <p className={`text-[10px] text-warm-gray mt-1 ${isUser ? 'text-right mr-1' : 'ml-1'}`}>
-            {time}
-          </p>
-        )}
+        {/* Timestamp + copy */}
+        <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse mr-1' : 'ml-1'}`}>
+          {time && <span className="text-[9px] tracking-[0.04em] text-warm-gray/45">{time}</span>}
+          {hasDisplayContent && (
+            <button
+              onClick={handleCopy}
+              className="text-[9px] tracking-[0.04em] text-warm-gray/40 active:text-sage-deep transition-colors"
+            >
+              {copied ? '已复制' : '复制'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
