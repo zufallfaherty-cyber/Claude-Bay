@@ -125,6 +125,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [messages, setMessages] = useState([])
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [diag, setDiag] = useState(null)
+  const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
 
   // Refs to avoid any closure issues
@@ -650,15 +652,39 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!vv) return
     const root = document.documentElement
     const apply = () => {
-      // Only react to a real keyboard (large shrink), not the address bar nudging
-      const gap = window.innerHeight - vv.height
-      if (gap > 80) {
-        // height + offsetTop = distance from the page top to the bottom of the visible area
-        root.style.setProperty('--chat-vvh', `${Math.round(vv.height + vv.offsetTop)}px`)
+      // Distance from the page top to the bottom of the visible area
+      const visibleH = vv.height + vv.offsetTop
+      // Compare against the physical screen: in an installed PWA window.innerHeight
+      // already shrinks with the keyboard, so an innerHeight-based gap check reads 0.
+      const screenH = Math.max(
+        window.screen?.height || 0,
+        window.innerHeight,
+        document.documentElement.clientHeight
+      )
+      const keyboardUp = visibleH < screenH * 0.8
+      if (keyboardUp) {
+        root.style.setProperty('--chat-vvh', `${Math.round(visibleH)}px`)
         root.classList.add('kb-open')
       } else {
         root.style.removeProperty('--chat-vvh')
         root.classList.remove('kb-open')
+      }
+      if (showDiag) {
+        const c = document.querySelector('.chat-composer')
+        const shell = document.querySelector('.chat-shell')?.getBoundingClientRect()
+        const cr = c?.getBoundingClientRect()
+        setDiag({
+          innerH: Math.round(window.innerHeight),
+          clientH: Math.round(document.documentElement.clientHeight),
+          vvH: Math.round(vv.height),
+          vvTop: Math.round(vv.offsetTop),
+          screenH: Math.round(window.screen?.height || 0),
+          kbOpen: root.classList.contains('kb-open'),
+          shellH: shell ? Math.round(shell.height) : 0,
+          compTop: cr ? Math.round(cr.top) : 0,
+          compBottom: cr ? Math.round(cr.bottom) : 0,
+          padBottom: c ? getComputedStyle(c).paddingBottom : '',
+        })
       }
     }
     apply()
@@ -670,12 +696,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       root.style.removeProperty('--chat-vvh')
       root.classList.remove('kb-open')
     }
-  }, [])
+  }, [showDiag])
 
   const claudeAvatar = localStorage.getItem('avatar_claude') || ''
 
   return (
     <div className="chat-shell flex flex-col h-full relative">
+      {showDiag && diag && (
+        <div className="fixed top-16 right-2 z-50 rounded-lg bg-black/80 text-white text-[10px] leading-[1.5] px-2.5 py-2 font-mono pointer-events-none">
+          {Object.entries(diag).map(([k, v]) => (
+            <div key={k}>{k}: {String(v)}</div>
+          ))}
+        </div>
+      )}
       {/* ── Header ── */}
       <header className="chat-header shrink-0 z-30 flex items-center gap-0.5 px-2.5 py-2">
         <button
