@@ -107,7 +107,7 @@ function App() {
       )}
       <main className={isChat
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
-        : 'flex-1 overflow-y-auto relative z-10 pb-[26px]'}
+        : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>

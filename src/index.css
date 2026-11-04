@@ -237,9 +237,9 @@ body {
 .chat-composer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
 html.kb-open .chat-composer { padding-bottom: 6px; }
 
-/* Bottom nav: sit close to the screen edge; keep just enough inset to clear
-   the home indicator instead of the full safe-area band. */
-.bottom-nav { padding-bottom: max(6px, calc(env(safe-area-inset-bottom, 0px) * 0.28 + 2px)); }
+/* Bottom nav: the frosted bar itself runs edge-to-edge and to the bottom of
+   the screen, so it must keep the full safe-area inset for the home indicator. */
+.bottom-nav { padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); }
 
 /* Header overflow menu */
 .chat-menu {
@@ -339,7 +339,6 @@ html.kb-open .chat-composer { padding-bottom: 6px; }
   .album-title { font-size: 14px; }
   .album-name { font-size: 10px; }
   .album-date { font-size: 8px; }
-  .home-quote { margin-top: 10px; }
 }
 
 /* Short phones (e.g. iPhone SE): let the page scroll instead of crushing the islands */

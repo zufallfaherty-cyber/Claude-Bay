@@ -180,12 +180,12 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── Feature islands ── */}
-      <div className="home-cards relative flex-1 min-h-0 flex flex-col justify-center px-4">
+      <div className="home-cards relative flex-1 min-h-0 flex flex-col justify-center px-4 py-3">
         <motion.button
           {...cardAnim(0.2)}
           onClick={() => navigate('/profile/memory')}
           className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] w-[62%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
-          style={{ rotate: '-2deg' }}
+          style={{ rotate: '-0.8deg' }}
         >
           <IconBook className="island-icon w-[22px] h-[22px] text-[#647359]" />
           <p className="island-title text-[13px] leading-tight tracking-[0.06em] text-[#4C4945] mt-0.5">记忆库</p>
@@ -199,8 +199,8 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.26)}
           onClick={() => navigate('/games')}
-          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-1 w-[58%] self-end px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
-          style={{ rotate: '1.6deg' }}
+          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[58%] self-end px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
+          style={{ rotate: '0.8deg' }}
         >
           <IconGame className="island-icon w-[22px] h-[22px] text-[#647359]" />
           <p className="island-title text-[13px] leading-tight tracking-[0.06em] text-[#4C4945] mt-0.5">小游戏</p>
@@ -214,8 +214,8 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.32)}
           onClick={() => navigate('/profile/files')}
-          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-1 w-[54%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
-          style={{ rotate: '-1.4deg' }}
+          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[54%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
+          style={{ rotate: '-0.8deg' }}
         >
           <span className="absolute right-14 top-2.5 w-11 h-7 rounded-[6px] bg-white/20 border border-white/35 rotate-6" />
           <span className="absolute right-[70px] top-[16px] w-9 h-6 rounded-[6px] bg-white/15 border border-white/30 -rotate-6" />
@@ -278,10 +278,10 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* ── Daily quote — bottom right, above the nav ── */}
-      <motion.div className="home-quote px-7 mt-1 shrink-0 text-right" {...cardAnim(0.46)}>
-        <p className="text-[9.5px] text-warm-dark/55 leading-[1.7] tracking-[0.04em]">「{quote.text}」</p>
-        <p className="text-[8px] text-warm-gray/45 tracking-[0.08em]">—— {quote.film}</p>
+      {/* ── Daily quote — right edge, resting on the nav ── */}
+      <motion.div className="home-quote px-5 pt-2 pb-1.5 shrink-0 text-right" {...cardAnim(0.46)}>
+        <p className="text-[9.5px] text-warm-dark/55 leading-[1.45] tracking-[0.04em]">「{quote.text}」</p>
+        <p className="text-[8px] text-warm-gray/45 tracking-[0.08em] leading-[1.4]">—— {quote.film}</p>
       </motion.div>
 
       {active && (
