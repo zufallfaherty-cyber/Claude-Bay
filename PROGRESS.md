@@ -4,7 +4,31 @@
 
 ---
 
-## 2026.11.04 聊天页视觉升级：与首页同一套植物水境（🚧 本地完成，未上线）
+## 2026.11.04 真机 PWA 三处布局修复
+
+用户在 iPhone PWA 实测后反馈三个问题，均已修复：
+
+### 1. 键盘弹出后输入框与键盘之间空 ~80% 输入框高（≈42px）
+- 根因：键盘弹起时 composer 仍保留 `env(safe-area-inset-bottom) + 8px`，而这段安全区已被键盘覆盖。
+- 修复：`.chat-composer` 类接管底部内边距，正常 `safe-area + 8px`；键盘打开时（`html.kb-open`）压到 6px。
+- `ChatPage` 的 visualViewport 监听同时切换 `kb-open`，并把 `--chat-vvh` 从 `vv.height` 改为 `vv.height + vv.offsetTop`，保证输入框底边正好落在可视区底部。
+
+### 2. 首页三张岛过大，压到聊天卡与相册
+- 根因：`@media (min-height: 800px)` 放大字号后，岛仍是固定内容高度 + `shrink-0`；PWA 实际可用高度（约 810pt）下 cards 区装不下三张放大岛，于是向上/向下溢出。
+- 修复：三张岛改为 `flex-1 min-h-0 max-h-[126px] + justify-center`，高度由 cards 区剩余空间分配，空间不足时自动压缩（`glass-water` 自带 `overflow: hidden`），空间充足时最大 126px。字号放大档收敛为 icon 25 / 标题 14 / 英文 9.5 / 小字 7.5，并移除 `.island` 的固定上下 padding 覆盖。
+- 验证：402×740、402×810、402×874 三档均不与聊天卡、相册重叠，874 下岛比之前更大。
+
+### 3. 底栏没贴底，下方留半个导航栏高
+- 根因：`.bottom-nav` 直接用 `env(safe-area-inset-bottom) + 6px`（34+6=40px），PWA 下看起来像一条空隙。
+- 修复：`.bottom-nav { padding-bottom: max(6px, env(safe-area-inset-bottom) * 0.28 + 2px) }` ≈ 11.5px，贴近屏幕底，同时仍避开 Home 条。
+
+### 验证
+- `npm run build` 通过；CDP 截图 402×740 / 402×810 / 402×874 首页与聊天页确认无回归。
+- 已 push 到 master，Vercel 自动部署。
+
+---
+
+## 2026.11.04 聊天页视觉升级：与首页同一套植物水境
 
 ### 背景与容器
 - 新增 `.chat-water-bg`：同一张 `/bg-water.jpg`，`saturate(.58) contrast(.9) brightness(1.04)`，静态不做水波动画；叠奶油白渐变 + 中心柔光蒙版，保证文字区干净、花朵留在边缘。

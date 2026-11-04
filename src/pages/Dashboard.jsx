@@ -184,7 +184,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.2)}
           onClick={() => navigate('/profile/memory')}
-          className="shape-island island glass-water shrink-0 relative w-[62%] self-start px-5 pt-0.5 pb-2.5 text-left flex flex-col items-start active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] w-[62%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '-2deg' }}
         >
           <IconBook className="island-icon w-[22px] h-[22px] text-[#647359]" />
@@ -199,7 +199,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.26)}
           onClick={() => navigate('/games')}
-          className="shape-island island glass-water shrink-0 relative -mt-1 w-[58%] self-end px-5 pt-0.5 pb-2.5 text-left flex flex-col items-start active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-1 w-[58%] self-end px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '1.6deg' }}
         >
           <IconGame className="island-icon w-[22px] h-[22px] text-[#647359]" />
@@ -214,7 +214,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.32)}
           onClick={() => navigate('/profile/files')}
-          className="shape-island island glass-water shrink-0 relative -mt-1 w-[54%] self-start px-5 pt-0.5 pb-2.5 text-left flex flex-col items-start active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-1 w-[54%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '-1.4deg' }}
         >
           <span className="absolute right-14 top-2.5 w-11 h-7 rounded-[6px] bg-white/20 border border-white/35 rotate-6" />

@@ -231,6 +231,16 @@ body {
 /* Keyboard-aware height (set from ChatPage via visualViewport) */
 .chat-shell { height: var(--chat-vvh, 100%); }
 
+/* Composer bottom gap: keep the home-indicator inset only while the keyboard is closed.
+   When the keyboard is up it already covers that inset, so hugging it avoids the
+   "floating input" gap on iOS PWA. */
+.chat-composer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+html.kb-open .chat-composer { padding-bottom: 6px; }
+
+/* Bottom nav: sit close to the screen edge; keep just enough inset to clear
+   the home indicator instead of the full safe-area band. */
+.bottom-nav { padding-bottom: max(6px, calc(env(safe-area-inset-bottom, 0px) * 0.28 + 2px)); }
+
 /* Header overflow menu */
 .chat-menu {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(252, 251, 247, 0.8));
@@ -311,16 +321,17 @@ body {
   .typing-dot { animation: none; opacity: 0.55; }
 }
 
-/* Tall viewport (full-screen PWA / iPhone 18 Pro 874pt): let the islands breathe again */
+/* Tall viewport (full-screen PWA / iPhone 18 Pro): larger type, but the island
+   height itself comes from flex, so this can never push into the chat / album cards */
 @media (min-height: 800px) {
-  .island { padding-top: 8px; padding-bottom: 14px; }
-  .island-icon { width: 28px; height: 28px; }
-  .island-title { font-size: 15px; }
-  .island-en { font-size: 10.5px; }
-  .island-sub { font-size: 8px; }
+  .island { padding-block: 4px; }
+  .island-icon { width: 25px; height: 25px; }
+  .island-title { font-size: 14px; }
+  .island-en { font-size: 9.5px; }
+  .island-sub { font-size: 7.5px; }
   .island-title,
   .island-en,
-  .island-sub { margin-top: 3px; }
+  .island-sub { margin-top: 2px; }
 
   .album-panel { padding: 12px 16px 12px; }
   .album-item { width: 80px; }

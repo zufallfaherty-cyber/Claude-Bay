@@ -652,8 +652,14 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const apply = () => {
       // Only react to a real keyboard (large shrink), not the address bar nudging
       const gap = window.innerHeight - vv.height
-      if (gap > 80) root.style.setProperty('--chat-vvh', `${Math.round(vv.height)}px`)
-      else root.style.removeProperty('--chat-vvh')
+      if (gap > 80) {
+        // height + offsetTop = distance from the page top to the bottom of the visible area
+        root.style.setProperty('--chat-vvh', `${Math.round(vv.height + vv.offsetTop)}px`)
+        root.classList.add('kb-open')
+      } else {
+        root.style.removeProperty('--chat-vvh')
+        root.classList.remove('kb-open')
+      }
     }
     apply()
     vv.addEventListener('resize', apply)
@@ -662,6 +668,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       vv.removeEventListener('resize', apply)
       vv.removeEventListener('scroll', apply)
       root.style.removeProperty('--chat-vvh')
+      root.classList.remove('kb-open')
     }
   }, [])
 
@@ -744,7 +751,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       </div>
 
       {/* ── Composer ── */}
-      <div className="shrink-0 px-3 pt-1 pb-[calc(env(safe-area-inset-bottom,0px)+8px)]">
+      <div className="chat-composer shrink-0 px-3 pt-1">
         <ChatInput onSend={handleSend} disabled={false} disableSend={streaming} />
       </div>
     </div>

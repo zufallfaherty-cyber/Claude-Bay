@@ -63,7 +63,7 @@ export default function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="relative z-20 flex-shrink-0 px-3.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom,0px)+6px)]">
+    <nav className="bottom-nav relative z-20 flex-shrink-0 px-3.5 pt-1.5">
       <div className="relative">
         <div className="h-[58px] rounded-[22px] border border-white/50 bg-white/40 backdrop-blur-xl shadow-[0_6px_20px_-10px_rgba(70,85,62,0.26)] flex items-center justify-around px-1">
           {tabs.map((tab) => {
