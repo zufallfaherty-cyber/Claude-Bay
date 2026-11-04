@@ -13,6 +13,22 @@
 - 上传超时从 4.5s 放宽到 25s，真机慢网不再误判失败而回落本地。
 - 容量：每张压缩到 1500px / q0.8，约 200–500KB；Supabase Storage 免费额度 1GB ≈ 2000–4000 张。
 
+**联网搜索结果串味（Bing → 自建 SearXNG）**
+- 症状：搜「莫奈 吉维尼 睡莲池 日式小桥」拿回 QQ 邮箱登录页，搜「Monet Giverny」拿回 DHL 清关——工具通了但结果和关键词无关。
+- 排查：服务器上用 curl 复现，Bing 返回的页面 `<title>` 是查询词，但 `b_algo` 里的条目是随机的（GitHub 项目、Copilot、bilibili 硬币），典型的反爬降级页；关键词其实传到了，坏的是「无 cookie、无 JS 的 Bing HTML 抓取」这条路。
+- 尝试过都不行：Google（返回 JS 外壳，无正文）、DDG html/lite（202 挑战页）、Brave（429）、公共 SearXNG 实例（JSON 被禁 / 429 / 安全页）。
+- 最终方案：服务器自建 **SearXNG** 容器（`searxng/searxng:latest`，只绑 `127.0.0.1:8081`，`limiter: false`，`search.formats` 开 json），bayapi 通过 `SEARXNG_URL=http://searxng:8080` 调它的 JSON API 聚合多引擎结果；Bing HTML 抓取降级为兜底。
+- 实测：同一条莫奈查询返回 6 条高相关结果（名畫檔案、百度百科、新浪收藏），英文查询、天气、当日新闻也都正常；日志会打印 `[web] search "..." via searxng: N results` 便于以后排查。
+- 注意：`curl -d '{...中文...}'` 在 Git Bash 下会把中文变成非 UTF-8，测接口要用 `--data-binary @file.json`。
+
+---
+
+## 2026.11.04 键盘收起时输入框「先贴底再弹回」
+
+- 原因：`textarea` blur 后等 120ms 才移除 `html.kb-open`，这段空档里 composer 仍是键盘态的 6px 底边距，而容器已经恢复满高 → 输入框先贴到屏幕最底部，再把安全区弹回来。
+- 改法：工具栏四个按钮（附件/语音/发送）加 `onMouseDown preventDefault`，点它们不再抢走 textarea 焦点，因此 blur 只会在真正收键盘时发生 → blur 时立即移除 `kb-open`，不再有贴底的中间态。
+- `.chat-composer` 的 `padding-bottom` 加 0.18s 过渡，安全区随键盘平滑让出；`prefers-reduced-motion` 下关闭。
+
 **联网开关（放进工具箱）**
 - 工具箱（`/profile/tools`）原本只列 MCP 服务；内置联网工具加了一个伪服务 `web` / 显示名「联网」，`builtin: true`，排在最前、默认展开、不显示删除按钮。
 - 开关复用现有的 `POST /api/mcp/toggle` 与 `/toggle-all`，状态写进 `mcp-config.json` 的 `enabled.web`（`["search","fetch"]`）。未写过该字段视为默认全开；单个/整组开关都实测过。

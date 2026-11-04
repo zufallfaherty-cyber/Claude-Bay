@@ -234,8 +234,16 @@ body {
 /* Composer bottom gap: keep the home-indicator inset only while the keyboard is closed.
    When the keyboard is up it already covers that inset, so hugging it avoids the
    "floating input" gap on iOS PWA. */
-.chat-composer { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
+.chat-composer {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+  /* Ease the safe-area gap in/out with the keyboard instead of snapping; a hard
+     switch made the composer look glued to the bottom edge before it jumped back. */
+  transition: padding-bottom 0.18s ease;
+}
 html.kb-open .chat-composer { padding-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-composer { transition: none; }
+}
 
 /* Bottom nav: the frosted bar itself runs edge-to-edge and to the bottom of
    the screen, so it must keep the full safe-area inset for the home indicator. */

@@ -218,8 +218,26 @@ function unwrapBingUrl(href) {
   return decodeEntities(href)
 }
 
-async function webSearch(query, limit = 6) {
-  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&setlang=zh-Hans&count=10`
+// Self-hosted SearXNG (docker service `searxng`) — aggregates several engines
+// and returns JSON. Bing's HTML page alone proved unreliable: for long-tail
+// queries it served a "results-looking" page whose items were unrelated
+// (searching a Monet painting returned video sites), so it is only the fallback.
+const SEARXNG_URL = process.env.SEARXNG_URL || 'http://searxng:8080'
+
+async function searxngSearch(query, limit = 6) {
+  const url = `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&safesearch=0`
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  if (!res.ok) throw new Error(`searxng HTTP ${res.status}`)
+  const json = await res.json()
+  const results = Array.isArray(json?.results) ? json.results : []
+  return results
+    .filter((r) => r?.title && r?.url)
+    .slice(0, limit)
+    .map((r) => ({ title: String(r.title), url: String(r.url), snippet: String(r.content || '').slice(0, 320) }))
+}
+
+async function bingSearch(query, limit = 6) {
+  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&form=QBLH&cc=CN&setlang=zh-CN`
   const res = await fetch(url, {
     headers: { 'User-Agent': WEB_UA, 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.6' },
     signal: AbortSignal.timeout(12000),
@@ -242,7 +260,24 @@ async function webSearch(query, limit = 6) {
       snippet: snippet ? stripTags(snippet[1]).slice(0, 320) : '',
     })
   }
+  return items
+}
+
+async function webSearch(query, limit = 6) {
+  if (!query.trim()) return '搜索关键词为空。'
+  let items = []
+  let source = 'searxng'
+  try {
+    items = await searxngSearch(query, limit)
+  } catch (e) {
+    console.error('[web] searxng failed:', e.message)
+  }
+  if (!items.length) {
+    source = 'bing'
+    try { items = await bingSearch(query, limit) } catch (e) { console.error('[web] bing failed:', e.message) }
+  }
   if (!items.length) return `没有找到「${query}」的结果。`
+  console.log(`[web] search "${query}" via ${source}: ${items.length} results`)
   return items.map((it, i) => `${i + 1}. ${it.title}\n${it.url}\n${it.snippet}`).join('\n\n')
 }
 

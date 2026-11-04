@@ -154,6 +154,7 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
           className="hidden"
         />
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => fileRef.current?.click()}
           className="flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full text-[#6B7364] active:bg-white/60 transition-colors active:scale-95"
           aria-label="添加附件"
@@ -170,12 +171,13 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
           onKeyDown={handleKeyDown}
           onFocus={() => document.documentElement.classList.add('kb-open')}
           onBlur={() => {
-            // Wait a tick: tapping a toolbar button blurs first but keeps the keyboard
-            setTimeout(() => {
-              if (document.activeElement?.tagName !== 'TEXTAREA') {
-                document.documentElement.classList.remove('kb-open')
-              }
-            }, 120)
+            // The toolbar buttons below keep focus (see keepFocus), so a blur
+            // here means the keyboard is really closing. Restore the safe-area
+            // gap right away — waiting used to leave the composer glued to the
+            // bottom edge for a beat before it popped back up.
+            if (document.activeElement?.tagName !== 'TEXTAREA') {
+              document.documentElement.classList.remove('kb-open')
+            }
           }}
           placeholder="说点什么…"
           rows={1}
@@ -185,6 +187,7 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
 
         {/* Voice */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={toggleVoice}
           className={`flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-all active:scale-95 ${
             listening ? 'bg-sage-deep text-white' : 'text-[#6B7364] active:bg-white/60'
@@ -201,6 +204,7 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
 
         {/* Send */}
         <button
+          onMouseDown={(e) => e.preventDefault()}
           onClick={handleSubmit}
           disabled={(!text.trim() && attachments.length === 0) || disableSend}
           className={`flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-all active:scale-95 ${
