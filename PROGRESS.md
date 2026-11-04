@@ -4,6 +4,13 @@
 
 ---
 
+## 2026.11.04 键盘贴合定稿 + 设置页模型输入框
+
+- 键盘空隙真正的修法：前两次靠 `visualViewport` / `innerHeight` 都不可靠（PWA 里 `innerHeight` 会随键盘一起缩小，判定恒为 0）。最终改为由 `ChatInput` 的 `textarea` **focus/blur** 驱动 `html.kb-open`，键盘一弹起就把 composer 底部内边距从 `safe-area + 8px` 收到 6px；`blur` 延迟 120ms 再检查 `activeElement`，避免点附件/语音时误恢复。`--chat-vvh` 仍由 visualViewport 维护，作为增强，不再是唯一依据。
+- 设置页「模型」输入框从单行 `<input>` 改为 6 行 `<textarea>`（自动软换行、12.5px、行高 1.75、关闭拼写与首字母自动纠正），按 Enter 自动补一个逗号保持后端 `split(',')` 可解析；聚焦时 `scrollIntoView({ block: 'center' })` 把整段模型列表滚到键盘上方。
+
+---
+
 ## 2026.11.04 真机 PWA 三处布局修复
 
 用户在 iPhone PWA 实测后反馈三个问题，均已修复：
