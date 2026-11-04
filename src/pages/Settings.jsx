@@ -342,10 +342,31 @@ export default function Settings() {
             </div>
             <div>
               <label className="text-xs font-medium text-warm-gray mb-1.5 block">模型（多个用逗号分隔，失败自动切换）</label>
-              <input
+              <textarea
                 value={apiModel}
                 onChange={(e) => setApiModel(e.target.value)}
-                className="w-full px-4 py-2.5 bg-white/70 rounded-xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all"
+                onKeyDown={(e) => {
+                  // Enter adds the next separator instead of a newline, so the list stays parseable
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const el = e.target
+                    const start = el.selectionStart
+                    const end = el.selectionEnd
+                    setApiModel(apiModel.slice(0, start) + ',' + apiModel.slice(end))
+                    requestAnimationFrame(() => {
+                      el.selectionStart = el.selectionEnd = start + 1
+                    })
+                  }
+                }}
+                onFocus={(e) => {
+                  // Bring the whole list above the keyboard when editing
+                  setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 320)
+                }}
+                rows={6}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="w-full px-4 py-3 bg-white/70 rounded-xl text-[12.5px] leading-[1.75] text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all resize-y"
                 placeholder="[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6"
               />
             </div>
