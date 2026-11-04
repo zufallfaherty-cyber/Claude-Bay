@@ -10,6 +10,8 @@
 - 改为：移除 `AnimatePresence` 与 `exit`，旧页面立即卸载，`PageWrapper` 只做一次淡入。
 - 第二轮：0.16s 无位移太生硬 → 调到 0.3s + 6px 上移的柔和淡入。
 - 岛里闪白：原来背景 div 靠切 className（`chat-water-bg` ↔ `home-water-bg`）换背景，`backdrop-filter` 卡片会短暂采样到聊天页的白色蒙版。改为两层背景常驻、用 `opacity` 0.22s 交叉淡化，卡片就不会闪白。
+- 第三轮（玻璃闪透明）：Safari 在祖先元素播放 `transform` / `opacity` 动画时，会停用后代的 `backdrop-filter` —— 所以 `PageWrapper` 一旦淡入，卡片就会整块透明再闪回来。这不是动画参数问题，是 WebKit 的合成限制。
+- 最终方案：`PageWrapper` 变成无动画的普通 div；淡入改由 App 根部的 `.page-veil`（全屏米白遮罩，`veilOut` 0.24s 淡出）完成。遮罩是兄弟层，不参与玻璃的采样祖先链，所以卡片毛玻璃全程正常，同时仍有柔和的「整页浮现」感。
 
 ---
 

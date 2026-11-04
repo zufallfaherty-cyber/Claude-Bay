@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useAuth } from './contexts/AuthContext'
 import { migrateLocalToSupabase } from './lib/migrate'
 import BottomNav from './components/BottomNav'
@@ -17,20 +16,13 @@ import FilesPage from './pages/FilesPage'
 import ToolboxPage from './pages/ToolboxPage'
 import Settings from './pages/Settings'
 
-// ── Page transition wrapper ──
-// One short fade-in only. The old exit animation (fade out + slide up, then fade in +
-// slide down) read as a double flash when coming back from chat.
+// ── Page wrapper ──
+// No transform/opacity animation here on purpose: Safari drops a descendant's
+// backdrop-filter while any ancestor is animating transform or opacity, which made
+// the glass cards turn fully transparent for a frame. The fade-in is done by the
+// full-screen veil in <App> instead — a sibling layer, so the glass keeps working.
 function PageWrapper({ children }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-      className="h-full"
-    >
-      {children}
-    </motion.div>
-  )
+  return <div className="h-full">{children}</div>
 }
 
 
@@ -145,6 +137,10 @@ function App() {
       </main>
 
       {!isChat && <BottomNav />}
+
+      {/* Route-change fade veil: a sibling layer, so it never disables the glass
+          cards' backdrop-filter the way an animated page wrapper did. */}
+      <div key={location.pathname} className="page-veil" aria-hidden="true" />
     </div>
   )
 }

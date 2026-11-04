@@ -351,6 +351,23 @@ html.kb-open .chat-composer { padding-bottom: 6px; }
 .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+/* ── Route-change veil ── */
+.page-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: #F7F5F2;
+  animation: veilOut 0.24s ease-out forwards;
+}
+@keyframes veilOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-veil { animation: none; opacity: 0; }
+}
+
 /* ── Shimmer ── */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
