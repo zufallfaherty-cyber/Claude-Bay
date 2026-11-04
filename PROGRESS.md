@@ -4,7 +4,7 @@
 
 ---
 
-## 2026.11.04 聊天成本优化 + 记忆浮现带日期（待部署）
+## 2026.11.04 聊天成本优化 + 记忆浮现带日期（✅ 已上线）
 
 ### 背景
 - 用户反馈：聊天费用越来越贵；且 AI 浮现记忆时看不到日期时间，不知道是什么时候的事。
@@ -19,8 +19,10 @@
 - 修复：解析出日期并格式化成 `2026-11-03 09:00`，注入记忆时加 `[日期] ` 前缀（聊天 + nudge 都加）。
 - 涉及文件：`server/index.js`（parseBreathResponse + 主聊天注入 + nudge 注入）。
 
-### 待办
-- 前端 `git push` → Vercel 自动部署；后端 `scp server/index.js` → 腾讯云 → `docker compose up -d --build bayapi`。
+### 部署（✅ 已完成）
+- 后端：`scp server/index.js` → 腾讯云 → `docker compose up -d --build bayapi`，容器 Started，`/api/health` 返回 ok。
+- 前端：commit `e071b38` → `git push` → Vercel 自动部署。
+- ⚠️ 梯子现在是 TUN/全局模式（7890 HTTP 代理口不再监听），push 卡「connect via 127.0.0.1」时用 `git -c http.proxy= -c https.proxy= push` 走直连绕过。
 
 ---
 
