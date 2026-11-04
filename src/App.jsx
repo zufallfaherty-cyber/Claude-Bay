@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useAuth } from './contexts/AuthContext'
 import { migrateLocalToSupabase } from './lib/migrate'
 import BottomNav from './components/BottomNav'
@@ -18,20 +18,14 @@ import ToolboxPage from './pages/ToolboxPage'
 import Settings from './pages/Settings'
 
 // ── Page transition wrapper ──
-const pageVariants = {
-  initial: { opacity: 0, y: 10 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -6 },
-}
-
+// One short fade-in only. The old exit animation (fade out + slide up, then fade in +
+// slide down) read as a double flash when coming back from chat.
 function PageWrapper({ children }) {
   return (
     <motion.div
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      transition={{ duration: 0.28, ease: [0.32, 0, 0.23, 1] }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.16, ease: 'easeOut' }}
       className="h-full"
     >
       {children}
@@ -109,8 +103,7 @@ function App() {
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
-        <AnimatePresence mode="wait">
-          <Routes location={location} key={location.pathname}>
+        <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route
               path="/chat"
@@ -134,8 +127,7 @@ function App() {
             <Route path="/profile/files" element={<PageWrapper><FilesPage /></PageWrapper>} />
             <Route path="/profile/tools" element={<PageWrapper><ToolboxPage /></PageWrapper>} />
             <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
-          </Routes>
-        </AnimatePresence>
+        </Routes>
       </main>
 
       {!isChat && <BottomNav />}
