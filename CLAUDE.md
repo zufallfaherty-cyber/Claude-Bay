@@ -48,7 +48,7 @@ Nudge: cron-job.org → /api/nudge → 判断是否发消息 → Pushover/Supaba
 ## 关键常量
 - `MAX_STORED_MSGS = 300` (localStorage)
 - `MAX_LOADED_MSGS = 500` (Supabase 加载上限)
-- `max_context_rounds` 默认 20 (AI 实际看到的上下文轮数)
+- `max_context_rounds` 默认 15 (AI 实际看到的上下文轮数；旧默认 20 已降级)
 
 ## 历史坑
 - ❌ ~~UUID 强转~~: save-chat 曾把短 ID 强转成新 UUID，导致 session 分裂。已移除

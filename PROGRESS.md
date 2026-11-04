@@ -1,6 +1,50 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年11月02日
+## 最后更新：2026年11月04日
+
+---
+
+## 2026.11.04 聊天成本优化 + 记忆浮现带日期（待部署）
+
+### 背景
+- 用户反馈：聊天费用越来越贵；且 AI 浮现记忆时看不到日期时间，不知道是什么时候的事。
+
+### 改动 1：上下文轮数默认 20 → 15（省钱）
+- `max_context_rounds` 默认值 20 → 15（每轮 = 用户+AI 两条，省约 25% 历史 token）。
+- 存量降级：localStorage / Supabase 里存的旧默认 20，发送消息时自动降成 15 并写回；设置页加载时也会把 20 降成 15 并同步回 Supabase。
+- 涉及文件：`src/pages/ChatPage.jsx`（2处）、`src/pages/Settings.jsx`（默认值 + 降级 + 下拉框加 15 选项）、`src/lib/migrate.js`、`supabase-schema.sql`、`CLAUDE.md`。
+
+### 改动 2：记忆浮现带上日期时间
+- 根因：`parseBreathResponse` 解析 breath 返回时，把 `记忆桶: 2026-11-03 09-00-00` 这行直接过滤掉（`!t.includes('记忆桶:')`），注入给 AI 的记忆没有时间信息。
+- 修复：解析出日期并格式化成 `2026-11-03 09:00`，注入记忆时加 `[日期] ` 前缀（聊天 + nudge 都加）。
+- 涉及文件：`server/index.js`（parseBreathResponse + 主聊天注入 + nudge 注入）。
+
+### 待办
+- 前端 `git push` → Vercel 自动部署；后端 `scp server/index.js` → 腾讯云 → `docker compose up -d --build bayapi`。
+
+---
+
+## 2026.11.03 「换 k-opus-4-6 后 mcp 查不到天气」排查（✅ 已定位 + 已修复上线）
+
+### 现象
+- 用户换了模型 `[k]claude-opus-4-6` 后，聊天里 AI 说「mcp 用不了、查不到天气」。
+
+### 结论：不是模型问题，是天气数据源挂了
+- `[k]claude-opus-4-6` 会正常调工具（走生产 `/api/chat` 非流式实测，toolCalls 同时调了 get_weather + get_location）。
+- weathersense MCP 在线、工具发现正常（`/api/mcp/tools` 里 get_weather/get_location 均 enabled:true）。
+- `get_location`（高德逆编码）成功 → AI 能说「你在学校宿舍」；`get_weather` 失败 → AI 说「天气接口挂了」。
+- 天气数据源是 **wttr.in**（weather-sense/weather.js），本地 `HTTP 000` 被墙，生产后端实测也拉不到 → 每次 get_weather 都失败。
+
+### 修复（✅ 已上线）
+- `weather-sense/weather.js` 数据源 wttr.in → **Open-Meteo**（免费无 key，全球 CDN，香港/大陆均可达）。
+- 只改 `weather.js`，`feeling.js` / `index.js` 零改动：加两个转换函数
+  - `wmoDesc(code)`：WMO weather_code → 英文 desc（Clear/Partly cloudy/Overcast/Fog/Light rain/Thunderstorm…），`feeling.skyFromDesc` 直接复用分类晴/多云/阴/雨/雪/雾/雷。
+  - `isoToHHMM(iso)`：ISO 时间 `2026-11-03T09:00` → `'900'`（HHMM 数字），兼容 `summarizeToday` 的 `['900','1200','1500']` 与 `/100` 取小时。
+  - fetch 加 `AbortSignal.timeout(15000)`，避免再静默挂起。
+
+### 部署 + 验证（✅ 通过）
+- `scp weather.js` → `ubuntu@124.156.142.6:~/weather-sense/` → `docker compose up -d --build weathersense`，容器 Up。
+- 端到端实测：`/feeling` 返回 `中午了，23度，天阴阴的…（体感25度，湿度64%，微风约6km/h）`；MCP `get_weather` 返回现在数字 + `白天阴，最高24度，最低21度，应该不会下雨`。
 
 ---
 

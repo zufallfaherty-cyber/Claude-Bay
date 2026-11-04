@@ -395,7 +395,13 @@ function parseBreathResponse(text) {
     const content = lines.join('\n').trim()
     const pinned = block.includes('[核心准则]')
     const resolved = block.includes('[已释怀]')
-    buckets.push({ id, content, pinned, resolved })
+    // 记忆桶日期时间：`记忆桶: 2026-11-03 09-00-00` → 友好格式 `2026-11-03 09:00`
+    let date = ''
+    const dm = block.match(/记忆桶:\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/)
+    if (dm) {
+      date = `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
+    }
+    buckets.push({ id, content, pinned, resolved, date })
   }
   return buckets
 }
@@ -1059,7 +1065,8 @@ app.all('/api/nudge', async (req, res) => {
           })
           memoryContext = buckets.slice(0, 8).map(b => {
             const prefix = b.pinned ? '🔒' : ''
-            return `${prefix}- ${(b.content || '').slice(0, 150)}`
+            const when = b.date ? `[${b.date}] ` : ''
+            return `${prefix}- ${when}${(b.content || '').slice(0, 150)}`
           }).join('\n')
         }
       }
@@ -1382,7 +1389,8 @@ app.post('/api/chat', async (req, res) => {
           .slice(0, 10)
           .map(b => {
             const prefix = b.pinned ? '🔒' : ''
-            return `${prefix}- ${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`
+            const when = b.date ? `[${b.date}] ` : ''
+            return `${prefix}- ${when}${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`
           })
           .join('\n')
         if (memoriesText) {

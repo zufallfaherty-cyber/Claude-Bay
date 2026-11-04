@@ -58,7 +58,7 @@ export async function migrateLocalToSupabase(supabase) {
     await supabase.from('user_settings').upsert({
       system_prompt: localStorage.getItem('system_prompt') || '',
       temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
-      max_context_rounds: parseInt(localStorage.getItem('max_context_rounds') || '20'),
+      max_context_rounds: parseInt(localStorage.getItem('max_context_rounds') || '15'),
       api_base: localStorage.getItem('api_base') || '',
       api_key: localStorage.getItem('api_key') || '',
       api_model: localStorage.getItem('api_model') || '',

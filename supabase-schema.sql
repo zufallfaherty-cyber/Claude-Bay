@@ -53,7 +53,7 @@ CREATE TABLE user_settings (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
   system_prompt TEXT DEFAULT '你是一个温柔、细腻的AI伙伴。你善于倾听，会记住我说过的话，用温暖的方式回应。你的回复自然、真诚，像一个真正关心我的人。',
   temperature REAL DEFAULT 0.8,
-  max_context_rounds INTEGER DEFAULT 20,
+  max_context_rounds INTEGER DEFAULT 15,
   api_base TEXT DEFAULT 'https://api.jiushi.xin/v1',
   api_key TEXT DEFAULT '',
   api_model TEXT DEFAULT '[按量]claude-opus-4-6',

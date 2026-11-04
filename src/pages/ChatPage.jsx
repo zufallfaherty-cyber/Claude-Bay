@@ -474,7 +474,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     streamingRef.current = true
     setRegenerating(true)
 
-    const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
+    let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
+    if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMsgs = trimmed.slice(-maxRounds * 2)
     const apiMessages = recentMsgs.map(buildApiMessage)
 
@@ -549,7 +550,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     saveMessagesLocal(sid, updatedMsgs)
 
     // Context window truncation
-    const maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '20')
+    let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
+    if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
     const apiMessages = recentMessages.map(buildApiMessage)
 

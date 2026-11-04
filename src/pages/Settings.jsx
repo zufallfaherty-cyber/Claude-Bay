@@ -28,7 +28,19 @@ export default function Settings() {
       if (remote) {
         if (remote.system_prompt) { localStorage.setItem('system_prompt', remote.system_prompt); setPrompt(remote.system_prompt) }
         if (remote.temperature != null) { localStorage.setItem('temperature', String(remote.temperature)); setTemperature(remote.temperature) }
-        if (remote.max_context_rounds != null) { localStorage.setItem('max_context_rounds', String(remote.max_context_rounds)); setMaxRounds(remote.max_context_rounds) }
+        if (remote.max_context_rounds != null) {
+          // 旧默认 20 → 15 一次性降级
+          const rounds = remote.max_context_rounds === 20 ? 15 : remote.max_context_rounds
+          localStorage.setItem('max_context_rounds', String(rounds))
+          setMaxRounds(rounds)
+          if (rounds !== remote.max_context_rounds) {
+            fetch('https://124-156-142-6.sslip.io/api/save-settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: user?.id, max_context_rounds: rounds }),
+            }).catch(() => {})
+          }
+        }
         if (remote.api_base) { localStorage.setItem('api_base', remote.api_base); setApiBase(remote.api_base) }
         if (remote.api_key) { localStorage.setItem('api_key', remote.api_key); setApiKey(remote.api_key) }
         if (remote.api_model) { localStorage.setItem('api_model', remote.api_model); setApiModel(remote.api_model) }
@@ -71,7 +83,7 @@ export default function Settings() {
     parseFloat(localStorage.getItem('temperature') || '0.8')
   )
   const [maxRounds, setMaxRounds] = useState(() =>
-    parseInt(localStorage.getItem('max_context_rounds') || '20')
+    parseInt(localStorage.getItem('max_context_rounds') || '15')
   )
   const [avatarBay, setAvatarBay] = useState(() =>
     localStorage.getItem('avatar_bay') || ''
@@ -289,7 +301,7 @@ export default function Settings() {
             <label className="text-sm font-medium text-warm-dark mb-2 block">上下文轮数</label>
             <select value={maxRounds} onChange={(e) => setMaxRounds(parseInt(e.target.value))}
               className="w-full px-4 py-3 bg-white/70 rounded-2xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all">
-              {[5, 10, 20, 30, 50].map((n) => <option key={n} value={n}>{n} 轮对话</option>)}
+              {[5, 10, 15, 20, 30, 50].map((n) => <option key={n} value={n}>{n} 轮对话</option>)}
             </select>
             <p className="text-[11px] text-warm-gray/60 mt-2 leading-relaxed">更大的数字意味着 Claude 能记住更久之前的对话</p>
           </div>
