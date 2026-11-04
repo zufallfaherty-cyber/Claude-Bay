@@ -898,6 +898,7 @@
 | 记忆 baymemory | 内网 `http://baymemory:8000`（bayapi 转发）| 腾讯云香港（Docker）|
 | 环境感知 weather-sense | 内网 `http://weathersense:3002`（bayapi 转发）| 腾讯云香港（Docker）|
 | 小红书 MCP | `http://172.17.0.1:18060/mcp`（宿主机）| 腾讯云香港（systemd）|
+| 联网搜索 SearXNG | 内网 `http://searxng:8080`（bayapi 转发）| 腾讯云香港（Docker，配置 `~/searxng/settings.yml`，只绑 127.0.0.1:8081）|
 | API 中转 | https://api.jiushi.xin/v1 | |
 | 定时触发 | https://cron-job.org | 每 1 小时调 /api/nudge |
 
@@ -1025,12 +1026,24 @@
    - 重建：`ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build bayapi'`
    - 验证：`ssh ubuntu@124.156.142.6 'docker ps --filter name=bayapi --format "{{.Status}}"'`
 3. **改记忆引擎** → 服务器 `~/Ombre-Brain` 里改 → `ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build baymemory'`
+3.1 **改搜索服务** → 本地改 `~/searxng/settings.yml` 后 scp 上去 → `docker compose restart searxng`；换引擎/加格式在 `search.formats` 里调
 4. **手机上测试** → 打开 https://claude-bay-two.vercel.app
 5. **本地预览** → `cd bunny-chat && npx vite --host` → http://172.20.10.6:5174
 6. **注意**：git 需要梯子代理 `http://127.0.0.1:7890`（已配 `git config http/https.proxy`）；服务器 SSH 免密（`~/.ssh/id_ed25519`）
 
 ## 明天要做
 
-1. 验证早 7 点推送已带天气（10.29 措辞改动落地效果）
-2. （用户暂缓）轮换 Zeabur 泄露的密钥（SUPABASE_SERVICE_ROLE 最急）
-3. （可选）GitHub 备份 Ombre-Brain 防再丢数据
+1. **真机验证今天的三处改动**（前端等 Vercel 部署完）：
+   - 键盘收起时输入框是否还「先贴底再弹回」
+   - 聊天里问实时信息是否返回相关结果（看有没有「联网搜索」胶囊）
+   - 相册上传后是否真的进云端（设置 → 回忆相册，提示应为「已上传并同步 N 张」）
+2. 验证早 7 点推送已带天气（10.29 措辞改动落地效果）
+3. （用户暂缓）轮换 Zeabur 泄露的密钥（SUPABASE_SERVICE_ROLE 最急）
+4. （可选）GitHub 备份 Ombre-Brain 防再丢数据
+
+## 2026.11.04 收工状态
+
+- 代码已提交推送：`0e14fa2`（联网换 SearXNG + 键盘修复）、`48eba7d`（联网开关）、`06e1ea3`（相册上云）、`08f272b`（流式贴底）
+- 后端已 scp 重建：bayapi 跑新代码；服务器新增 `searxng` 容器（`docker ps` 应能看到 4 个 Up）
+- 前端等 Vercel 自动部署
+- 相册实测：上传 → 列表 → 取图 → 删除全链路 200；`/api/album` 返回空数组（还没有正式照片）
