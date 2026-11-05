@@ -1057,9 +1057,8 @@
   - 背景位移用独立 `translate` 属性而不是 `background-position`，靠 `waterBreathe` 的 ≥1.02 缩放余量盖住边缘，不会露缝。
   - iOS 需要用户手势才给方向数据：**首次进首页点一下屏幕**会弹授权，之后倾斜才生效。
   - 幅度 ±22° 映射满格；躺下/横屏超过 55° 自动重定基准。
-- **待真机确认**：倾斜方向是否跟手（若反了，把 `useTiltParallax` 里 `targetX/targetY` 的符号取反即可）；iOS 上 `backdrop-filter` 与 `translate` 同用是否正常。
-- **`223284e` 修 PWA 缓存坑（重要）**：`public/sw.js` 原来把 `/` 和 `/index.html` 预缓存且全部 cache-first，装过 PWA 的手机永远加载旧的 `index.html`，于是引用的还是旧 hash 的 JS——**新功能根本到不了手机上**。已改：页面导航走 network-first（失败回退缓存），带 hash 的静态资源保持 cache-first；缓存版本升到 v3；页面在 SW 换新时自动 reload 一次。
-  - 老用户更新后需要**完全关掉 App 再打开一次**（必要时两次）才会换到新版本。
+- **真机结果**：倾斜方向跟手，效果正常（用户评价「做好了！很舒服」）；iOS 上 `backdrop-filter` 与 `translate` 同用没有异常。
+- **`223284e`（已回退）排查过的 PWA 缓存坑**：`public/sw.js` 原来把 `/` 和 `/index.html` 预缓存且全部 cache-first，装过 PWA 的手机永远加载旧的 `index.html`，于是引用的还是旧 hash 的 JS——**新功能根本到不了手机上**。中途改成 network-first / stale-while-revalidate 都以启动变慢收场，用户要求「缓存什么都不要改」，最终 `1b2f837` 恢复原始 cache-first。
 - **新增 `/tilt-check.html` 传感器自检页**：打开 `https://claude-bay-two.vercel.app/tilt-check.html`，点「开始检测」会请求权限并显示 beta/gamma 实时值、事件计数、结论（正常 / 权限被系统关 / 不支持 / 开了减弱动态效果）。以后排查倾斜问题先看这个页面。
 
 ### 2026.11.05 陀螺仪 3D — 落地过程与坑
@@ -1069,5 +1068,20 @@
 3. **`error: requesting device orientation access requires a user gesture`**：iOS 只把 `touchend` / `click` 算作用户手势，`pointerdown` 会被拒绝。hook 已改为监听 `touchend` + `click`（capture 阶段，600ms 去重）。
 4. **最终分层（用户偏好）**：开始聊天条、回忆面板固定；标题/日期/台词 3px；相册里的照片 5px；中间三个岛 8px；水面背景反向 3px。
 5. 诊断手段：`window.__tiltDebug`（events / beta / gamma / perm）保留在 hook 里，需要时可在 Dashboard 临时渲染出来。
-6. **打开黑屏**：改成 network-first 后每次启动都要等 Vercel（国内慢）。`49b3360` 改为 stale-while-revalidate——先吐缓存秒开、后台更新，下次打开就是新版；同时去掉 `controllerchange` 的强制 reload。
-7. **每次打开都要授权**：iOS 的「动作与方向访问」默认是「询问」，每次会话都会问。根治办法：**设置 → Safari 浏览器 → 动作与方向访问 → 允许**（全局生效，PWA 同样适用）。
+6. **打开黑屏**：network-first 每次启动都要等 Vercel（国内慢），改成 stale-while-revalidate 后用户仍反馈黑屏。**结论：缓存相关的自动更新方案全部放弃（`1b2f837` 恢复原样）**，以后要新版本就手动打开 `/reset.html` 清一次，或者划掉重开。
+7. **每次打开都要授权（未解决）**：iOS 的「动作与方向访问」默认「询问」，每次会话都会问。理论根治办法是 **设置 → Safari 浏览器 → 隐私与安全性 → 动作与方向访问 → 允许**，但用户在自己系统里找不到这一项（怀疑新版本系统已移除）。备选：把陀螺仪换成「手指拖动视差」，彻底不需要授权——尚未实现，等用户决定。
+
+## 2026.11.05 收工状态
+
+- 前端已上线并真机确认：聊天气泡上浮 + 打字点交叉淡出；全站玻璃卡片更透明；首页陀螺仪 3D 视差（分层：聊天条/回忆面板固定，标题 3px，相册照片 5px，三个岛 8px，水面背景 -3px）。
+- 今日提交：`053f400` `333e683`（气泡）、`95add7d` `c6d18e2`（透明度，光晕已回退）、`d022257`（3D 视差）、`223284e` `d1e0576` `f24f57c`（权限触发修复，最终 touchend/click）、`e2df183`（分层调整）、`1b2f837`（SW 回退原样）。
+- **长期可用的工具**：
+  - `/reset.html` — 一键清 Service Worker 缓存并重开首页（以后看新版本手动用它）
+  - `/tilt-check.html` — 传感器自检页（支持性 / 权限 / 实时 beta·gamma）
+- **遗留**：每次打开 App 需要点一下屏幕并允许方向权限；iOS 设置里找不到全局允许开关，待定是否改成手指拖动。
+
+## 明天要做（2026.11.06）
+
+1. 决定 3D 交互：接受「每次点一下授权」还是换成「手指拖动视差」。
+2. 如果换成手指拖动：`useTiltParallax` 改为监听 `touchmove` 归一化位移，其余 CSS 分层不动。
+3. 继续昨天的待办：早 7 点推送带天气的验证、相册上传进云端验证、轮换 Zeabur 泄露密钥。
