@@ -299,7 +299,7 @@ export default function Dashboard() {
         <p className="text-[8px] text-warm-gray/45 tracking-[0.08em] leading-[1.4]">—— {quote.film}</p>
       </motion.div>
 
-      <p className="shrink-0 text-center text-[9px] tracking-[0.08em] text-black/35 pb-1">{diag}</p>
+      <p className="shrink-0 text-[9px] tracking-[0.08em] text-black/40 px-3 pb-1">{diag}</p>
 
       {active && (
         <PhotoViewer
