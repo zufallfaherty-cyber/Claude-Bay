@@ -1069,3 +1069,5 @@
 3. **`error: requesting device orientation access requires a user gesture`**：iOS 只把 `touchend` / `click` 算作用户手势，`pointerdown` 会被拒绝。hook 已改为监听 `touchend` + `click`（capture 阶段，600ms 去重）。
 4. **最终分层（用户偏好）**：开始聊天条、回忆面板固定；标题/日期/台词 3px；相册里的照片 5px；中间三个岛 8px；水面背景反向 3px。
 5. 诊断手段：`window.__tiltDebug`（events / beta / gamma / perm）保留在 hook 里，需要时可在 Dashboard 临时渲染出来。
+6. **打开黑屏**：改成 network-first 后每次启动都要等 Vercel（国内慢）。`49b3360` 改为 stale-while-revalidate——先吐缓存秒开、后台更新，下次打开就是新版；同时去掉 `controllerchange` 的强制 reload。
+7. **每次打开都要授权**：iOS 的「动作与方向访问」默认是「询问」，每次会话都会问。根治办法：**设置 → Safari 浏览器 → 动作与方向访问 → 允许**（全局生效，PWA 同样适用）。
