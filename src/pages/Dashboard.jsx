@@ -47,11 +47,11 @@ function getTogether() {
 }
 
 // ── Small line icons matching the concept art ──
-function IconBook(props) {
+function IconMoon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 6.4C10.5 4.8 8.2 4 5 4H3v14h2c3.2 0 5.5.8 7 2.4 1.5-1.6 3.8-2.4 7-2.4h2V4h-2c-3.2 0-5.5.8-7 2.4Z" />
-      <path d="M12 6.4v14" />
+      <path d="M20.6 14.3A8.6 8.6 0 1 1 12.7 2.9a6.7 6.7 0 0 0 7.9 11.4Z" />
+      <path d="M17.4 5.1l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z" fill="currentColor" stroke="none" />
     </svg>
   )
 }
@@ -189,7 +189,7 @@ export default function Dashboard() {
           className="shape-island island glass-water tilt-layer-3 relative flex-1 min-h-0 max-h-[126px] w-[62%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '-0.8deg' }}
         >
-          <IconBook className="island-icon w-[22px] h-[22px] text-[#647359]" />
+          <IconMoon className="island-icon w-[22px] h-[22px] text-[#647359]" />
           <p className="island-title text-[13px] leading-tight tracking-[0.06em] text-[#4C4945] mt-0.5">记忆库</p>
           <p className="island-en italic text-[8.5px] text-warm-gray/70 leading-none mt-0.5" style={{ fontFamily: '"Playfair Display", serif' }}>
             Memories

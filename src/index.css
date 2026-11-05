@@ -95,6 +95,16 @@ body {
   to { transform: translateY(0); }
 }
 
+/* ── Page Entrance (soft focus-in, no directional slide) ── */
+@keyframes pageIn {
+  from { opacity: 0; transform: scale(0.972); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.page-in { animation: pageIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .page-in { animation: none; }
+}
+
 /* ── Pop (Centered Modal) ── */
 @keyframes modalPop {
   from { opacity: 0; transform: scale(0.94) translateY(8px); }
@@ -274,6 +284,223 @@ body {
     radial-gradient(72% 46% at 50% 44%, rgba(252, 251, 247, 0.52) 0%, rgba(252, 251, 247, 0) 100%);
 }
 
+/* ── Study: the shelf itself is the interface ── */
+/* Paper-soft cards for the rooms that open off the shelf */
+.study-card {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.76), rgba(250, 249, 245, 0.58));
+  backdrop-filter: blur(16px) saturate(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.06);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 14px 32px -22px rgba(70, 85, 62, 0.5),
+    0 3px 10px -6px rgba(70, 85, 62, 0.12);
+}
+.study-slip {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.62), rgba(250, 249, 245, 0.46));
+  backdrop-filter: blur(12px) saturate(1.05);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 8px 22px -18px rgba(70, 85, 62, 0.42);
+}
+.study-paper {
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.72));
+  border: 1px solid rgba(255, 255, 255, 0.95);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.97),
+    0 16px 34px -26px rgba(70, 85, 62, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.study-back {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px) saturate(1.05);
+  -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 14px -10px rgba(70, 85, 62, 0.4);
+}
+
+.study-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #f3efe5;
+}
+.study-stage {
+  position: absolute;
+  overflow: hidden;
+}
+.study-stage > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.96) contrast(1.01) brightness(1.01);
+}
+/* Cream wash from the top, so the floating header stays readable */
+.study-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(252, 251, 247, 0.62) 0%,
+    rgba(252, 251, 247, 0.24) 9%,
+    rgba(252, 251, 247, 0) 18%,
+    rgba(252, 251, 247, 0) 88%,
+    rgba(252, 251, 247, 0.34) 100%);
+}
+
+/* One transparent hit area per book; the label is the visible affordance */
+.book-hotspot {
+  position: absolute;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+.book-title {
+  position: absolute;
+  left: 50%;
+  bottom: 8.5%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6px * var(--k));
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.book-hotspot:active .book-title {
+  transform: translateX(-50%) scale(0.93);
+  opacity: 0.8;
+}
+.book-title .cn {
+  font-size: calc(29px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.book-title .rule {
+  width: calc(42px * var(--k));
+  height: 1px;
+  background: currentColor;
+  opacity: 0.42;
+}
+.book-title .en {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: calc(14px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+.book-title.on-green { color: #f1e9d0; text-shadow: 0 1px 4px rgba(58, 68, 46, 0.34); }
+.book-title.on-cream { color: #6b735b; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.55); }
+.book-title.on-blue  { color: #55685f; text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5); }
+
+/* Diary — a title written on the upper right of the open book */
+.study-diary {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6px * var(--k));
+  border: 0;
+  background: transparent;
+  padding: calc(20px * var(--k));
+  margin: 0;
+  cursor: pointer;
+  color: #5f6b57;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.65);
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.study-diary:active {
+  transform: translateX(-50%) scale(0.94);
+  opacity: 0.8;
+}
+.study-diary .cn {
+  font-size: calc(31px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  font-weight: 600;
+}
+.study-diary .rule {
+  width: calc(30px * var(--k));
+  height: 1px;
+  background: currentColor;
+  opacity: 0.4;
+}
+
+/* Anniversary note beside the crystal ball */
+.study-anniv {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(8px * var(--k));
+  color: #67715a;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.study-anniv:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+.study-anniv .cn {
+  font-size: calc(30px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  font-weight: 600;
+}
+.study-anniv .rule { width: calc(48px * var(--k)); height: 1px; background: currentColor; opacity: 0.35; }
+.study-anniv .en {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: calc(14px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.12em;
+  opacity: 0.75;
+}
+
+/* Small glass toast for the not-yet-built rooms */
+.study-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 30;
+  white-space: nowrap;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: rgba(58, 72, 52, 0.82);
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 22px -10px rgba(40, 52, 36, 0.55);
+  animation: toastIn 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
 /* Keyboard-aware height (set from ChatPage via visualViewport) */
 .chat-shell { height: var(--chat-vvh, 100%); }
 
@@ -306,13 +533,28 @@ html.kb-open .chat-composer { padding-bottom: 6px; }
     inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
-/* Thin frosted header */
+/* Soft top light — same idea as the study scene: the title floats on the
+   background, no hard card edge, just a cream glow that fades out below. */
 .chat-header {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), rgba(255, 255, 255, 0.26));
-  backdrop-filter: blur(14px) saturate(1.04);
-  -webkit-backdrop-filter: blur(14px) saturate(1.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 6px 18px -16px rgba(70, 85, 62, 0.45);
+  position: relative;
+  background: linear-gradient(180deg,
+    rgba(250, 249, 244, 0.74) 0%,
+    rgba(250, 249, 244, 0.6) 55%,
+    rgba(250, 249, 244, 0.3) 100%);
+  backdrop-filter: blur(14px) saturate(1.03);
+  -webkit-backdrop-filter: blur(14px) saturate(1.03);
+  border-bottom: 0;
+  box-shadow: none;
+}
+.chat-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(250, 249, 244, 0.3), rgba(250, 249, 244, 0));
 }
 
 /* Bubbles: steady geometry, two optical edges, barely-there shadow */

@@ -15,11 +15,13 @@ const tabs = [
     path: '/moods',
     label: '书房',
     icon: (active) => (
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.9 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 1.7 : 1.35} strokeLinecap="round" strokeLinejoin="round">
+        <g transform="translate(12 12) scale(.86) translate(-12 -12)">
+          <path d="M12 6.4C10.5 4.8 8.2 4 5 4H3v14h2c3.2 0 5.5.8 7 2.4 1.5-1.6 3.8-2.4 7-2.4h2V4h-2c-3.2 0-5.5.8-7 2.4Z" />
+          <path d="M12 6.4v14" />
+        </g>
+        <path d="M21.8 2 14.2 9.6" />
+        <path d="M14.2 9.6l-1 2.6 2.6-1" />
       </svg>
     ),
   },

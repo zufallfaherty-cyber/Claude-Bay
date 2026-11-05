@@ -748,7 +748,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         </div>
       )}
       {/* ── Header ── */}
-      <header className="chat-header shrink-0 z-30 flex items-center gap-0.5 px-2.5 py-2">
+      <header className="chat-header absolute top-0 inset-x-0 z-30 flex items-center gap-0.5 px-2.5 py-2">
         <button
           onClick={() => navigate('/')}
           aria-label="返回"
@@ -779,7 +779,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       </header>
 
       {/* ── Messages ── */}
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-4 pt-3">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-4 pt-[62px]">
         <div className={`flex flex-col min-h-full pb-3 ${messages.length === 0 ? 'justify-center' : 'justify-end'}`}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center text-center px-8">

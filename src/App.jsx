@@ -35,6 +35,7 @@ function App() {
   const location = useLocation()
   const isHome = location.pathname === '/'
   const isChat = location.pathname === '/chat'
+  const isStudy = location.pathname === '/moods'
   // Local-only visual preview (never active in production builds)
   const isPreview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
 
@@ -105,7 +106,7 @@ function App() {
           />
         </>
       )}
-      <main className={isChat
+      <main className={(isChat || isStudy)
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
