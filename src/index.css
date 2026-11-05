@@ -113,18 +113,6 @@ body {
   -webkit-backdrop-filter: blur(24px);
 }
 
-/* With the glass this transparent the water texture runs right under the
-   copy; a hairline white halo lifts the text back off the background. */
-.glass,
-.glass-strong,
-.glass-water,
-.chat-glass,
-.bottom-nav {
-  text-shadow:
-    0 1px 1px rgba(255, 255, 255, 0.55),
-    0 0 7px rgba(255, 255, 255, 0.34);
-}
-
 /* ── Liquid glass — thin rim, local highlight, light shadow ── */
 .glass-water {
   position: relative;
