@@ -1061,3 +1061,11 @@
 - **`223284e` 修 PWA 缓存坑（重要）**：`public/sw.js` 原来把 `/` 和 `/index.html` 预缓存且全部 cache-first，装过 PWA 的手机永远加载旧的 `index.html`，于是引用的还是旧 hash 的 JS——**新功能根本到不了手机上**。已改：页面导航走 network-first（失败回退缓存），带 hash 的静态资源保持 cache-first；缓存版本升到 v3；页面在 SW 换新时自动 reload 一次。
   - 老用户更新后需要**完全关掉 App 再打开一次**（必要时两次）才会换到新版本。
 - **新增 `/tilt-check.html` 传感器自检页**：打开 `https://claude-bay-two.vercel.app/tilt-check.html`，点「开始检测」会请求权限并显示 beta/gamma 实时值、事件计数、结论（正常 / 权限被系统关 / 不支持 / 开了减弱动态效果）。以后排查倾斜问题先看这个页面。
+
+### 2026.11.05 陀螺仪 3D — 落地过程与坑
+
+1. **首次上线没反应**：根因是 `sw.js` 把首页 HTML cache-first 缓存了，手机一直跑旧包。见上面的 SW 修复。
+2. **App 里不弹权限**：用户在 `/tilt-check.html` 里已授权过同一域名，iOS 不会再弹——这是正常的，不是故障。
+3. **`error: requesting device orientation access requires a user gesture`**：iOS 只把 `touchend` / `click` 算作用户手势，`pointerdown` 会被拒绝。hook 已改为监听 `touchend` + `click`（capture 阶段，600ms 去重）。
+4. **最终分层（用户偏好）**：开始聊天条、回忆面板固定；标题/日期/台词 3px；相册里的照片 5px；中间三个岛 8px；水面背景反向 3px。
+5. 诊断手段：`window.__tiltDebug`（events / beta / gamma / perm）保留在 hook 里，需要时可在 Dashboard 临时渲染出来。
