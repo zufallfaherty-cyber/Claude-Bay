@@ -1058,3 +1058,6 @@
   - iOS 需要用户手势才给方向数据：**首次进首页点一下屏幕**会弹授权，之后倾斜才生效。
   - 幅度 ±22° 映射满格；躺下/横屏超过 55° 自动重定基准。
 - **待真机确认**：倾斜方向是否跟手（若反了，把 `useTiltParallax` 里 `targetX/targetY` 的符号取反即可）；iOS 上 `backdrop-filter` 与 `translate` 同用是否正常。
+- **`223284e` 修 PWA 缓存坑（重要）**：`public/sw.js` 原来把 `/` 和 `/index.html` 预缓存且全部 cache-first，装过 PWA 的手机永远加载旧的 `index.html`，于是引用的还是旧 hash 的 JS——**新功能根本到不了手机上**。已改：页面导航走 network-first（失败回退缓存），带 hash 的静态资源保持 cache-first；缓存版本升到 v3；页面在 SW 换新时自动 reload 一次。
+  - 老用户更新后需要**完全关掉 App 再打开一次**（必要时两次）才会换到新版本。
+- **新增 `/tilt-check.html` 传感器自检页**：打开 `https://claude-bay-two.vercel.app/tilt-check.html`，点「开始检测」会请求权限并显示 beta/gamma 实时值、事件计数、结论（正常 / 权限被系统关 / 不支持 / 开了减弱动态效果）。以后排查倾斜问题先看这个页面。
