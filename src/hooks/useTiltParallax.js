@@ -4,8 +4,11 @@ import { useEffect } from 'react'
 // -1..1). Home cards read them to drift a few px relative to the water
 // background, which reads as a gentle "glasses-free 3D" parallax.
 //
-// iOS needs a user gesture before it will hand out orientation data, so the
-// permission prompt is attached to the next tap on the home screen.
+// iOS only hands out orientation data after a user gesture asks for it, so the
+// listener is attached right away (Android and already-granted iOS start
+// sending immediately) and every tap retries requestPermission until data
+// actually arrives. Retrying matters because the first tap usually also
+// navigates, which would otherwise cancel a pending request for good.
 const FULL_TILT_DEG = 22 // physical tilt that maps to a full parallax unit
 const EASE = 0.09
 
@@ -18,6 +21,7 @@ export default function useTiltParallax() {
 
     const root = document.documentElement
     let stopped = false
+    let gotData = false
     let raf = 0
     let curX = 0
     let curY = 0
@@ -43,6 +47,7 @@ export default function useTiltParallax() {
 
     const onOrient = (e) => {
       if (e.beta == null || e.gamma == null) return
+      if (!gotData) gotData = true
       if (baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma }
       // Re-centre after a big posture change (lying down, switching orientation)
       if (Math.abs(e.beta - baseBeta) > 55 || Math.abs(e.gamma - baseGamma) > 55) {
@@ -54,27 +59,21 @@ export default function useTiltParallax() {
       kick()
     }
 
-    const attach = () => {
-      if (!stopped) window.addEventListener('deviceorientation', onOrient, true)
-    }
+    // Attach immediately: harmless before permission is granted, and it means
+    // Android (and iOS that was already allowed) just works.
+    window.addEventListener('deviceorientation', onOrient, true)
+
     const requestOnTap = () => {
-      window.removeEventListener('pointerdown', requestOnTap, true)
+      if (stopped || gotData) return
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        // The tap may also navigate away, so guard against attaching after
-        // the effect has already cleaned up.
-        DeviceOrientationEvent.requestPermission()
-          .then((state) => { if (state === 'granted') attach() })
-          .catch(() => {})
+        // Already granted → resolves immediately without a prompt; still
+        // pending → shows the iOS dialog.
+        DeviceOrientationEvent.requestPermission().catch(() => {})
       } else {
-        attach()
+        gotData = true
       }
     }
-
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      window.addEventListener('pointerdown', requestOnTap, true)
-    } else {
-      attach()
-    }
+    window.addEventListener('pointerdown', requestOnTap, true)
 
     return () => {
       stopped = true
