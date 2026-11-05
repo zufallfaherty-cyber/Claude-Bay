@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bunny-chat-v3'
+const CACHE_NAME = 'bunny-chat-v2'
 
 const PRECACHE_URLS = [
   '/',
@@ -9,9 +9,7 @@ const PRECACHE_URLS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // A flaky network must not break the install; the runtime handler fills
-      // any gap on the next navigation.
-      return Promise.all(PRECACHE_URLS.map((url) => cache.add(url).catch(() => {})))
+      return cache.addAll(PRECACHE_URLS)
     })
   )
   self.skipWaiting()
@@ -29,36 +27,12 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch — network-first for pages, cache-first for hashed assets
+// Fetch — network-first for API, cache-first for assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
-  // Skip cross-origin and API calls
-  if (url.origin !== self.location.origin) return
+  // Skip API calls
   if (url.pathname.startsWith('/api/')) {
-    return
-  }
-
-  // Page navigations: serve the cached shell instantly, then refresh it in the
-  // background. Network-first made every launch wait for the (slow, in China)
-  // Vercel origin. Stale-while-revalidate keeps launches instant and the next
-  // launch still picks up a deploy.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-        const cached = await caches.match('/index.html')
-        const network = fetch(event.request)
-          .then((response) => {
-            if (response.ok) {
-              const clone = response.clone()
-              caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone))
-            }
-            return response
-          })
-          .catch(() => null)
-        return cached || (await network) || caches.match('/index.html')
-      })()
-    )
     return
   }
 

@@ -22,10 +22,7 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        // No forced reload on controllerchange: the new SW refreshes the
-        // cached shell in the background, so the next launch is both instant
-        // and up to date.
-        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+        navigator.serviceWorker.register('/sw.js')
       }
     </script>
   </body>
