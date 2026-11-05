@@ -96,19 +96,6 @@ export default function Dashboard() {
   const [active, setActive] = useState(null)
   const skipAnim = useSkipCardAnimation()
   useTiltParallax()
-  // Temporary diagnostic badge — confirms the deployed build and whether the
-  // orientation sensor is actually delivering events.
-  const [diag, setDiag] = useState('')
-  useEffect(() => {
-    const id = setInterval(() => {
-      const d = window.__tiltDebug
-      if (!d) { setDiag('v1105d · no-hook'); return }
-      const b = d.beta == null ? '-' : d.beta.toFixed(0)
-      const g = d.gamma == null ? '-' : d.gamma.toFixed(0)
-      setDiag(`v1105d · ${d.perm} · ev${d.events} · ${b}/${g}`)
-    }, 700)
-    return () => clearInterval(id)
-  }, [])
   const greeting = getGreeting()
   const quote = getDailyQuote()
 
@@ -174,7 +161,7 @@ export default function Dashboard() {
       <motion.div className="px-4 mt-3 shrink-0" {...cardAnim(0.14)}>
         <button
           onClick={() => navigate('/chat')}
-          className="shape-chat glass-water chat-glass tilt-layer-2 relative w-full h-[98px] px-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
+          className="shape-chat glass-water chat-glass relative w-full h-[98px] px-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
         >
           <span className="w-[44px] h-[44px] rounded-full flex-shrink-0 flex items-center justify-center text-white shadow-[0_6px_14px_-6px_rgba(60,82,54,0.55)]"
             style={{ background: 'linear-gradient(145deg, #8AA680 0%, #5C7A54 55%, #4C6747 100%)' }}
@@ -245,7 +232,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Album strip (photos only, no memory link) ── */}
-      <motion.div className="px-4 shrink-0 tilt-layer-2" {...cardAnim(0.42)}>
+      <motion.div className="px-4 shrink-0" {...cardAnim(0.42)}>
         <div className="shape-panel album-panel glass-water px-4 pt-2 pb-1.5">
           <div className="flex items-start justify-between">
             <div>
@@ -263,7 +250,7 @@ export default function Dashboard() {
             </button>
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar mt-1.5 -mx-1 px-1">
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar mt-1.5 -mx-1 px-1 tilt-layer-2">
             {shownPhotos.map((p) => (
               <button
                 key={p.id}
@@ -298,8 +285,6 @@ export default function Dashboard() {
         <p className="text-[9.5px] text-warm-dark/55 leading-[1.45] tracking-[0.04em]">「{quote.text}」</p>
         <p className="text-[8px] text-warm-gray/45 tracking-[0.08em] leading-[1.4]">—— {quote.film}</p>
       </motion.div>
-
-      <p className="shrink-0 text-[9px] tracking-[0.08em] text-black/40 px-3 pb-1">{diag}</p>
 
       {active && (
         <PhotoViewer
