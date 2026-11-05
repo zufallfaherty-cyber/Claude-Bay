@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import useTiltParallax from '../hooks/useTiltParallax'
 
 const API = 'https://124-156-142-6.sslip.io'
 const playfair = { fontFamily: '"Playfair Display", serif' }
@@ -21,6 +22,7 @@ const BOOKS = [
 
 export default function ClaudeSpace() {
   const navigate = useNavigate()
+  useTiltParallax() // same glasses-free drift as the home page
 
   const wrapRef = useRef(null)
   const [stage, setStage] = useState(null)
@@ -113,7 +115,7 @@ export default function ClaudeSpace() {
                 className="book-hotspot"
                 style={{ left: book.left, top: book.top, width: book.width, height: book.height }}
               >
-                <span className={`book-title ${book.tone}`} style={{ left: book.labelLeft, bottom: book.labelBottom }}>
+                <span className={`book-title ${book.tone} study-float`} style={{ left: book.labelLeft, bottom: book.labelBottom }}>
                   <span className="cn">{book.cn}</span>
                   <span className="rule" />
                   <span className="en">{book.en}</span>
@@ -125,7 +127,7 @@ export default function ClaudeSpace() {
             <button
               onClick={() => openRoom('diary')}
               aria-label="日记"
-              className="study-diary"
+              className="study-diary study-float"
               style={{ left: '61%', top: '81.6%' }}
             >
               <span className="cn">日记</span>
@@ -136,7 +138,7 @@ export default function ClaudeSpace() {
             <button
               onClick={() => openRoom('anniversary')}
               aria-label="纪念日"
-              className="study-anniv"
+              className="study-anniv study-float"
               style={{ left: '28.2%', top: '75.9%' }}
             >
               <span className="cn">纪念日</span>

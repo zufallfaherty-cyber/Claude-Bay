@@ -477,6 +477,16 @@ body {
   opacity: 0.75;
 }
 
+/* Titles drift with the phone's tilt (fed by useTiltParallax), so they read as
+   floating a little above the cover instead of being painted into it. */
+.study-float {
+  translate: calc(var(--tilt-x, 0) * 7px) calc(var(--tilt-y, 0) * 7px);
+  will-change: translate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .study-float { translate: none; }
+}
+
 /* Small glass toast for the not-yet-built rooms */
 .study-toast {
   position: absolute;
