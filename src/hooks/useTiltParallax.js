@@ -76,9 +76,15 @@ export default function useTiltParallax() {
     // Android (and iOS that was already allowed) just works.
     window.addEventListener('deviceorientation', onOrient, true)
 
+    // iOS only treats touchend / click as user activation for this API —
+    // a pointerdown handler gets "requires a user gesture" and is rejected.
+    let lastAsk = 0
     const requestOnTap = () => {
       if (stopped || gotData) return
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // touchend and click both fire for one tap; ask once.
+        if (Date.now() - lastAsk < 600) return
+        lastAsk = Date.now()
         // Already granted → resolves immediately without a prompt; still
         // pending → shows the iOS dialog.
         dbg.perm = 'asking'
@@ -90,13 +96,15 @@ export default function useTiltParallax() {
         gotData = true
       }
     }
-    window.addEventListener('pointerdown', requestOnTap, true)
+    window.addEventListener('touchend', requestOnTap, true)
+    window.addEventListener('click', requestOnTap, true)
 
     return () => {
       stopped = true
       if (raf) cancelAnimationFrame(raf)
       window.removeEventListener('deviceorientation', onOrient, true)
-      window.removeEventListener('pointerdown', requestOnTap, true)
+      window.removeEventListener('touchend', requestOnTap, true)
+      window.removeEventListener('click', requestOnTap, true)
       root.style.removeProperty('--tilt-x')
       root.style.removeProperty('--tilt-y')
     }
