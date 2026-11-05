@@ -103,14 +103,26 @@ body {
 
 /* ── Frosted Glass ── */
 .glass {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.38);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 .glass-strong {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+}
+
+/* With the glass this transparent the water texture runs right under the
+   copy; a hairline white halo lifts the text back off the background. */
+.glass,
+.glass-strong,
+.glass-water,
+.chat-glass,
+.bottom-nav {
+  text-shadow:
+    0 1px 1px rgba(255, 255, 255, 0.55),
+    0 0 7px rgba(255, 255, 255, 0.34);
 }
 
 /* ── Liquid glass — thin rim, local highlight, light shadow ── */
@@ -119,9 +131,9 @@ body {
   overflow: hidden;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.26),
-    rgba(255, 255, 255, 0.09) 55%,
-    rgba(232, 240, 224, 0.14)
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.03) 55%,
+    rgba(232, 240, 224, 0.06)
   );
   backdrop-filter: blur(9px) saturate(1.22) brightness(1.01);
   -webkit-backdrop-filter: blur(9px) saturate(1.22) brightness(1.01);
@@ -141,7 +153,7 @@ body {
   pointer-events: none;
   background: radial-gradient(
     58% 62% at 22% 4%,
-    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.09) 0%,
     rgba(255, 255, 255, 0) 62%
   );
 }
@@ -158,11 +170,11 @@ body {
 /* The main entry keeps a touch of green light inside the glass */
 .chat-glass {
   background:
-    radial-gradient(120% 150% at 14% 50%, rgba(150, 180, 135, 0.24) 0%, rgba(150, 180, 135, 0) 52%),
+    radial-gradient(120% 150% at 14% 50%, rgba(150, 180, 135, 0.18) 0%, rgba(150, 180, 135, 0) 52%),
     linear-gradient(135deg,
-      rgba(255, 255, 255, 0.34),
-      rgba(255, 255, 255, 0.13) 58%,
-      rgba(232, 240, 224, 0.20));
+      rgba(255, 255, 255, 0.24),
+      rgba(255, 255, 255, 0.07) 58%,
+      rgba(232, 240, 224, 0.12));
 }
 
 /* ── Unified soft geometry, with a hair of organic irregularity ── */
