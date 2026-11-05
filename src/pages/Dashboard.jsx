@@ -5,6 +5,7 @@ import { getDailyQuote } from '../lib/quotes'
 import { loadAlbum } from '../lib/album'
 import { SAMPLE_PHOTOS } from '../lib/albumSamples'
 import PhotoViewer from '../components/PhotoViewer'
+import useTiltParallax from '../hooks/useTiltParallax'
 
 // ── Animation variants (skip on re-mount to avoid flash) ──
 const fadeUp = {
@@ -94,6 +95,7 @@ export default function Dashboard() {
   const [photos, setPhotos] = useState([])
   const [active, setActive] = useState(null)
   const skipAnim = useSkipCardAnimation()
+  useTiltParallax()
   const greeting = getGreeting()
   const quote = getDailyQuote()
 
@@ -121,7 +123,7 @@ export default function Dashboard() {
     <div className="home-shell flex flex-col h-full">
       {/* ── Header ── */}
       <div className="px-6 pt-5 flex items-start justify-between gap-2 shrink-0">
-        <motion.div className="min-w-0 pt-1" {...cardAnim(0)}>
+        <motion.div className="min-w-0 pt-1 tilt-layer-1" {...cardAnim(0)}>
           <h1
             className="italic font-light text-[36px] leading-none text-[#5D6856] whitespace-nowrap"
             style={{ fontFamily: '"Playfair Display", serif', letterSpacing: '0.015em' }}
@@ -137,7 +139,7 @@ export default function Dashboard() {
         {/* Date drop — anniversary, not today */}
         <motion.div
           {...cardAnim(0.08)}
-          className="shape-date glass-water flex-shrink-0 w-[80px] h-[104px] px-1 py-2.5 flex flex-col items-center justify-center text-center"
+          className="shape-date glass-water tilt-layer-1 flex-shrink-0 w-[80px] h-[104px] px-1 py-2.5 flex flex-col items-center justify-center text-center"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className="text-warm-gray/60">
             <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -159,7 +161,7 @@ export default function Dashboard() {
       <motion.div className="px-4 mt-3 shrink-0" {...cardAnim(0.14)}>
         <button
           onClick={() => navigate('/chat')}
-          className="shape-chat glass-water chat-glass relative w-full h-[98px] px-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
+          className="shape-chat glass-water chat-glass tilt-layer-2 relative w-full h-[98px] px-4 flex items-center gap-3 active:scale-[0.985] transition-transform"
         >
           <span className="w-[44px] h-[44px] rounded-full flex-shrink-0 flex items-center justify-center text-white shadow-[0_6px_14px_-6px_rgba(60,82,54,0.55)]"
             style={{ background: 'linear-gradient(145deg, #8AA680 0%, #5C7A54 55%, #4C6747 100%)' }}
@@ -184,7 +186,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.2)}
           onClick={() => navigate('/profile/memory')}
-          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] w-[62%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water tilt-layer-3 relative flex-1 min-h-0 max-h-[126px] w-[62%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '-0.8deg' }}
         >
           <IconBook className="island-icon w-[22px] h-[22px] text-[#647359]" />
@@ -199,7 +201,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.26)}
           onClick={() => navigate('/games')}
-          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[58%] self-end px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water tilt-layer-3 relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[58%] self-end px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '0.8deg' }}
         >
           <IconGame className="island-icon w-[22px] h-[22px] text-[#647359]" />
@@ -214,7 +216,7 @@ export default function Dashboard() {
         <motion.button
           {...cardAnim(0.32)}
           onClick={() => navigate('/profile/files')}
-          className="shape-island island glass-water relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[54%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
+          className="shape-island island glass-water tilt-layer-3 relative flex-1 min-h-0 max-h-[126px] -mt-2.5 w-[54%] self-start px-5 py-1.5 text-left flex flex-col items-start justify-center active:scale-[0.97] transition-transform"
           style={{ rotate: '-0.8deg' }}
         >
           <span className="absolute right-14 top-2.5 w-11 h-7 rounded-[6px] bg-white/20 border border-white/35 rotate-6" />
@@ -230,7 +232,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Album strip (photos only, no memory link) ── */}
-      <motion.div className="px-4 shrink-0" {...cardAnim(0.42)}>
+      <motion.div className="px-4 shrink-0 tilt-layer-2" {...cardAnim(0.42)}>
         <div className="shape-panel album-panel glass-water px-4 pt-2 pb-1.5">
           <div className="flex items-start justify-between">
             <div>
@@ -279,7 +281,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── Daily quote — right edge, resting on the nav ── */}
-      <motion.div className="home-quote px-5 pt-2 pb-1.5 shrink-0 text-right" {...cardAnim(0.46)}>
+      <motion.div className="home-quote px-5 pt-2 pb-1.5 shrink-0 text-right tilt-layer-1" {...cardAnim(0.46)}>
         <p className="text-[9.5px] text-warm-dark/55 leading-[1.45] tracking-[0.04em]">「{quote.text}」</p>
         <p className="text-[8px] text-warm-gray/45 tracking-[0.08em] leading-[1.4]">—— {quote.film}</p>
       </motion.div>

@@ -229,6 +229,28 @@ body {
   .home-water-bg::before { animation: none; }
 }
 
+/* ── Home tilt parallax (fed by useTiltParallax) ──
+   The water drifts one way, the cards another; the few-pixel offset between
+   layers is what reads as depth. Kept tiny — 3–8px at full tilt. */
+.home-water-bg {
+  /* Drift the water the opposite way to the cards. This layer moves via the
+     independent `translate` property, not background-position, so the image
+     never slides off its edge — waterBreathe already scales it ≥1.02, which
+     keeps a ≤3px shift fully covered. */
+  translate: calc(var(--tilt-x, 0) * -3px) calc(var(--tilt-y, 0) * -3px);
+}
+.tilt-layer-1 { translate: calc(var(--tilt-x, 0) * 3px) calc(var(--tilt-y, 0) * 3px); }
+.tilt-layer-2 { translate: calc(var(--tilt-x, 0) * 5px) calc(var(--tilt-y, 0) * 5px); }
+.tilt-layer-3 { translate: calc(var(--tilt-x, 0) * 8px) calc(var(--tilt-y, 0) * 8px); }
+/* Tailwind's transition-transform also eases `translate`; keep the press
+   animation on transform/scale but let the tilt follow the sensor directly. */
+.tilt-layer-2,
+.tilt-layer-3 { transition-property: transform, scale, rotate; }
+@media (prefers-reduced-motion: reduce) {
+  .home-water-bg { translate: none; } /* its breathe animation is off, so no cover margin */
+  .tilt-layer-1, .tilt-layer-2, .tilt-layer-3 { translate: none; }
+}
+
 /* ── Chat: same water, quieter ── */
 .chat-water-bg {
   position: absolute;
