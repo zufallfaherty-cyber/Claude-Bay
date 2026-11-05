@@ -16,8 +16,18 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 export default function useTiltParallax() {
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.DeviceOrientationEvent) return
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    if (typeof window === 'undefined') return
+    // Temporary on-screen diagnostic (read by Dashboard's debug badge)
+    const dbg = window.__tiltDebug = { events: 0, beta: null, gamma: null, perm: 'idle' }
+
+    if (!window.DeviceOrientationEvent) {
+      dbg.perm = 'no-api'
+      return
+    }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      dbg.perm = 'reduced-motion'
+      return
+    }
 
     const root = document.documentElement
     let stopped = false
@@ -47,6 +57,9 @@ export default function useTiltParallax() {
 
     const onOrient = (e) => {
       if (e.beta == null || e.gamma == null) return
+      dbg.events++
+      dbg.beta = e.beta
+      dbg.gamma = e.gamma
       if (!gotData) gotData = true
       if (baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma }
       // Re-centre after a big posture change (lying down, switching orientation)
@@ -68,8 +81,12 @@ export default function useTiltParallax() {
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         // Already granted → resolves immediately without a prompt; still
         // pending → shows the iOS dialog.
-        DeviceOrientationEvent.requestPermission().catch(() => {})
+        dbg.perm = 'asking'
+        DeviceOrientationEvent.requestPermission()
+          .then((state) => { dbg.perm = state })
+          .catch((err) => { dbg.perm = 'error: ' + (err && err.message ? err.message : err) })
       } else {
+        dbg.perm = 'not-required'
         gotData = true
       }
     }

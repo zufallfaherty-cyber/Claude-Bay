@@ -96,6 +96,19 @@ export default function Dashboard() {
   const [active, setActive] = useState(null)
   const skipAnim = useSkipCardAnimation()
   useTiltParallax()
+  // Temporary diagnostic badge — confirms the deployed build and whether the
+  // orientation sensor is actually delivering events.
+  const [diag, setDiag] = useState('')
+  useEffect(() => {
+    const id = setInterval(() => {
+      const d = window.__tiltDebug
+      if (!d) { setDiag('v1105d · no-hook'); return }
+      const b = d.beta == null ? '-' : d.beta.toFixed(0)
+      const g = d.gamma == null ? '-' : d.gamma.toFixed(0)
+      setDiag(`v1105d · ${d.perm} · ev${d.events} · ${b}/${g}`)
+    }, 700)
+    return () => clearInterval(id)
+  }, [])
   const greeting = getGreeting()
   const quote = getDailyQuote()
 
@@ -285,6 +298,8 @@ export default function Dashboard() {
         <p className="text-[9.5px] text-warm-dark/55 leading-[1.45] tracking-[0.04em]">「{quote.text}」</p>
         <p className="text-[8px] text-warm-gray/45 tracking-[0.08em] leading-[1.4]">—— {quote.film}</p>
       </motion.div>
+
+      <p className="shrink-0 text-center text-[9px] tracking-[0.08em] text-black/35 pb-1">{diag}</p>
 
       {active && (
         <PhotoViewer
