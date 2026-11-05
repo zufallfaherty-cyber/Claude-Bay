@@ -1047,3 +1047,14 @@
 - 后端已 scp 重建：bayapi 跑新代码；服务器新增 `searxng` 容器（`docker ps` 应能看到 4 个 Up）
 - 前端等 Vercel 自动部署
 - 相册实测：上传 → 列表 → 取图 → 删除全链路 200；`/api/album` 返回空数组（还没有正式照片）
+
+## 2026.11.05 前端体验（已上线）
+
+- **`053f400` / `333e683` 聊天气泡动画**：回复气泡从下往上浮入（`bubbleRise` 0.32s）；打字点与文字交叉淡出——文字升起时打字点下沉淡出，不是硬切换。
+- **`95add7d` / `c6d18e2` 卡片透明度**：所有玻璃卡片统一调透明（`.glass` 0.38、`.glass-strong` 0.55、`.glass-water` 0.12、`.chat-glass` 0.24、底栏 `bg-white/30`）。光晕试过后已回退。
+- **`d022257` 首页陀螺仪 3D 视差**：新建 `src/hooks/useTiltParallax.js`，把手机倾斜写进 `--tilt-x/--tilt-y`（-1..1），卡片按深度分三层位移 3/5/8px，水面背景反向 3px，形成轻微裸眼 3D。
+  - 关键坑：Tailwind v4 的 `transition-transform` 展开包含 `translate`，会把视差的即时位移拖成 0.15s 过渡；`.tilt-layer-2/3` 已改回 `transition-property: transform, scale, rotate`。
+  - 背景位移用独立 `translate` 属性而不是 `background-position`，靠 `waterBreathe` 的 ≥1.02 缩放余量盖住边缘，不会露缝。
+  - iOS 需要用户手势才给方向数据：**首次进首页点一下屏幕**会弹授权，之后倾斜才生效。
+  - 幅度 ±22° 映射满格；躺下/横屏超过 55° 自动重定基准。
+- **待真机确认**：倾斜方向是否跟手（若反了，把 `useTiltParallax` 里 `targetX/targetY` 的符号取反即可）；iOS 上 `backdrop-filter` 与 `translate` 同用是否正常。
