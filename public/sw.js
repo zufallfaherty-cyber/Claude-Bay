@@ -9,7 +9,9 @@ const PRECACHE_URLS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_URLS)
+      // A flaky network must not break the install; the runtime handler fills
+      // any gap on the next navigation.
+      return Promise.all(PRECACHE_URLS.map((url) => cache.add(url).catch(() => {})))
     })
   )
   self.skipWaiting()
@@ -37,20 +39,25 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Page navigations must hit the network first. Cache-first here served a
-  // stale index.html forever, so a new deploy (new hashed JS) never reached
-  // an already-installed PWA.
+  // Page navigations: serve the cached shell instantly, then refresh it in the
+  // background. Network-first made every launch wait for the (slow, in China)
+  // Vercel origin. Stale-while-revalidate keeps launches instant and the next
+  // launch still picks up a deploy.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone()
-            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone))
-          }
-          return response
-        })
-        .catch(() => caches.match(event.request).then((c) => c || caches.match('/index.html')))
+      (async () => {
+        const cached = await caches.match('/index.html')
+        const network = fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const clone = response.clone()
+              caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone))
+            }
+            return response
+          })
+          .catch(() => null)
+        return cached || (await network) || caches.match('/index.html')
+      })()
     )
     return
   }
