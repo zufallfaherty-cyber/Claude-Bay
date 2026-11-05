@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toolMeta } from '../lib/toolLabels'
 import { saveFile } from '../pages/FilesPage'
 
@@ -39,6 +39,18 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
     ? content.replace(/```[\s\S]*?```/g, '').trim()
     : content
   const hasDisplayContent = displayContent && displayContent.trim()
+
+  // Keep the typing dots mounted briefly after the reply arrives so they can
+  // sink/fade out while the text rises in (cross-fade instead of a hard cut).
+  const [showTyping, setShowTyping] = useState(!hasDisplayContent)
+  useEffect(() => {
+    if (hasDisplayContent) {
+      const t = setTimeout(() => setShowTyping(false), 260)
+      return () => clearTimeout(t)
+    }
+    setShowTyping(true)
+  }, [hasDisplayContent])
+
   const bayAvatar = localStorage.getItem('avatar_bay') || ''
   const claudeAvatar = localStorage.getItem('avatar_claude') || ''
 
@@ -87,7 +99,7 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
         </div>
       )}
 
-      <div className={`flex flex-col max-w-[78%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`relative flex flex-col max-w-[78%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Attachments (images) */}
         {attachments && attachments.length > 0 && (
           <div className={`flex flex-col gap-1.5 mb-1.5 ${isUser ? 'items-end' : 'items-start'}`}>
@@ -133,14 +145,17 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
           </div>
         )}
 
-        {/* Typing dots (no content yet) */}
-        {!hasDisplayContent && !(attachments && attachments.length > 0) && (
-          <div className="bubble-claude px-3.5 py-2.5 rounded-[16px] rounded-tl-[6px]">
-            <span className="inline-flex gap-1.5 items-center">
-              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
-              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
-              <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
-            </span>
+        {/* Typing dots: overlays the reply while it leaves, so the text can
+            rise underneath them without the layout jumping */}
+        {!isUser && showTyping && !(attachments && attachments.length > 0) && (
+          <div className={`${hasDisplayContent ? 'absolute top-0 left-0 z-10 typing-exit' : ''}`}>
+            <div className="bubble-claude px-3.5 py-2.5 rounded-[16px] rounded-tl-[6px]">
+              <span className="inline-flex gap-1.5 items-center">
+                <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
+                <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
+                <span className="typing-dot w-1.5 h-1.5 bg-sage-deep/80 rounded-full" />
+              </span>
+            </div>
           </div>
         )}
 
