@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bunny-chat-v2'
+const CACHE_NAME = 'bunny-chat-v3'
 
 const PRECACHE_URLS = [
   '/',
@@ -27,12 +27,31 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch — network-first for API, cache-first for assets
+// Fetch — network-first for pages, cache-first for hashed assets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
-  // Skip API calls
+  // Skip cross-origin and API calls
+  if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/api/')) {
+    return
+  }
+
+  // Page navigations must hit the network first. Cache-first here served a
+  // stale index.html forever, so a new deploy (new hashed JS) never reached
+  // an already-installed PWA.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone))
+          }
+          return response
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match('/index.html')))
+    )
     return
   }
 

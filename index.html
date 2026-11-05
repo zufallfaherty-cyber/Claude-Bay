@@ -22,7 +22,16 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
+        const hadController = !!navigator.serviceWorker.controller
+        let refreshing = false
+        // A new sw.js took over: reload once so the page runs the matching
+        // bundle instead of the one the old SW had cached.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (refreshing || !hadController) return
+          refreshing = true
+          window.location.reload()
+        })
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       }
     </script>
   </body>

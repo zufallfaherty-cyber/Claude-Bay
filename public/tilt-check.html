@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#7D9B76" />
+<title>倾斜检测</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 22px 18px 40px;
+    font: 15px/1.5 -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+    background: #F7F6F1; color: #3F463A;
+  }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: .02em; }
+  .sub { font-size: 12px; color: #8A8F80; margin: 0 0 18px; }
+  .verdict {
+    padding: 14px 16px; border-radius: 16px; font-size: 15px; font-weight: 600;
+    background: #EDEFE7; color: #5D6856; margin-bottom: 14px;
+  }
+  .verdict.ok { background: #E2EEDD; color: #3F6B37; }
+  .verdict.warn { background: #F6EBDC; color: #8A5A20; }
+  .verdict.bad { background: #F5E2E0; color: #96382C; }
+  button {
+    width: 100%; padding: 14px; border: 0; border-radius: 14px;
+    font: 600 16px/1 inherit; color: #fff; background: #6E8C64;
+    margin-bottom: 18px;
+  }
+  button:active { transform: scale(.98); }
+  button[disabled] { background: #B9C2B2; }
+  ul { list-style: none; margin: 0 0 18px; padding: 0; background: #fff;
+       border-radius: 16px; overflow: hidden; box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+  li { display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px;
+       font-size: 13px; border-bottom: 1px solid #F0F0EA; }
+  li:last-child { border-bottom: 0; }
+  li span { color: #8A8F80; }
+  li b { font-weight: 600; text-align: right; word-break: break-all; }
+  .box {
+    position: relative; height: 190px; border-radius: 18px; overflow: hidden;
+    background: linear-gradient(160deg, #E8EEE2, #DCE6D4);
+    border: 1px solid #D6DFCF;
+  }
+  .box::before {
+    content: ""; position: absolute; inset: 50% 0 auto; height: 1px; background: #C9D4C1;
+  }
+  #dot {
+    position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px;
+    border-radius: 50%; background: #6E8C64;
+    box-shadow: 0 8px 18px -8px rgba(60, 90, 50, .7);
+    transition: transform .08s linear;
+  }
+  .foot { margin-top: 16px; font-size: 12px; color: #9AA091; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <h1>倾斜 / 陀螺仪检测</h1>
+  <p class="sub">用来确认手机能不能把倾斜数据交给网页</p>
+
+  <div id="verdict" class="verdict">点下面的按钮开始检测</div>
+  <button id="start">开始检测</button>
+
+  <ul>
+    <li><span>设备</span><b id="ua">—</b></li>
+    <li><span>支持方向传感器</span><b id="support">—</b></li>
+    <li><span>需要申请权限</span><b id="needperm">—</b></li>
+    <li><span>权限结果</span><b id="perm">—</b></li>
+    <li><span>减弱动态效果</span><b id="rm">—</b></li>
+    <li><span>收到事件数</span><b id="count">0</b></li>
+    <li><span>beta / gamma</span><b id="bg">—</b></li>
+  </ul>
+
+  <div class="box"><div id="dot"></div></div>
+  <p class="foot">把手机左右、前后倾一下，上面的圆点应该跟着动。</p>
+
+<script>
+  const $ = (id) => document.getElementById(id)
+  const hasAPI = typeof window.DeviceOrientationEvent !== 'undefined'
+  const needsPerm = hasAPI && typeof window.DeviceOrientationEvent.requestPermission === 'function'
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+  $('ua').textContent = /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone / iPad'
+    : /Android/.test(navigator.userAgent) ? 'Android' : '电脑或其它'
+  $('support').textContent = hasAPI ? '是' : '否'
+  $('needperm').textContent = needsPerm ? '是（iOS）' : '否'
+  $('rm').textContent = reduceMotion ? '已开启（App 里会停用动效）' : '未开启'
+
+  let count = 0
+  let gotData = false
+  let watchTimer = 0
+
+  function setVerdict(text, kind) {
+    const el = $('verdict')
+    el.textContent = text
+    el.className = 'verdict' + (kind ? ' ' + kind : '')
+  }
+
+  function listen() {
+    window.addEventListener('deviceorientation', (e) => {
+      count++
+      $('count').textContent = String(count)
+      if (e.beta == null || e.gamma == null) {
+        $('bg').textContent = '空（权限可能被系统关掉了）'
+        return
+      }
+      gotData = true
+      $('bg').textContent = e.beta.toFixed(1) + ' / ' + e.gamma.toFixed(1)
+      const dx = Math.max(-70, Math.min(70, e.gamma * 1.6))
+      const dy = Math.max(-70, Math.min(70, (e.beta - 40) * 1.6))
+      $('dot').style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)'
+      if (count === 5 || count === 30) {
+        setVerdict('✅ 传感器正常，数据在流动', 'ok')
+      }
+    }, true)
+  }
+
+  function startWatching() {
+    clearTimeout(watchTimer)
+    watchTimer = setTimeout(() => {
+      if (gotData) return
+      if (count > 0) {
+        setVerdict('⚠️ 收到事件但拿不到数值。去 iPhone「设置 → Safari 浏览器 → 动作与方向访问」确认已打开，然后重开这个页面。', 'warn')
+      } else {
+        setVerdict('⚠️ 完全没有数据。可能传感器权限被系统关闭，或这个浏览器不支持。', 'warn')
+      }
+    }, 2500)
+  }
+
+  $('start').addEventListener('click', async () => {
+    $('start').disabled = true
+    $('start').textContent = '检测中…'
+    if (!hasAPI) {
+      setVerdict('❌ 这台设备或浏览器不支持方向传感器', 'bad')
+      return
+    }
+    if (!needsPerm) {
+      $('perm').textContent = '不需要'
+      listen()
+      setVerdict('正在等数据…把手机倾斜一下', '')
+      startWatching()
+      return
+    }
+    try {
+      const state = await window.DeviceOrientationEvent.requestPermission()
+      $('perm').textContent = state
+      if (state !== 'granted') {
+        setVerdict('❌ 权限被拒绝。可在 iPhone 设置里重新允许后再试。', 'bad')
+        return
+      }
+      listen()
+      setVerdict('正在等数据…把手机倾斜一下', '')
+      startWatching()
+    } catch (err) {
+      $('perm').textContent = '出错：' + (err && err.message ? err.message : err)
+      setVerdict('❌ 申请权限失败，可能是页面不是从 Safari 打开的', 'bad')
+    }
+  })
+</script>
+</body>
+</html>
