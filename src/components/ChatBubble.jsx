@@ -127,7 +127,7 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
         {/* Text bubble */}
         {hasDisplayContent && (
           <div className={`w-fit max-w-full px-3.5 py-2 text-[13px] leading-[1.72] whitespace-pre-wrap break-words ${
-            isUser ? 'bubble-user' : 'bubble-claude'
+            isUser ? 'bubble-user' : 'bubble-claude bubble-rise'
           } ${isUser ? 'rounded-[16px] rounded-tr-[6px]' : 'rounded-[16px] rounded-tl-[6px]'}`}>
             {displayContent}
           </div>
