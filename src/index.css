@@ -354,6 +354,226 @@ body {
     rgba(252, 251, 247, 0.34) 100%);
 }
 
+/* ── 小湾画像 · 信纸（bg-portrait-v2.jpg, 853 × 1844） ── */
+.portrait-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #eceee2;
+}
+.portrait-blur {
+  position: absolute;
+  inset: calc(-6% - 20px);
+  background-image: url('/bg-portrait-v2.jpg');
+  background-size: cover;
+  background-position: center 38%;
+  filter: blur(26px) saturate(0.92) brightness(1.02);
+  opacity: 0.92;
+}
+.portrait-stage {
+  position: absolute;
+  overflow: hidden;
+}
+.portrait-stage > img.portrait-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: saturate(0.98) contrast(1.005) brightness(1.01);
+  /* Feather the paper's top and bottom edges into the blurred backdrop so the
+     letterbox boundary reads as mist rather than a hard cut. Kept on the image
+     (not the stage) so the edit buttons below stay fully opaque. */
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.05) 1.4%,
+    rgba(0, 0, 0, 0.16) 2.8%,
+    rgba(0, 0, 0, 0.34) 4.2%,
+    rgba(0, 0, 0, 0.56) 5.6%,
+    rgba(0, 0, 0, 0.79) 6.6%,
+    #000 7.5%,
+    #000 92.5%,
+    rgba(0, 0, 0, 0.79) 93.4%,
+    rgba(0, 0, 0, 0.56) 94.4%,
+    rgba(0, 0, 0, 0.34) 95.8%,
+    rgba(0, 0, 0, 0.16) 97.2%,
+    rgba(0, 0, 0, 0.05) 98.6%,
+    transparent 100%);
+  mask-image: linear-gradient(180deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.05) 1.4%,
+    rgba(0, 0, 0, 0.16) 2.8%,
+    rgba(0, 0, 0, 0.34) 4.2%,
+    rgba(0, 0, 0, 0.56) 5.6%,
+    rgba(0, 0, 0, 0.79) 6.6%,
+    #000 7.5%,
+    #000 92.5%,
+    rgba(0, 0, 0, 0.79) 93.4%,
+    rgba(0, 0, 0, 0.56) 94.4%,
+    rgba(0, 0, 0, 0.34) 95.8%,
+    rgba(0, 0, 0, 0.16) 97.2%,
+    rgba(0, 0, 0, 0.05) 98.6%,
+    transparent 100%);
+}
+/* Photo + title stay pinned on the paper; only the writing below moves. */
+.portrait-head {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Scrollable writing area, clipped to the paper so text never spills onto the water */
+.portrait-sheet {
+  position: absolute;
+  left: 11.4%;
+  right: 10.4%;
+  top: 33.5%;
+  bottom: 19.9%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: calc(58px * var(--k)) calc(12px * var(--k)) calc(74px * var(--k)) calc(12px * var(--k));
+  -webkit-mask-image: linear-gradient(180deg,
+    transparent 0,
+    #000 calc(30px * var(--k)),
+    #000 calc(100% - 88px * var(--k)),
+    transparent 100%);
+  mask-image: linear-gradient(180deg,
+    transparent 0,
+    #000 calc(30px * var(--k)),
+    #000 calc(100% - 88px * var(--k)),
+    transparent 100%);
+}
+.portrait-sheet::-webkit-scrollbar { display: none; }
+
+.portrait-hero-text {
+  position: absolute;
+  left: 42.4%;
+  right: 6.15%;
+  top: 21.9%;
+  text-align: center;
+}
+.portrait-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(12px * var(--k));
+  font-size: calc(48px * var(--k));
+  line-height: 1.1;
+  letter-spacing: 0.14em;
+  text-indent: 0.14em;
+  color: #4C5646;
+}
+.portrait-name svg {
+  width: calc(24px * var(--k));
+  height: calc(24px * var(--k));
+  color: #A3B393;
+}
+.portrait-sub {
+  margin-top: calc(10px * var(--k));
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: calc(27px * var(--k));
+  letter-spacing: 0.03em;
+  color: #8E9682;
+}
+.portrait-rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10px * var(--k));
+  margin-top: calc(26px * var(--k));
+  color: #B9C2A6;
+}
+.portrait-rule .bar {
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+  width: calc(96px * var(--k));
+}
+.portrait-rule .dot {
+  width: calc(9px * var(--k));
+  height: calc(9px * var(--k));
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+
+.portrait-text {
+  margin-top: 0;
+  font-size: calc(28px * var(--k));
+  line-height: 1.78;
+  letter-spacing: 0.012em;
+  color: #434C3D;
+  text-align: justify;
+  text-justify: inter-ideograph;
+  word-break: break-word;
+}
+.portrait-text p,
+.portrait-text div {
+  text-indent: 2em;
+  margin-bottom: calc(2px * var(--k));
+}
+.portrait-text p:last-child { margin-bottom: 0; }
+
+/* Inline editing — the paper itself becomes the text field */
+.portrait-text.is-editing {
+  outline: none;
+  caret-color: #5C7A54;
+  background: rgba(255, 255, 255, 0.36);
+  border-radius: calc(14px * var(--k));
+  box-shadow: inset 0 0 0 1px rgba(163, 179, 147, 0.34);
+  padding: calc(12px * var(--k));
+  margin: calc(-12px * var(--k));
+}
+
+/* Edit / save buttons — bottom right, outside the writing area */
+.portrait-actions {
+  position: absolute;
+  right: 8.7%;
+  bottom: 9.2%;
+  display: flex;
+  gap: 8px;
+  z-index: 4;
+}
+.portrait-edit {
+  pointer-events: auto;
+  height: 31px;
+  padding: 0 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #5C6B52;
+  background: rgba(255, 255, 255, 0.58);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 14px -10px rgba(70, 85, 62, 0.4);
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+.portrait-edit:active { transform: scale(0.95); }
+.portrait-edit.is-primary {
+  color: #fff;
+  background: #7D9B76;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.portrait-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(10px * var(--k));
+  margin: calc(56px * var(--k)) 0 calc(10px * var(--k));
+  color: #B9C2A6;
+}
+.portrait-end .bar {
+  height: 1px;
+  width: calc(84px * var(--k));
+  background: currentColor;
+  opacity: 0.65;
+}
+
 /* One transparent hit area per book; the label is the visible affordance */
 .book-hotspot {
   position: absolute;

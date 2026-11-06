@@ -6,10 +6,18 @@ import useTiltParallax from '../hooks/useTiltParallax'
 const API = 'https://124-156-142-6.sslip.io'
 const playfair = { fontFamily: '"Playfair Display", serif' }
 
-// The artwork is 941 × 1672. Hotspots are given in % of that canvas so they
-// stay glued to the books no matter how the image is cropped on screen.
+// The shelf artwork (bg-study.jpg) is 941 × 1672. Hotspots are given in % of
+// that canvas so they stay glued to the books however the image is cropped.
 const ART_W = 941
 const ART_H = 1672
+
+// The portrait paper (bg-portrait-v2.jpg) was redrawn taller, 853 × 1844, so a
+// whole phone screen gets covered. The portrait CSS is still authored against
+// the earlier 941-wide canvas, so `--k` is measured on DESIGN_W — otherwise
+// every font, padding and gap would grow ~10%.
+const PAPER_W = 853
+const PAPER_H = 1844
+const DESIGN_W = 941
 
 // Same anniversary as the home page's date drop
 const START_DATE = new Date('2026-06-28')
@@ -30,9 +38,13 @@ export default function ClaudeSpace() {
   const [portrait, setPortrait] = useState('')
   const [view, setView] = useState(null) // null | 'portrait'
   const [editingPortrait, setEditingPortrait] = useState(false)
-  const [portraitDraft, setPortraitDraft] = useState('')
   const [toast, setToast] = useState('')
   const toastTimer = useRef(null)
+  const portraitEditorRef = useRef(null)
+
+  // ── Paper stage for the portrait room (same cover maths as the shelf) ──
+  const portraitWrapRef = useRef(null)
+  const [pstage, setPstage] = useState(null)
 
   // ── Fit the artwork like background-size: cover, but as a measurable stage ──
   useEffect(() => {
@@ -53,6 +65,27 @@ export default function ClaudeSpace() {
     return () => ro.disconnect()
   }, [])
 
+  // ── Measure the portrait paper once the room is mounted ──
+  useEffect(() => {
+    if (view !== 'portrait') { setPstage(null); return }
+    const el = portraitWrapRef.current
+    if (!el) return
+    const measure = () => {
+      const cw = el.clientWidth
+      const ch = el.clientHeight
+      if (!cw || !ch) return
+      // contain (not cover): the whole artwork stays visible at any screen ratio
+      const s = Math.min(cw / PAPER_W, ch / PAPER_H)
+      const w = PAPER_W * s
+      const h = PAPER_H * s
+      setPstage({ w, h, x: (cw - w) / 2, y: (ch - h) / 2, k: w / DESIGN_W })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [view])
+
   // ── Load portrait ──
   const loadMemo = async () => {
     try {
@@ -72,19 +105,32 @@ export default function ClaudeSpace() {
     toastTimer.current = setTimeout(() => setToast(''), 2200)
   }
 
-  const openPortraitEditor = () => {
-    setPortraitDraft(portrait)
+  // ── Inline editing: the paper itself becomes editable, no modal ──
+  const startPortraitEdit = () => {
     setEditingPortrait(true)
+    setTimeout(() => portraitEditorRef.current?.focus(), 80)
   }
 
+  const cancelPortraitEdit = () => setEditingPortrait(false)
+
   const savePortrait = async () => {
-    await fetch(`${API}/api/memo/portrait`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: portraitDraft }),
-    })
-    setPortrait(portraitDraft)
+    const text = (portraitEditorRef.current?.innerText || '')
+      .replace(/ /g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
     setEditingPortrait(false)
+    setPortrait(text)
+    try {
+      const res = await fetch(`${API}/api/memo/portrait`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text }),
+      })
+      if (!res.ok) throw new Error('save failed')
+      showToast('已保存')
+    } catch {
+      showToast('保存失败，稍后再试')
+    }
   }
 
   const openRoom = (id) => {
@@ -173,40 +219,88 @@ export default function ClaudeSpace() {
 
       {toast && <div className="study-toast">{toast}</div>}
 
-      {/* ── Portrait room ── */}
+      {/* ── Portrait room · 信纸 ── */}
       {view === 'portrait' && createPortal(
-        <div className="fixed inset-y-0 inset-x-0 mx-auto w-full max-w-lg z-40 bg-[#f8f6f0] flex flex-col page-in">
-          <header className="flex-shrink-0 flex items-center gap-3 px-4 pt-4 pb-3 border-b border-warm-line/50">
+        <div className="fixed inset-y-0 inset-x-0 mx-auto w-full max-w-lg z-40 page-in overflow-hidden bg-[#eceee2]">
+          <div ref={portraitWrapRef} className="portrait-wrap">
+            {/* Soft blown-up copy of the paper fills the letterbox bands, so the
+                whole 941 × 1672 artwork can stay visible without harsh edges. */}
+            <div className="portrait-blur" aria-hidden="true" />
+            {pstage && (
+              <div
+                className="portrait-stage"
+                style={{ width: pstage.w, height: pstage.h, left: pstage.x, top: pstage.y, '--k': pstage.k }}
+              >
+                <img src="/bg-portrait-v2.jpg" alt="" draggable="false" className="portrait-bg" />
+
+                <div className="portrait-head">
+                  {/* 左上角的椭圆像是背景图纸本身印好的海景，暂不放照片 */}
+                  <div className="portrait-hero-text">
+                    <h1 className="portrait-name">
+                      湾
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20.2 3.8c0 8.9-4.9 13.8-12.3 13.8H4.6C4.6 9.4 9.6 3.8 20.2 3.8Z" />
+                        <path d="M3.4 21c1.8-6.9 6-11.2 12.8-14" />
+                      </svg>
+                    </h1>
+                    <p className="portrait-sub">Our Portrait</p>
+                    <div className="portrait-rule">
+                      <span className="bar" />
+                      <span className="dot" />
+                      <span className="bar" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className={`portrait-sheet ${editingPortrait ? 'is-editing' : ''}`}>
+                  <div
+                    ref={portraitEditorRef}
+                    className={`portrait-text ${editingPortrait ? 'is-editing' : ''}`}
+                    contentEditable={editingPortrait}
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                  >
+                    {portrait ? (
+                      portrait.split(/\n+/).map((line) => line.trim()).filter(Boolean)
+                        .map((line, i) => <p key={i}>{line}</p>)
+                    ) : (
+                      <p style={{ textIndent: 0 }} className="italic text-center text-[#8E9682]">
+                        还没有画像，点右下角「编辑」写一段关于小湾的描述…
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="portrait-end">
+                    <span className="bar" />
+                    <span className="dot" style={{ width: 'calc(9px * var(--k))', height: 'calc(9px * var(--k))', borderRadius: '50%', border: '1px solid currentColor' }} />
+                    <span className="bar" />
+                  </div>
+                </div>
+
+                {/* Edit / save sits on the paper, just outside the writing area */}
+                <div className="portrait-actions">
+                  {editingPortrait ? (
+                    <>
+                      <button onClick={cancelPortraitEdit} className="portrait-edit" aria-label="取消编辑">取消</button>
+                      <button onClick={savePortrait} className="portrait-edit is-primary" aria-label="保存画像">保存</button>
+                    </>
+                  ) : (
+                    <button onClick={startPortraitEdit} className="portrait-edit" aria-label="编辑画像">编辑</button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <header className="absolute top-0 inset-x-0 z-20 flex items-center gap-3 px-4 pt-4 pb-2 pointer-events-none">
             <button
               onClick={() => setView(null)}
               aria-label="返回书房"
-              className="study-back w-9 h-9 rounded-full flex items-center justify-center text-warm-dark/65 active:scale-90 transition-transform"
+              className="study-back pointer-events-auto w-9 h-9 rounded-full flex items-center justify-center text-warm-dark/65 active:scale-90 transition-transform"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
             </button>
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold text-warm-dark tracking-[0.06em]">小湾画像</p>
-              <p className="italic text-[9px] text-warm-gray/65 leading-none mt-1" style={playfair}>Portrait</p>
-            </div>
-            <button
-              onClick={openPortraitEditor}
-              aria-label="编辑画像"
-              className="rounded-full bg-white/65 border border-sage-deep/25 px-3.5 py-1.5 text-[12px] text-sage-deep font-medium active:scale-95 transition-all"
-            >编辑</button>
           </header>
-
-          <div className="flex-1 overflow-y-auto px-5 pt-4 pb-[calc(env(safe-area-inset-bottom)+28px)]">
-            <div className="study-paper rounded-[26px] px-5 py-5">
-              {portrait ? (
-                <p className="text-[14px] leading-[1.95] tracking-[0.02em] text-[#45423E] whitespace-pre-wrap">{portrait}</p>
-              ) : (
-                <p className="text-[12.5px] text-warm-gray/55 italic">还没有画像，点「编辑」写一段关于小湾的描述…</p>
-              )}
-            </div>
-            <p className="text-center italic text-[9px] text-warm-gray/40 mt-6" style={playfair}>
-              A quiet place for us
-            </p>
-          </div>
         </div>,
         document.body
       )}
@@ -248,46 +342,6 @@ export default function ClaudeSpace() {
         document.body
       )}
 
-      {/* ── Portrait editor ── */}
-      {editingPortrait && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => setEditingPortrait(false)}>
-          <div className="absolute inset-0 bg-[#2f3a2b]/35 backdrop-blur-[3px]" />
-          <div
-            className="relative bg-cream/95 backdrop-blur-xl rounded-[28px] w-full max-w-lg flex flex-col overflow-hidden border border-white/60 shadow-2xl animate-[modalPop_0.25s_ease-out]"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 pt-6 pb-4">
-              <div>
-                <p className="text-[17px] font-semibold text-warm-dark">编辑画像</p>
-                <p className="italic text-[10px] text-warm-gray/60 mt-1" style={playfair}>About Bay</p>
-              </div>
-              <button onClick={() => setEditingPortrait(false)} aria-label="关闭" className="text-warm-gray active:scale-90 p-1">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="px-6 pb-6 flex flex-col gap-5">
-              <textarea
-                value={portraitDraft}
-                onChange={e => setPortraitDraft(e.target.value)}
-                className="w-full bg-white/70 border border-white/40 rounded-2xl p-5 text-[15px] text-warm-dark leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-sage/30"
-                rows={9}
-                placeholder="写一段关于小湾的描述…"
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setEditingPortrait(false)}
-                  className="flex-1 py-3.5 rounded-2xl border border-sage-deep/30 text-sage-deep text-[15px] font-medium active:scale-[0.98] transition-all"
-                >取消</button>
-                <button
-                  onClick={savePortrait}
-                  className="flex-1 py-3.5 bg-sage-deep text-white rounded-2xl text-[15px] font-semibold active:scale-[0.98] transition-all"
-                >保存</button>
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   )
 }
