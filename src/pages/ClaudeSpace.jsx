@@ -74,8 +74,10 @@ export default function ClaudeSpace() {
       const cw = el.clientWidth
       const ch = el.clientHeight
       if (!cw || !ch) return
-      // contain (not cover): the whole artwork stays visible at any screen ratio
-      const s = Math.min(cw / PAPER_W, ch / PAPER_H)
+      // cover: the art was drawn for a whole phone screen, so on any viewport
+      // (Safari's shorter viewport included) it must fill edge to edge — a
+      // little cropping beats the letterbox bands.
+      const s = Math.max(cw / PAPER_W, ch / PAPER_H)
       const w = PAPER_W * s
       const h = PAPER_H * s
       setPstage({ w, h, x: (cw - w) / 2, y: (ch - h) / 2, k: w / DESIGN_W })
