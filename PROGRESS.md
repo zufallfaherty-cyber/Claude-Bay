@@ -16,7 +16,7 @@
 - **正文**：按段落拆 `<p>`、首行缩进 2em、两端对齐，字号/行距随 `--k` 缩放。
 - **滚动**：标题固定，正文区（`.portrait-sheet`，left 11.4% / right 10.4% / top 33.5% / bottom 19.9%，左右各留 ~11px 不贴内框线）独立滚动并裁在纸内；上下各加 `mask-image` 渐隐（顶部 30px·k、底部 88px·k），文字进出都不硬切。
 - **编辑（去弹窗）**：删掉原来的编辑模态框，改成纸内右下角的「编辑」胶囊按钮（`.portrait-actions`，right 8.7% / bottom 9.2%，在正文框外、纸的下边缘偏下）。点一下正文自己变 `contentEditable`（加半透明玻璃底 + 浅绿描边），旁边出现「取消 / 保存」；保存读 `innerText`、按换行拆段落后 POST `/api/memo/portrait`，成功 toast「已保存」。
-- **验证**：402×874 / 402×740 两种高度截图、滚到底、进入编辑态均正常；`npm run build` 通过。截图见 `预览效果/画像页-新-*.png`。
+- **验证**：402×874 / 402×811 / 402×740 截图、滚到底、进入编辑态均正常；`npm run build` 通过。真机（iPhone 402×811）确认：改成 cover 后左右窄边消失、背景铺满，用户 ok。截图见 `预览效果/画像页-新-*.png`。
 - **已部署**：commit `b3ab460` → `git push` → Vercel 自动构建。
   - 坑：仓库里有旧的 `http.proxy=127.0.0.1:7890`，梯子换成 TUN 模式后这个本地端口没人监听，push 会报「Failed to connect ... via 127.0.0.1」。绕过：`git -c http.proxy= -c https.proxy= -c http.version=HTTP/1.1 push origin master`（不加 HTTP/1.1 会卡在 `Error in the HTTP2 framing layer`）。
   - Vercel 域名国内仍被墙，本机 curl 验证不了部署结果，只能真机开梯子看。
