@@ -478,11 +478,16 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     return `[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]\n\n${basePrompt}`
   }
 
-  // Only the most recent few images are sent as real vision payloads. Older ones
-  // stay in the transcript as [图片] placeholders — otherwise every photo gets
-  // re-uploaded on every single turn and the request balloons past 1MB on mobile
-  // networks (slow uploads, relay 413s, model timeouts).
-  const MAX_CONTEXT_IMAGES = 3
+  // Only the image(s) on the latest user turn go to the model as real vision
+  // payloads. Photos from earlier turns stay in the transcript as [图片]
+  // placeholders — the model reads their surrounding text instead. Re-uploading
+  // every historical photo bloated each turn past 1MB of base64 on mobile
+  // networks (slow uploads, relay 413s, timeouts) for very little benefit.
+  const keepLatestImagesOnly = (msgs) => {
+    const last = msgs[msgs.length - 1]
+    const hasImage = (m) => m && m.role === 'user' && (m.attachments || []).some(a => a.type === 'image')
+    return { keepId: hasImage(last) ? last.id : null, hasImage }
+  }
 
   // Build API-compatible content from a user message (text + attachments → string or multimodal array)
   const buildApiContent = (msg, dropImages = false) => {
@@ -558,9 +563,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMsgs = trimmed.slice(-maxRounds * 2)
-    const regenImageMsgs = recentMsgs.filter(m => m.role === 'user' && (m.attachments || []).some(a => a.type === 'image'))
-    const regenKeepIds = new Set(regenImageMsgs.slice(-MAX_CONTEXT_IMAGES).map(m => m.id))
-    const apiMessages = recentMsgs.map(m => buildApiMessage(m, m.role === 'user' && !regenKeepIds.has(m.id) && (m.attachments || []).some(a => a.type === 'image')))
+    const { keepId, hasImage } = keepLatestImagesOnly(recentMsgs)
+    const apiMessages = recentMsgs.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
@@ -637,10 +641,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
-    // Keep real vision payloads only for the newest MAX_CONTEXT_IMAGES photos.
-    const imageMsgs = recentMessages.filter(m => m.role === 'user' && (m.attachments || []).some(a => a.type === 'image'))
-    const keepImageIds = new Set(imageMsgs.slice(-MAX_CONTEXT_IMAGES).map(m => m.id))
-    const apiMessages = recentMessages.map(m => buildApiMessage(m, m.role === 'user' && !keepImageIds.has(m.id) && (m.attachments || []).some(a => a.type === 'image')))
+    // Only images on the current turn are sent; earlier ones become [图片].
+    const { keepId, hasImage } = keepLatestImagesOnly(recentMessages)
+    const apiMessages = recentMessages.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
