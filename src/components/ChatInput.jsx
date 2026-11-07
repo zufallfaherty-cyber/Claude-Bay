@@ -104,15 +104,28 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
           name: file.name, type: 'image', mime: 'image/jpeg',
           data: result.data, thumb: result.thumb, isText: false,
         }])
-      } else {
+      } else if (isText) {
+        // Read only the head of the file: the model gets at most 5000 chars
+        // anyway, so storing/sending the whole thing just bloats every request.
+        const TEXT_LIMIT = 100 * 1024
+        const head = file.size > TEXT_LIMIT ? file.slice(0, TEXT_LIMIT) : file
         const reader = new FileReader()
         reader.onload = () => {
           setAttachments((prev) => [...prev, {
-            name: file.name, type: 'file', mime: file.type, data: reader.result, isText,
+            name: file.name, type: 'file', mime: file.type, data: reader.result,
+            isText: true, size: file.size, truncated: file.size > TEXT_LIMIT,
           }])
         }
-        if (isText) reader.readAsText(file)
-        else reader.readAsDataURL(file)
+        reader.readAsText(head)
+      } else {
+        // PDFs / docs / zips: the model can't read these through the text
+        // pipeline, and base64-ing them made the request 2–10MB — which the
+        // server rejects outright (10MB body limit), so they never sent. Keep
+        // only the metadata; the chat records "[用户发送了文件: name]".
+        setAttachments((prev) => [...prev, {
+          name: file.name, type: 'file', mime: file.type, data: '',
+          isText: false, size: file.size,
+        }])
       }
     }
     if (fileRef.current) fileRef.current.value = ''
