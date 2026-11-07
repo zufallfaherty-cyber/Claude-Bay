@@ -532,7 +532,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       const stream = streamChat(apiMessages, {
         systemPrompt,
         temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
-        maxTokens: 4096,
+        maxTokens: 6000,
         apiBase: localStorage.getItem('api_base') || '',
         apiKey: localStorage.getItem('api_key') || '',
         apiModel: localStorage.getItem('api_model') || '',
@@ -610,7 +610,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       const stream = streamChat(apiMessages, {
         systemPrompt,
         temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
-        maxTokens: 4096,
+        maxTokens: 6000,
         apiBase: localStorage.getItem('api_base') || '',
         apiKey: localStorage.getItem('api_key') || '',
         apiModel: localStorage.getItem('api_model') || '',

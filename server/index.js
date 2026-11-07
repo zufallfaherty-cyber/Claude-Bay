@@ -55,7 +55,10 @@ async function tryModels(models, apiKey, apiBase, makeBody, opts = {}) {
         const toolCalls = parsed?.choices?.[0]?.message?.tool_calls
         const errMsg = parsed?.error?.message || parsed?.error
         if (errMsg || (!content && !toolCalls && text.trim())) {
-          console.warn(`[Model] ❌ "${model}" error body: ${String(errMsg || text).slice(0, 200)}`)
+          const fr = parsed?.choices?.[0]?.finish_reason
+          const u = parsed?.usage
+          const uBrief = u ? ` [finish=${fr} completion=${u.completion_tokens} reasoning=${u.completion_tokens_details?.reasoning_tokens ?? '?'}]` : ''
+          console.warn(`[Model] ❌ "${model}" error body: ${String(errMsg || text).slice(0, 300)}${uBrief}`)
           lastError = new Error(String(errMsg || 'empty response'))
           continue
         }
@@ -172,6 +175,9 @@ let lastXhsExpiryAlert = 0 // 上次推送「登录过期」提醒的时间戳�
 let xhsReloginBusyUntil = 0 // 重新登录并发锁：4 分钟窗口内只弹一次码，避免多码互相覆盖
 const XHS_DAILY_VISIT_LIMIT = 3
 const XHS_MAX_TOOLS_PER_VISIT = 10
+// 主动推送（nudge）单次输出的 token 上限。包含模型的思考 token，
+// 200 太小（2026.11.07 起 opus-5-5 默认思考把额度吃光、正文返回空）
+const NUDGE_MAX_TOKENS = 1000
 // Xiaohongshu tools safe for a nudge "browse" visit (exclude login/logout/publish)
 const XHS_NUDGE_SAFE_TOOLS = new Set([
   'list_feeds', 'search_feeds', 'get_feed_detail', 'get_my_profile', 'user_profile',
@@ -1372,7 +1378,9 @@ app.all('/api/nudge', async (req, res) => {
     const utcNow = new Date()
     const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
     const hour = now.getUTCHours()
-    if (hour >= 1 && hour < 6) {
+    // dry-run：只跑生成、不写库不推送，用于排障（?dry=1）
+    const dryRun = req.query.dry === '1' || req.body?.dry === true
+    if (hour >= 1 && hour < 6 && !dryRun) {
       return res.json({ nudged: false, reason: '深夜不打扰', time: `${hour}点` })
     }
     const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
@@ -1520,12 +1528,14 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
     let text = ''
     let toolCallsUsed = []
     if (openAITools.length > 0) {
-      const result = await runToolLoop(apiMessages, openAITools, { temperature: 0.9, maxTokens: 200, maxToolCalls: XHS_MAX_TOOLS_PER_VISIT }, apiKey, apiBase, models)
+      // max_tokens 只限制输出总长（含模型思考），消息本身仍限制在 40 字以内。
+      // 之前是 200，2026.11.07 起上游 opus-5-5 默认带思考，200 被思考吃光、正文为空 → 整轮判失败。
+      const result = await runToolLoop(apiMessages, openAITools, { temperature: 0.9, maxTokens: NUDGE_MAX_TOKENS, maxToolCalls: XHS_MAX_TOOLS_PER_VISIT }, apiKey, apiBase, models)
       text = result.content
       toolCallsUsed = result.toolCalls
     } else {
       const { data } = await tryModels(models, apiKey, apiBase,
-        (m) => ({ model: m, messages: apiMessages, temperature: 0.9, max_tokens: 200 })
+        (m) => ({ model: m, messages: apiMessages, temperature: 0.9, max_tokens: NUDGE_MAX_TOKENS })
       )
       text = data.choices?.[0]?.message?.content || ''
     }
@@ -1542,7 +1552,7 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
     // 兜底文案（如「工具调用轮次过多」）不是真实消息，绝不能推出去
     if (message && message.includes('工具调用')) { isYes = false; message = null }
 
-    if (isYes && message) {
+    if (isYes && message && !dryRun) {
       const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
       const nudgeId = Date.now().toString(36)
 
@@ -1640,7 +1650,7 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
       }
     }
 
-    res.json({ nudged: isYes, message, raw: text, time: timeStr, toolCalls: toolCallsUsed, xhsVisitsToday: xhsVisitCount })
+    res.json({ nudged: isYes, message, raw: text, time: timeStr, toolCalls: toolCallsUsed, xhsVisitsToday: xhsVisitCount, dryRun })
   } catch (err) {
     res.status(500).json({ nudged: false, error: err.message })
   }
@@ -1684,7 +1694,7 @@ app.get('/api/xhs/view', async (_req, res) => {
 
 // ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
-  const { messages, systemPrompt, temperature = 0.8, maxTokens = 4096, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true } = req.body
+  const { messages, systemPrompt, temperature = 0.8, maxTokens = 6000, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true } = req.body
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array is required' })
