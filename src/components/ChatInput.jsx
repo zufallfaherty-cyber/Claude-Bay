@@ -1,9 +1,14 @@
 import { useState, useRef, useCallback } from 'react'
 
+const API_BASE = 'https://124-156-142-6.sslip.io'
+const MAX_EXTRACT_BYTES = 6 * 1024 * 1024   // server caps the base64 payload at 9MB
+const MAX_EXTRACT_CHARS = 12000             // what the model will actually see
+
 export default function ChatInput({ onSend, disabled, disableSend }) {
   const [text, setText] = useState('')
   const [listening, setListening] = useState(false)
   const [attachments, setAttachments] = useState([])
+  const [parsing, setParsing] = useState('')   // file name currently being text-extracted
   const textareaRef = useRef(null)
   const fileRef = useRef(null)
   const recognitionRef = useRef(null)
@@ -11,14 +16,14 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
   const handleSubmit = useCallback(() => {
     const hasText = text.trim()
     const hasFiles = attachments.length > 0
-    if ((!hasText && !hasFiles) || disabled) return
+    if ((!hasText && !hasFiles) || disabled || parsing) return
     onSend(hasText ? text.trim() : '', attachments)
     setText('')
     setAttachments([])
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
     }
-  }, [text, attachments, disabled, onSend])
+  }, [text, attachments, disabled, onSend, parsing])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -118,14 +123,44 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         }
         reader.readAsText(head)
       } else {
-        // PDFs / docs / zips: the model can't read these through the text
-        // pipeline, and base64-ing them made the request 2–10MB — which the
-        // server rejects outright (10MB body limit), so they never sent. Keep
-        // only the metadata; the chat records "[用户发送了文件: name]".
-        setAttachments((prev) => [...prev, {
-          name: file.name, type: 'file', mime: file.type, data: '',
-          isText: false, size: file.size,
-        }])
+        // PDFs and friends: the chat model can't read binary over the relay, so
+        // send the file to the server once, extract its text there, and attach
+        // that text instead. The chat request itself stays tiny. If extraction
+        // fails (scanned PDF, Word, archive…) we fall back to name-only so the
+        // message still sends.
+        let extracted = null
+        if (file.size <= MAX_EXTRACT_BYTES) {
+          setParsing(file.name)
+          try {
+            const dataUrl = await new Promise((resolve) => {
+              const r = new FileReader()
+              r.onload = () => resolve(r.result)
+              r.onerror = () => resolve('')
+              r.readAsDataURL(file)
+            })
+            if (dataUrl) {
+              const res = await fetch(`${API_BASE}/api/file-extract`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: file.name, mime: file.type, data: dataUrl }),
+              })
+              const json = await res.json().catch(() => null)
+              if (json?.ok && json.text) extracted = json
+            }
+          } catch { /* offline / server down — keep metadata only */ }
+          finally { setParsing('') }
+        }
+        setAttachments((prev) => [...prev, extracted
+          ? {
+              name: file.name, type: 'file', mime: file.type,
+              data: extracted.text.slice(0, MAX_EXTRACT_CHARS),
+              isText: true, size: file.size, extracted: true,
+              truncated: !!extracted.truncated || extracted.text.length > MAX_EXTRACT_CHARS,
+            }
+          : {
+              name: file.name, type: 'file', mime: file.type, data: '',
+              isText: false, size: file.size,
+            }])
       }
     }
     if (fileRef.current) fileRef.current.value = ''
@@ -160,6 +195,12 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
 
   return (
     <div className="relative">
+      {parsing && (
+        <div className="flex items-center gap-1.5 mb-1.5 px-2 text-[12px] text-[#6B7364]">
+          <span className="w-3 h-3 rounded-full border-2 border-sage-deep/30 border-t-sage-deep animate-spin" />
+          正在读取「{parsing.length > 18 ? parsing.slice(0, 18) + '…' : parsing}」…
+        </div>
+      )}
       {/* Attachment previews */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-1.5 px-1">
@@ -242,7 +283,7 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
         <button
           onMouseDown={(e) => e.preventDefault()}
           onClick={handleSubmit}
-          disabled={(!text.trim() && attachments.length === 0) || disableSend}
+          disabled={(!text.trim() && attachments.length === 0) || disableSend || !!parsing}
           className={`flex-shrink-0 w-9 h-9 mb-0.5 flex items-center justify-center rounded-full transition-all active:scale-95 ${
             (text.trim() || attachments.length > 0) && !disableSend
               ? 'bg-sage-deep text-white shadow-[0_4px_10px_-5px_rgba(60,82,54,0.6)]'

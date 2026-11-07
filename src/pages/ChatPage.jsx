@@ -504,10 +504,14 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         if (dropImages || !a.data) parts.push({ type: 'text', text: '[图片]' })
         else parts.push({ type: 'image_url', image_url: { url: a.data } })
       } else if (a.isText && typeof a.data === 'string') {
-        // Text file: include its content directly
-        const maxLen = 5000
-        const fileContent = a.data.length > maxLen ? a.data.slice(0, maxLen) + '\n...(truncated)' : a.data
-        parts.push({ type: 'text', text: `[文件: ${a.name}]\n${fileContent}` })
+        // Text file (or text extracted from a PDF): include its content directly
+        const maxLen = 12000
+        const cut = a.data.length > maxLen
+        const fileContent = cut ? a.data.slice(0, maxLen) : a.data
+        parts.push({
+          type: 'text',
+          text: `[文件: ${a.name}]\n${fileContent}${cut || a.truncated ? '\n…（文件较长，只截取了前面部分）' : ''}`,
+        })
       } else {
         // Binary file (PDF etc.): name only, can't extract text
         parts.push({ type: 'text', text: `[用户发送了文件: ${a.name}]` })

@@ -1692,6 +1692,53 @@ app.get('/api/xhs/view', async (_req, res) => {
   res.redirect(vncUrl)
 })
 
+// ── File text extraction ──
+// The chat model can't read binary attachments over the OpenAI-compatible
+// relay, so PDFs are parsed here and handed to the model as plain text.
+app.post('/api/file-extract', async (req, res) => {
+  try {
+    const { name = '', mime = '', data = '' } = req.body || {}
+    if (!data || typeof data !== 'string') return res.status(400).json({ ok: false, error: 'missing data' })
+
+    const base64 = data.includes(',') ? data.slice(data.indexOf(',') + 1) : data
+    if (base64.length > 9 * 1024 * 1024) {
+      return res.status(413).json({ ok: false, error: '文件太大（最大约 6MB）' })
+    }
+    const buf = Buffer.from(base64, 'base64')
+
+    let text = ''
+    if (/pdf/i.test(mime) || /\.pdf$/i.test(name)) {
+      const { PDFParse } = await import('pdf-parse')
+      const parser = new PDFParse({ data: buf })
+      try {
+        text = (await parser.getText()).text || ''
+      } finally {
+        await parser.destroy().catch(() => {})
+      }
+    } else if (/\.docx?$/i.test(name) || /word/i.test(mime)) {
+      return res.json({ ok: false, error: '暂不支持 Word，请另存为 PDF 或复制文字发给我' })
+    } else {
+      text = buf.toString('utf8')
+    }
+
+    text = text
+      .replace(/--\s*\d+\s+of\s+\d+\s*--/gi, '')   // pdf-parse page markers
+      .replace(/\u0000/g, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+
+    if (!text) return res.json({ ok: false, error: '没有提取到文字（扫描件/图片型 PDF 读不了）' })
+
+    const MAX = 30000
+    console.log(`[file-extract] ${name || '(unnamed)'} → ${text.length} chars`)
+    res.json({ ok: true, text: text.slice(0, MAX), truncated: text.length > MAX, chars: text.length, name })
+  } catch (err) {
+    console.error('[file-extract]', err.message)
+    res.status(500).json({ ok: false, error: err.message })
+  }
+})
+
 // ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
   const { messages, systemPrompt, temperature = 0.8, maxTokens = 6000, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true } = req.body
