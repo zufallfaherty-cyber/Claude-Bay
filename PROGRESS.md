@@ -34,6 +34,7 @@
 
 ### 待验证 / 风险
 - [ ] 等上游渠道恢复，确认主模型 `[企业按量]` 不再返空；恢复前 nudge 依赖 `[k-个人]` 兜底。
+- [ ] **本地 commit `01d1859`（本文档更新）尚未 push**：当天梯子未生效（直连 GitHub 超时、127.0.0.1:7890 无监听），梯子通了要补推。
 
 ---
 
@@ -1153,3 +1154,30 @@
 - **书房书名 3D**：复用首页 `useTiltParallax`，书名/日记/纪念日加 `.study-float`（7px 视差），转动手机时文字浮起来。
 - 提交：`596fc91`（书房场景 + 聊天顶部 + 图标）、`3a893bf`（书名视差）。
 - 待办：承诺&待办功能页、日记功能页、纪念日界面（含首页右上角日期卡改成可点击）。
+
+## 2026.11.07 排查「前端发图片经常发不出去」
+
+### 现象
+- 带图片发送后，消息气泡出现，但**没有任何回复迹象，连「三个点」打字动画都没有**；发送按钮随后变灰，只能刷新页面恢复。有时又能正常发。
+
+### 根因（我们自己的前端，不是模型）
+- `ChatPage.jsx` 的 `saveMessagesLocal()` 直接调 `localStorage.setItem`，**没有 try/catch**。
+- handleSend 的顺序是：`setMessages(用户消息)` → `saveMessagesLocal(...)` → 才 push assistant 占位消息（三个点）。
+- 一张 1024px JPEG（q0.75）base64 就有 200–400KB，聊天记录最多缓存 300 条；存到十来张图，iOS Safari 的 ~5MB localStorage 配额就爆了，`setItem` 抛 `QuotaExceededError`。
+- 异常在 assistant 占位之前抛出 → 用户消息已经显示、三个点永远不出现、`streamingRef` 卡在 true → 之后每次点发送都被 guard 拦掉。**症状完全对得上。**
+- 解释了「有时行有时不行」：新会话/清理过缓存能发，同会话图多了就发不出去。
+
+### 验证（模型侧是好的）
+- 实测生产 `/api/chat`：1x1 小图、82KB 图、7 张图 0.73MB payload 全部 200，5–13 秒返回，正确描述图片内容。`[CCMAX]claude-opus-5-5` / `[CCMAX]claude-opus-4-6` 视觉正常。
+- 模型侧确实在波动（日志里 `[企业按量]claude-opus-5-5` 500、`[AG按量]` 502、`[k]` 503 无渠道），但降级链能兜住，且会正常返回错误文字，不会表现为「没有三个点」。
+
+### 修复
+- `saveMessagesLocal()`：多级降级，永不抛错——完整 300 条 → 120 → 40 → 剥离图片 base64（换成 256px 缩略图）→ 放弃本地缓存。Supabase 仍是数据源，刷新后从服务端补拉。
+- `saveSessionsLocal()`：`setItem` 同样加 try/catch。
+- `compressImage()`：压缩时额外生成 256px 缩略图 `thumb`，本地缓存只存缩略图；解码失败（HEIC/怪格式）且原图 >4MB 时拒绝并提示，不再把 5MB 原图硬塞进请求。
+- 上下文减重：只有最近 3 张图片以真实 base64 发给模型（`MAX_CONTEXT_IMAGES`），更早的替换成 `[图片]` 文字占位，避免每轮重传全部图片。
+- 构建通过（`npx vite build`），lint 无新增问题。
+
+### 待用户验证
+1. 手机先打开 https://claude-bay-two.vercel.app/reset.html 清一次 SW 缓存（PWA 是 cache-first，否则拿不到新包）。
+2. 连发 3–5 张相册照片，确认都有回复、三个点正常出现。

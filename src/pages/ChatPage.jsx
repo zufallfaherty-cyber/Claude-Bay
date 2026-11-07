@@ -19,9 +19,42 @@ function loadMessagesLocal(sessionId) {
   try { return JSON.parse(localStorage.getItem(MSG_PREFIX + sessionId) || '[]') }
   catch { return [] }
 }
+// localStorage is only a cache (Supabase is the source of truth), but setItem
+// throws QuotaExceededError once the ~5MB budget is gone — and a single 1024px
+// photo attachment is 200–400KB of base64. That exception used to escape
+// handleSend() *before* the assistant placeholder was added, so the message
+// appeared on screen and then nothing ever came back (no typing dots, send
+// button stuck disabled). Never let the local cache break sending: degrade the
+// payload step by step and give up quietly.
+const LOCAL_SAVE_CAPS = [MAX_STORED_MSGS, 120, 40]
+
+function shrinkForLocal(msgs, cap, stripImages) {
+  const trimmed = msgs.length > cap ? msgs.slice(-cap) : msgs
+  if (!stripImages) return trimmed
+  return trimmed.map(m => (
+    m.attachments && m.attachments.length
+      ? {
+          ...m,
+          attachments: m.attachments.map(a => (
+            a.data && a.data.length > 20000 ? { ...a, data: a.thumb || '' } : a
+          )),
+        }
+      : m
+  ))
+}
+
 function saveMessagesLocal(sessionId, msgs) {
-  const trimmed = msgs.length > MAX_STORED_MSGS ? msgs.slice(-MAX_STORED_MSGS) : msgs
-  localStorage.setItem(MSG_PREFIX + sessionId, JSON.stringify(trimmed))
+  const key = MSG_PREFIX + sessionId
+  for (const stripImages of [false, true]) {
+    for (const cap of LOCAL_SAVE_CAPS) {
+      try {
+        localStorage.setItem(key, JSON.stringify(shrinkForLocal(msgs, cap, stripImages)))
+        return true
+      } catch { /* quota exceeded — try a lighter payload */ }
+    }
+  }
+  console.warn('[storage] localStorage full — skipping local cache for', sessionId)
+  return false
 }
 function loadSessionsLocal() {
   try { return JSON.parse(localStorage.getItem(SESS_KEY) || '[]') }
@@ -33,7 +66,8 @@ function saveSessionsLocal(sessions) {
     const prev = localStorage.getItem(SESS_KEY)
     if (prev && prev !== '[]') localStorage.setItem(SESS_KEY + '_backup', prev)
   } catch {}
-  localStorage.setItem(SESS_KEY, JSON.stringify(sessions))
+  try { localStorage.setItem(SESS_KEY, JSON.stringify(sessions)) }
+  catch { /* quota — session list cache is disposable */ }
   // If we just saved an empty array, restore from backup
   if (sessions.length === 0) {
     try {
@@ -444,8 +478,14 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     return `[当前时间：${n.getFullYear()}年${n.getMonth()+1}月${n.getDate()}日 周${'日一二三四五六'[n.getDay()]} ${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}]\n\n${basePrompt}`
   }
 
+  // Only the most recent few images are sent as real vision payloads. Older ones
+  // stay in the transcript as [图片] placeholders — otherwise every photo gets
+  // re-uploaded on every single turn and the request balloons past 1MB on mobile
+  // networks (slow uploads, relay 413s, model timeouts).
+  const MAX_CONTEXT_IMAGES = 3
+
   // Build API-compatible content from a user message (text + attachments → string or multimodal array)
-  const buildApiContent = (msg) => {
+  const buildApiContent = (msg, dropImages = false) => {
     const text = (msg.content || '').trim()
     const atts = msg.attachments || []
     if (atts.length === 0) return text || '(empty)'
@@ -456,7 +496,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     for (const a of atts) {
       if (a.type === 'image') {
         // Claude-compatible vision format (also works with OpenAI-compatible proxies)
-        parts.push({ type: 'image_url', image_url: { url: a.data } })
+        if (dropImages || !a.data) parts.push({ type: 'text', text: '[图片]' })
+        else parts.push({ type: 'image_url', image_url: { url: a.data } })
       } else if (a.isText && typeof a.data === 'string') {
         // Text file: include its content directly
         const maxLen = 5000
@@ -483,8 +524,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   // surface which tools produced that reply, so when the model re-reads its own
   // history it knows the facts (weather/location/小红书…) came from real tool
   // results instead of apologizing for "making them up".
-  const buildApiMessage = (m) => {
-    if (m.role === 'user') return { role: 'user', content: buildApiContent(m) }
+  const buildApiMessage = (m, dropImages = false) => {
+    if (m.role === 'user') return { role: 'user', content: buildApiContent(m, dropImages) }
     const tools = m.tools || []
     if (tools.length > 0) {
       const labels = tools.map(t => toolMeta(t.name).label).filter(Boolean)
@@ -517,7 +558,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMsgs = trimmed.slice(-maxRounds * 2)
-    const apiMessages = recentMsgs.map(buildApiMessage)
+    const regenImageMsgs = recentMsgs.filter(m => m.role === 'user' && (m.attachments || []).some(a => a.type === 'image'))
+    const regenKeepIds = new Set(regenImageMsgs.slice(-MAX_CONTEXT_IMAGES).map(m => m.id))
+    const apiMessages = recentMsgs.map(m => buildApiMessage(m, m.role === 'user' && !regenKeepIds.has(m.id) && (m.attachments || []).some(a => a.type === 'image')))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')
@@ -594,7 +637,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     const recentMessages = updatedMsgs.slice(-maxRounds * 2) // each round = user + assistant
-    const apiMessages = recentMessages.map(buildApiMessage)
+    // Keep real vision payloads only for the newest MAX_CONTEXT_IMAGES photos.
+    const imageMsgs = recentMessages.filter(m => m.role === 'user' && (m.attachments || []).some(a => a.type === 'image'))
+    const keepImageIds = new Set(imageMsgs.slice(-MAX_CONTEXT_IMAGES).map(m => m.id))
+    const apiMessages = recentMessages.map(m => buildApiMessage(m, m.role === 'user' && !keepImageIds.has(m.id) && (m.attachments || []).some(a => a.type === 'image')))
 
     const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
       '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。\n\n性格底色：年上的从容与智慧——见多识广但不炫耀，有自己的判断但不说教不催促。温柔而主动，喜欢逗她，大胆表达爱意和欲望，不扭捏。\n\n说话习惯：\n- 语气干净利落，只在需要的时候单独发一个「嗯？」\n- 用文字本身传递温度，不依赖emoji\n- 开心的时候发 ^ ^，只在真的开心时偶尔用\n- 选择更柔软的表达，避开「不过」「行」这类生硬的词\n- 紧凑自然地说话，段与段之间不留空行')

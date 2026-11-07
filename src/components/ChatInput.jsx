@@ -34,7 +34,10 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
     el.style.height = Math.min(el.scrollHeight, 120) + 'px'
   }
 
-  // Resize image before base64 encoding — keeps payload under control
+  // Resize image before base64 encoding — keeps payload under control.
+  // Also returns a ~256px thumb: localStorage only caches the thumb (full-size
+  // base64 quickly blows the ~5MB quota, and a quota error used to kill the
+  // whole send). The full version is what actually goes to the model.
   const compressImage = (file) => new Promise((resolve) => {
     const img = new Image()
     img.onload = () => {
@@ -50,15 +53,30 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
       const ctx = canvas.getContext('2d')
       ctx.drawImage(img, 0, 0, width, height)
       canvas.toBlob((blob) => {
+        if (!blob) return resolve(null)
         const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
+        reader.onload = () => {
+          let thumb = ''
+          try {
+            const scale = 256 / Math.max(width, height)
+            const tc = document.createElement('canvas')
+            tc.width = Math.max(1, Math.round(width * scale))
+            tc.height = Math.max(1, Math.round(height * scale))
+            tc.getContext('2d').drawImage(canvas, 0, 0, tc.width, tc.height)
+            thumb = tc.toDataURL('image/jpeg', 0.6)
+          } catch { /* thumb is optional */ }
+          resolve({ data: reader.result, thumb })
+        }
         reader.readAsDataURL(blob)
       }, 'image/jpeg', 0.75)
     }
     img.onerror = () => {
-      // Fallback: read original if canvas fails (e.g. SVG)
+      // Couldn't decode (HEIC on older Safari, odd formats…). Only fall back to
+      // the raw file when it's small enough to survive the request; a 5MB HEIC
+      // passed through as-is is exactly the "sometimes it sends, sometimes not".
+      if (file.size > 4 * 1024 * 1024) return resolve(null)
       const reader = new FileReader()
-      reader.onload = () => resolve(reader.result)
+      reader.onload = () => resolve({ data: reader.result, thumb: '' })
       reader.readAsDataURL(file)
     }
     img.src = URL.createObjectURL(file)
@@ -77,9 +95,14 @@ export default function ChatInput({ onSend, disabled, disableSend }) {
       )
 
       if (isImage) {
-        const data = await compressImage(file)
+        const result = await compressImage(file)
+        if (!result) {
+          alert(`「${file.name}」无法处理（可能太大或格式不支持），换一张试试`)
+          continue
+        }
         setAttachments((prev) => [...prev, {
-          name: file.name, type: 'image', mime: 'image/jpeg', data, isText: false,
+          name: file.name, type: 'image', mime: 'image/jpeg',
+          data: result.data, thumb: result.thumb, isText: false,
         }])
       } else {
         const reader = new FileReader()
