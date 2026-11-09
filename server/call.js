@@ -172,7 +172,7 @@ function enforceShort(text) {
   return (m ? m[0] : cut).trim()
 }
 
-async function synthesize(text) {
+async function synthesize(text, attempt = 0) {
   const key = process.env.ELEVENLABS_API_KEY
   if (!key) {
     console.warn('[Call] ELEVENLABS_API_KEY 未配置，跳过语音合成')
@@ -194,9 +194,16 @@ async function synthesize(text) {
       return null
     }
     const buf = Buffer.from(await res.arrayBuffer())
+    // ElevenLabs 偶尔 200 但音频几乎是空的，前端会表现为「有字幕没声音」
+    if (buf.length < 800) {
+      console.warn(`[Call] TTS 音频异常（${buf.length} bytes），${attempt < 1 ? '重试' : '放弃'}`)
+      if (attempt < 1) return synthesize(text, attempt + 1)
+      return null
+    }
     return buf.toString('base64')
   } catch (err) {
     console.warn('[Call] TTS 网络错误:', err.message)
+    if (attempt < 1) return synthesize(text, attempt + 1)
     return null
   }
 }

@@ -90,22 +90,20 @@ export default function CallPage({ currentSessionId }) {
         analyser.connect(audioCtxRef.current.destination)
         analyserRef.current = analyser
       }
+      // iOS 必须在用户手势里放一点声音，后面的程序化播放才不会被拦
+      try {
+        if (!audioCtxRef.current.__unlocked) {
+          const buf = audioCtxRef.current.createBuffer(1, 1, 22050)
+          const src = audioCtxRef.current.createBufferSource()
+          src.buffer = buf
+          src.connect(audioCtxRef.current.destination)
+          src.start(0)
+          audioCtxRef.current.__unlocked = true
+        }
+      } catch {}
       if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
       return audioCtxRef.current
     } catch { return null }
-  }
-
-  function connectAnalyser(audio) {
-    try {
-      const ctx = ensureAudioCtx()
-      if (!ctx) return
-      try { sourceRef.current?.disconnect?.() } catch {}
-      const src = ctx.createMediaElementSource(audio)
-      src.connect(analyserRef.current)
-      sourceRef.current = src
-    } catch {
-      // Safari 对某些源的限制：失败就退化成呼吸光晕，不影响播放
-    }
   }
 
   useEffect(() => {
@@ -159,37 +157,59 @@ export default function CallPage({ currentSessionId }) {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  function playBase64(b64) {
-    if (!b64) return
-    try { audioRef.current?.pause() } catch {}
-    // iOS 会把 AudioContext 挂起，挂起时没有任何声音 —— 每次播放前唤醒
-    try { audioCtxRef.current?.resume?.()?.catch?.(() => {}) } catch {}
+  function b64ToArrayBuffer(b64) {
+    const bin = atob(b64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+    return bytes.buffer
+  }
 
-    // base64 → Blob URL：v4 的句子更长，直接塞 data URL 在 iOS 上偶尔解码失败（有字幕没声音）
-    let url = ''
-    try {
-      const bin = atob(b64)
-      const bytes = new Uint8Array(bin.length)
-      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
-      url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
-    } catch {
-      url = `data:audio/mpeg;base64,${b64}`
+  // 走 Web Audio 解码播放：iOS 上反复 createMediaElementSource 会让部分句子静音
+  //（字幕有、声音没有，且隔一句丢一句），直接播 AudioBuffer 最稳
+  async function playBase64(b64) {
+    if (!b64) { console.warn('[Call] 没有音频数据'); return }
+    try { audioRef.current?.pause() } catch {}
+    setSpeaking(true)
+    const done = () => setSpeaking(false)
+
+    const ctx = ensureAudioCtx()
+    if (ctx) {
+      try {
+        if (ctx.state !== 'running') {
+          await Promise.race([ctx.resume().catch(() => {}), new Promise(r => setTimeout(r, 600))])
+        }
+        if (ctx.state === 'running') {
+          const buf = await ctx.decodeAudioData(b64ToArrayBuffer(b64))
+          try { sourceRef.current?.stop?.() } catch {}
+          const src = ctx.createBufferSource()
+          src.buffer = buf
+          src.connect(analyserRef.current || ctx.destination)
+          sourceRef.current = src
+          src.onended = done
+          src.start()
+          return
+        }
+        console.warn('[Call] AudioContext 未恢复，退回原生播放', ctx.state)
+      } catch (e) {
+        console.warn('[Call] WebAudio 播放失败，退回原生播放', e)
+      }
     }
 
+    // 回退：原生 <audio>。不接 analyser —— 接了之后 iOS 有概率整句静音
+    let url = ''
+    try { url = URL.createObjectURL(new Blob([b64ToArrayBuffer(b64)], { type: 'audio/mpeg' })) }
+    catch { url = `data:audio/mpeg;base64,${b64}` }
     const audio = new Audio(url)
     audioRef.current = audio
     audio.preload = 'auto'
-    connectAnalyser(audio)
-    setSpeaking(true)
-    const done = () => {
-      setSpeaking(false)
+    audio.onended = () => {
+      done()
       if (url.startsWith('blob:')) { try { URL.revokeObjectURL(url) } catch {} }
     }
-    audio.onended = done
-    audio.onerror = done
+    audio.onerror = audio.onended
     audio.play().catch((e) => {
       console.warn('[Call] 播放失败', e)
-      done()
+      audio.onended()
     })
   }
 
