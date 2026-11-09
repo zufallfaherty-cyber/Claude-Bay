@@ -744,15 +744,15 @@ body {
   opacity: 0.78;
   white-space: nowrap;
 }
-/* On the board: deep sage ink, lifted by a soft white halo on the pale map */
+/* Warm brown ink on the pale board, lifted by a soft white halo */
 .game-label.on-board {
-  color: #3f4c38;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 16px rgba(255, 253, 245, 0.75);
+  color: #5f3f24;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.95), 0 0 10px rgba(255, 253, 245, 0.5);
 }
-/* On the sunlit wood beside the phone */
+/* Warm brown on the sunlit wood beside the phone */
 .game-label.on-wood {
-  color: #554b3d;
-  text-shadow: 0 1px 2px rgba(255, 240, 214, 0.8), 0 0 16px rgba(255, 236, 205, 0.55);
+  color: #5c3d22;
+  text-shadow: 0 1px 1px rgba(255, 240, 214, 0.9), 0 0 10px rgba(255, 236, 205, 0.4);
 }
 
 /* Titles drift with the phone's tilt (fed by useTiltParallax), so they read as

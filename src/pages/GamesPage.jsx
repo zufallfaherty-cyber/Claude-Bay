@@ -10,8 +10,8 @@ const ART_W = 851
 const ART_H = 1849
 
 const SPOTS = [
-  { id: 'ludo', cn: '飞行棋', en: 'Ludo', left: '59.5%', top: '73.6%', align: 'is-center', tone: 'on-board' },
-  { id: 'call', cn: '通话', en: 'Call', left: '76%', top: '68.2%', align: 'is-right', tone: 'on-wood' },
+  { id: 'ludo', cn: '飞行棋', en: 'Ludo', left: '44%', top: '78%', align: 'is-center', tone: 'on-board' },
+  { id: 'call', cn: '通话', en: 'Call', left: '78.5%', top: '64.5%', align: 'is-right', tone: 'on-wood' },
 ]
 
 export default function GamesPage() {
