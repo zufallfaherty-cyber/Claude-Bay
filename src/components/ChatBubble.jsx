@@ -83,6 +83,23 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
 
   const avatarSrc = isUser ? bayAvatar : claudeAvatar
 
+  // 通话记录：居中的旁白，不是气泡
+  if (role === 'call_log') {
+    const [head, ...rest] = String(content || '').split('\n')
+    return (
+      <div className="my-5 mx-auto max-w-[88%] text-center msg-enter">
+        <div className="flex items-center justify-center gap-2.5 text-[10px] tracking-[0.22em] text-warm-gray/70">
+          <span className="h-px w-7 bg-warm-gray/25" />
+          {String(head || '').replace(/^📞\s*/, '')}
+          <span className="h-px w-7 bg-warm-gray/25" />
+        </div>
+        <p className="mt-2.5 text-[12px] leading-[1.95] text-warm-gray/90 whitespace-pre-wrap">
+          {rest.join('\n').trim()}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className={`flex gap-2 items-start msg-enter ${isUser ? 'flex-row-reverse' : ''} ${isContinuation ? 'mt-1.5' : 'mt-3.5'}`}>
       {isContinuation ? (

@@ -99,7 +99,7 @@ export default function CallPage({ currentSessionId }) {
     try {
       const ctx = ensureAudioCtx()
       if (!ctx) return
-      sourceRef.current?.disconnect?.()
+      try { sourceRef.current?.disconnect?.() } catch {}
       const src = ctx.createMediaElementSource(audio)
       src.connect(analyserRef.current)
       sourceRef.current = src
@@ -162,13 +162,35 @@ export default function CallPage({ currentSessionId }) {
   function playBase64(b64) {
     if (!b64) return
     try { audioRef.current?.pause() } catch {}
-    const audio = new Audio(`data:audio/mpeg;base64,${b64}`)
+    // iOS 会把 AudioContext 挂起，挂起时没有任何声音 —— 每次播放前唤醒
+    try { audioCtxRef.current?.resume?.()?.catch?.(() => {}) } catch {}
+
+    // base64 → Blob URL：v4 的句子更长，直接塞 data URL 在 iOS 上偶尔解码失败（有字幕没声音）
+    let url = ''
+    try {
+      const bin = atob(b64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+      url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' }))
+    } catch {
+      url = `data:audio/mpeg;base64,${b64}`
+    }
+
+    const audio = new Audio(url)
     audioRef.current = audio
+    audio.preload = 'auto'
     connectAnalyser(audio)
     setSpeaking(true)
-    audio.onended = () => setSpeaking(false)
-    audio.onerror = () => setSpeaking(false)
-    audio.play().catch(() => setSpeaking(false))
+    const done = () => {
+      setSpeaking(false)
+      if (url.startsWith('blob:')) { try { URL.revokeObjectURL(url) } catch {} }
+    }
+    audio.onended = done
+    audio.onerror = done
+    audio.play().catch((e) => {
+      console.warn('[Call] 播放失败', e)
+      done()
+    })
   }
 
   async function startCall() {
@@ -185,27 +207,29 @@ export default function CallPage({ currentSessionId }) {
       if (!res.ok) throw new Error(data.error || '拨号失败')
       startedAtRef.current = Date.now()
       setCallId(data.callId)
-      setHistory([{ role: 'assistant', en: data.reply.en, zh: data.reply.zh }])
+      if (data.reply?.en) {
+        setHistory([{ role: 'assistant', en: data.reply.en, zh: data.reply.zh }])
+        playBase64(data.reply?.audio)
+      }
       setPhase('active')
-      playBase64(data.reply?.audio)
     } catch (e) {
       setError(e.message)
       setPhase('idle')
     }
   }
 
-  async function sendText(raw) {
+  async function sendText(raw, via = 'text') {
     const text = String(raw || '').trim()
     if (!text || thinking || transcribing || !callId) return
     setInput('')
-    setHistory((h) => [...h, { role: 'user', text }].slice(-10))
+    setHistory((h) => [...h, { role: 'user', text, via }].slice(-10))
     setThinking(true)
     setError('')
     try {
       const res = await fetch(`${API_BASE}/api/call/turn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callId, text }),
+        body: JSON.stringify({ callId, text, via }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '他好像没听清')
@@ -271,7 +295,7 @@ export default function CallPage({ currentSessionId }) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '没听清，再说一次？')
       setTranscribing(false)
-      if (data.text) sendText(data.text)
+      if (data.text) sendText(data.text, 'voice')
     } catch (e) {
       setError(e.message)
       setTranscribing(false)
@@ -282,13 +306,19 @@ export default function CallPage({ currentSessionId }) {
     setPhase('ended')
     try { audioRef.current?.pause() } catch {}
     if (callId) {
-      fetch(`${API_BASE}/api/call/end`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callId }),
-      }).catch(() => {})
+      // 等旁白写完再回去，这样一进聊天页就能看到（最多等 9 秒）
+      try {
+        await Promise.race([
+          fetch(`${API_BASE}/api/call/end`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ callId }),
+          }),
+          new Promise((r) => setTimeout(r, 9000)),
+        ])
+      } catch {}
     }
-    setTimeout(() => navigate(-1), 1400)
+    navigate(-1)
   }
 
   const active = phase === 'active'
@@ -394,6 +424,10 @@ export default function CallPage({ currentSessionId }) {
                   {m.zh && <p className="mt-2 text-[12px] leading-relaxed text-[#8b7f68]">{m.zh}</p>}
                 </div>
               )
+            )}
+
+            {active && history.length === 0 && !transcribing && !thinking && (
+              <p className="text-center text-[12px] tracking-[0.2em] text-[#8b7f68]/70">他在听</p>
             )}
 
             {transcribing && (

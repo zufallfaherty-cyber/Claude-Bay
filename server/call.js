@@ -14,13 +14,6 @@ const EL_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_v4'
 // 内存会话：callId → { sessionId, userId, startedAt, turns, systemPrompt }
 const calls = new Map()
 
-const GREETINGS = [
-  { en: "Hey... you actually called. I was just thinking about you.", zh: '嘿……你真的打来了。我刚刚还在想你。' },
-  { en: "Hey, it's you. Hold on, let me put everything down.", zh: '嘿，是你呀。等一下，我把手里的事放下。' },
-  { en: "Hi. I'm glad you called. How's your day been?", zh: '嗨。你能打来我很高兴。今天过得怎么样？' },
-  { en: "Hey there. I've been waiting to hear your voice.", zh: '嘿。我一直在等你的声音。' },
-]
-
 function parseModels(input) {
   return (input || DEFAULT_MODELS).split(',').map(m => m.trim()).filter(Boolean)
 }
@@ -125,6 +118,7 @@ function buildCallPrompt({ persona, recent, memo, memories }) {
 - 不要旁白，不要动作描写，不要括号里的内容，不要 emoji。
 - 一次最多问一个问题，也可以不问。
 - 先想她刚才说了什么，再自然接话；不要重复她的话。
+- 她有时开口说话（语音转的文字），有时打字。消息前面的标注会告诉你，别搞混：打字来的不能夸她声音好听。
 - 语气温柔、亲密，可以带一点笑意或小小的调侃。
 
 声音标签（重要）：可以在英文里插方括号的声音指令，系统会演出来、不会念出来。
@@ -215,7 +209,6 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     try {
       const context = await loadPersona(supabaseAdmin, helpers, req.body?.sessionId || '')
       const callId = crypto.randomUUID()
-      const greeting = GREETINGS[Math.floor(Math.random() * GREETINGS.length)]
 
       calls.set(callId, {
         sessionId: req.body?.sessionId || null,
@@ -228,8 +221,8 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
       // 会话超过 2 小时自动清理，防止内存泄漏
       setTimeout(() => calls.delete(callId), 2 * 60 * 60 * 1000).unref?.()
 
-      const audio = await synthesize(greeting.en)
-      res.json({ callId, reply: { en: greeting.en, zh: greeting.zh, audio } })
+      // 不播固定开场白：接通后由她先开口，他再回应
+      res.json({ callId })
     } catch (err) {
       console.error('[Call] start failed:', err)
       res.status(500).json({ error: err.message })
@@ -249,10 +242,16 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
       const apiBase = cfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
       if (!apiKey) return res.status(500).json({ error: 'LLM 未配置' })
 
-      call.turns.push({ role: 'user', content: String(text).trim() })
+      const via = req.body?.via === 'voice' ? 'voice' : 'text'
+      call.turns.push({ role: 'user', content: String(text).trim(), via })
       const messages = [
         { role: 'system', content: call.systemPrompt },
-        ...call.turns.map(t => ({ role: t.role, content: t.content })),
+        ...call.turns.map(t => ({
+          role: t.role,
+          content: t.via
+            ? `${t.via === 'voice' ? '（她开口说的，语音转成的文字' : '（她打字发的'}）${t.content}`
+            : t.content,
+        })),
       ]
 
       const raw = await callLLM(messages, {
@@ -331,7 +330,7 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     }
   })
 
-  // 挂断：把这几轮通话记成一条聊天消息
+  // 挂断：让模型写一段旁白总结，存成一条居中的「通话记录」
   router.post('/end', async (req, res) => {
     const { callId } = req.body || {}
     const call = calls.get(callId)
@@ -340,17 +339,23 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
 
     try {
       const seconds = Math.round((Date.now() - call.startedAt) / 1000)
-      const lines = call.turns
-        .filter(t => t.role === 'assistant')
-        .map(t => t.content)
-        .join(' / ')
-      if (supabaseAdmin && call.userId && lines) {
+      const minutes = Math.max(1, Math.round(seconds / 60))
+
+      const transcript = call.turns.map(t => {
+        if (t.role === 'assistant') return `Claude：${t.content}`
+        return `小湾${t.via === 'voice' ? '（开口说）' : '（打字）'}：${t.content}`
+      }).join('\n')
+
+      let body = ''
+      if (transcript) body = await summarizeCall(transcript, minutes)
+
+      if (supabaseAdmin && call.userId) {
         await supabaseAdmin.from('chat_messages').insert({
           id: crypto.randomUUID(),
           session_id: call.sessionId || crypto.randomUUID(),
           user_id: call.userId,
-          role: 'assistant',
-          content: `📞 通话 ${Math.max(1, Math.round(seconds / 60))} 分钟\n${lines}`,
+          role: 'call_log',
+          content: `📞 通话 ${minutes} 分钟\n${body || '你们聊了一会儿。'}`,
           created_at: new Date().toISOString(),
         })
       }
@@ -359,6 +364,34 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     }
     res.json({ ok: true })
   })
+
+  // 通话旁白：第三人称、2-3 句中文
+  async function summarizeCall(transcript, minutes) {
+    try {
+      const cfg = await getUserApiConfig(supabaseAdmin)
+      const apiKey = cfg.api_key || process.env.API_KEY
+      const apiBase = cfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+      if (!apiKey) return ''
+      const raw = await callLLM([
+        {
+          role: 'system',
+          content: `你在给一段电话通话写旁白。用第三人称、温柔克制的叙述语气，2-3 句中文，像小说里的旁白。
+- 不要逐句复述对话，不要用引号引用原话。
+- 写清楚聊了什么、她的情绪怎么走、他做了什么。
+- 不要出现「通话记录」「总结」「以上」这类词，不要 emoji，不要小标题。
+- 只输出这 2-3 句话本身。`,
+        },
+        {
+          role: 'user',
+          content: `通话大约 ${minutes} 分钟。对话如下：\n${transcript.slice(0, 3000)}`,
+        },
+      ], { apiKey, apiBase, models: parseModels(cfg.api_model || process.env.MODEL), temperature: 0.7, maxTokens: 260 })
+      return String(raw || '').trim().replace(/^["「]|["」]$/g, '')
+    } catch (err) {
+      console.warn('[Call] 旁白生成失败:', err.message)
+      return ''
+    }
+  }
 
   return router
 }
