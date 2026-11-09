@@ -5,6 +5,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+// 单次 MCP 请求超时。工具卡死（如小红书发帖的浏览器自动化）时，
+// 不能让聊天请求永远挂着——超时后返回错误文本给模型继续。
+const MCP_TIMEOUT_MS = Number(process.env.MCP_TIMEOUT_MS || 150000)
+
 function parseSSEResponse(text) {
   const lines = text.split('\n')
   for (const line of lines) {
@@ -28,7 +32,12 @@ export function createMcpClient(endpoint) {
     const body = { jsonrpc: '2.0', method }
     if (!notify) body.id = ++callId
     if (params !== undefined) body.params = params
-    const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) })
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(MCP_TIMEOUT_MS),
+    })
     const sid = res.headers.get('mcp-session-id')
     if (sid) sessionId = sid
     const text = await res.text()
@@ -67,6 +76,9 @@ export function createMcpClient(endpoint) {
       return parsed ? JSON.stringify(parsed) : null
     } catch (err) {
       sessionId = null
+      const isTimeout = err?.name === 'TimeoutError' || /timeout|timed out|aborted/i.test(err?.message || '')
+      // 超时不重试（否则又会再等一轮），直接把错误交给模型
+      if (isTimeout) return `ERROR: 工具 ${toolName} 超时（${Math.round(MCP_TIMEOUT_MS / 1000)}秒未返回）`
       if (retry) return callTool(toolName, args, false)
       return null
     }

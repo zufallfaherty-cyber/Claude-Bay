@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
+import { promises as fsp } from 'fs'
+import path from 'path'
 import webPush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 import { createMcpClient, loadMcpConfig, saveMcpConfig } from './mcp.js'
@@ -177,7 +179,7 @@ const XHS_DAILY_VISIT_LIMIT = 3
 const XHS_MAX_TOOLS_PER_VISIT = 10
 // 主动推送（nudge）单次输出的 token 上限。包含模型的思考 token，
 // 200 太小（2026.11.07 起 opus-5-5 默认思考把额度吃光、正文返回空）
-const NUDGE_MAX_TOKENS = 1000
+const NUDGE_MAX_TOKENS = 2000
 // Xiaohongshu tools safe for a nudge "browse" visit (exclude login/logout/publish)
 const XHS_NUDGE_SAFE_TOOLS = new Set([
   'list_feeds', 'search_feeds', 'get_feed_detail', 'get_my_profile', 'user_profile',
@@ -554,6 +556,21 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens, m
   return { content: '（工具调用轮次过多，已停止）', toolCalls: toolCallsUsed }
 }
 
+// Ombre-Brain 容器时区是 UTC，记忆桶里的时间也是 UTC；展示/注入前统一转北京时间（+8）
+function bucketTimeToBeijing(str) {
+  const m = String(str || '').match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2})[-:](\d{2})[-:](\d{2})/)
+  if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) + 8 * 3600 * 1000)
+  const p = (n) => String(n).padStart(2, '0')
+  const y = d.getUTCFullYear(), mo = p(d.getUTCMonth() + 1), da = p(d.getUTCDate())
+  const h = p(d.getUTCHours()), mi = p(d.getUTCMinutes()), s = p(d.getUTCSeconds())
+  return {
+    date: `${y}-${mo}-${da} ${h}:${mi}`, // 注入 prompt 用
+    short: `${y}-${mo}-${da}`,            // 只显示日期用
+    iso: `${y}-${mo}-${da}T${h}:${mi}:${s}+08:00`, // 前端 new Date() 用
+  }
+}
+
 // ── Parse breath markdown response into bucket objects ──
 function parseBreathResponse(text) {
   if (!text) return []
@@ -569,11 +586,12 @@ function parseBreathResponse(text) {
     const content = lines.join('\n').trim()
     const pinned = block.includes('[核心准则]')
     const resolved = block.includes('[已释怀]')
-    // 记忆桶日期时间：`记忆桶: 2026-11-03 09-00-00` → 友好格式 `2026-11-03 09:00`
+    // 记忆桶日期时间：`记忆桶: 2026-11-03 09-00-00`（UTC）→ 北京时间 `2026-11-03 17:00`
     let date = ''
     const dm = block.match(/记忆桶:\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/)
     if (dm) {
-      date = `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
+      const bj = bucketTimeToBeijing(`${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}-${dm[5]}-${dm[6]}`)
+      date = bj ? bj.date : `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
     }
     buckets.push({ id, content, pinned, resolved, date })
   }
@@ -1190,8 +1208,11 @@ app.get('/api/memories', async (_req, res) => {
         const topic = topicMatch ? topicMatch[1].trim() : ''
         const tags = topic && topic !== '未分类' ? [topic] : []
 
+        // 记忆桶时间同样是 UTC → 北京时间
+        const bjDate = dateMatch ? bucketTimeToBeijing(dateMatch[1]) : null
+
         // Derive name from topic, date, or id
-        const name = topic && topic !== '未分类' ? topic : (dateMatch ? dateMatch[1].replace(/-/g, '/') : id.slice(0, 8))
+        const name = topic && topic !== '未分类' ? topic : (bjDate ? bjDate.short.replace(/-/g, '/') : id.slice(0, 8))
 
         buckets.push({
           id,
@@ -1204,7 +1225,7 @@ app.get('/api/memories', async (_req, res) => {
           pinned,
           resolved,
           tags,
-          created: dateMatch ? dateMatch[1] : null,
+          created: bjDate ? bjDate.iso : null,
           score: weightMatch ? parseFloat(weightMatch[1]) * 10 : 50,
         })
       }
@@ -1355,6 +1376,52 @@ ${memoryContext ? '最近的记忆：\n' + memoryContext : ''}
   }
 })
 
+// ── 考研学习页数据同步（HTML 前端 → 服务器 JSON 文件）──
+// 存储位置：容器内 /data/study-data.json（宿主机 ./bayapi-data），多设备共享
+const STUDY_DATA_FILE = path.join(process.env.DATA_DIR || '/data', 'study-data.json')
+const STUDY_TOKEN = process.env.STUDY_TOKEN || 'kaoyan-2026-sync'
+
+function studyAuthorized(req) {
+  if (!STUDY_TOKEN) return true
+  const t = req.query.token || req.headers['x-study-token']
+  return t === STUDY_TOKEN
+}
+
+app.get('/api/study-data', async (req, res) => {
+  if (!studyAuthorized(req)) return res.status(401).json({ error: 'unauthorized' })
+  try {
+    const raw = await fsp.readFile(STUDY_DATA_FILE, 'utf8')
+    res.type('application/json').send(raw)
+  } catch (e) {
+    if (e.code === 'ENOENT') return res.json({ cards: [], logs: [], updatedAt: null })
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/study-data', async (req, res) => {
+  if (!studyAuthorized(req)) return res.status(401).json({ error: 'unauthorized' })
+  try {
+    const body = req.body
+    if (!body || !Array.isArray(body.cards) || !Array.isArray(body.logs)) {
+      return res.status(400).json({ error: 'payload must contain cards[] and logs[]' })
+    }
+    const payload = {
+      cards: body.cards,
+      logs: body.logs,
+      updatedAt: new Date().toISOString(),
+    }
+    await fsp.mkdir(path.dirname(STUDY_DATA_FILE), { recursive: true })
+    // 先写临时文件再 rename，避免写一半断电/重启把数据截断
+    const tmp = STUDY_DATA_FILE + '.tmp'
+    await fsp.writeFile(tmp, JSON.stringify(payload), 'utf8')
+    await fsp.rename(tmp, STUDY_DATA_FILE)
+    res.json({ ok: true, updatedAt: payload.updatedAt, cards: payload.cards.length, logs: payload.logs.length })
+  } catch (e) {
+    console.error('[Study] save failed:', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // ── Push subscription ──
 app.post('/api/push-subscribe', (req, res) => {
   const { subscription } = req.body
@@ -1489,6 +1556,7 @@ app.all('/api/nudge', async (req, res) => {
       })
     } catch { openAITools = [] }
     const hasLocationTool = openAITools.some((t) => (t.function?.name || '').endsWith('__get_location'))
+    console.log(`[Nudge] tools available: ${openAITools.length}${hasLocationTool ? ' (location)' : ''}`)
 
     // ── 早上7点：后端预查天气→体感句 + 「今天接下来」句，直接注入 prompt（AI 不调天气工具）──
     let morningWeather = ''
@@ -1537,6 +1605,9 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
       const { data } = await tryModels(models, apiKey, apiBase,
         (m) => ({ model: m, messages: apiMessages, temperature: 0.9, max_tokens: NUDGE_MAX_TOKENS })
       )
+      const fr = data.choices?.[0]?.finish_reason
+      const u = data.usage || {}
+      console.log(`[Nudge] model finish=${fr} completion_tokens=${u.completion_tokens ?? '?'} reasoning_tokens=${u.completion_tokens_details?.reasoning_tokens ?? '?'}`)
       text = data.choices?.[0]?.message?.content || ''
     }
     const xhsCalled = toolCallsUsed.some(t => (t.name || '').startsWith('xiaohongshu__'))
@@ -1551,6 +1622,9 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
     }
     // 兜底文案（如「工具调用轮次过多」）不是真实消息，绝不能推出去
     if (message && message.includes('工具调用')) { isYes = false; message = null }
+
+    // 结果日志：以后「有输出但收不到」能一眼分清是模型判了不发、还是推送失败
+    console.log(`[Nudge] result: ${isYes ? 'YES' : 'NO'}${dryRun ? ' (dry-run)' : ''} | raw: ${(text || '(empty)').replace(/\n/g, ' ').slice(0, 150)}`)
 
     if (isYes && message && !dryRun) {
       const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
@@ -1614,16 +1688,25 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
             title: 'Claude 💌',
             message: message,
           }),
-        }).catch(() => {})
+        }).then(async (r) => {
+          const body = await r.text().catch(() => '')
+          console.log(`[Nudge] Pushover: HTTP ${r.status}${r.ok ? ' ok' : ' FAILED ' + body.slice(0, 200)}`)
+        }).catch((e) => console.log('[Nudge] Pushover network error:', e.message))
+      } else {
+        console.log('[Nudge] Pushover not configured (PUSHOVER_USER/TOKEN empty)')
       }
 
       // Also try Web Push as fallback
+      console.log(`[Nudge] web-push subscriptions in memory: ${pushSubscriptions.length}`)
       const payload = JSON.stringify({ title: 'Claude 💌', body: message, icon: '/icons/icon-192.jpg' })
       pushSubscriptions.forEach(sub => {
-        webPush.sendNotification(sub, payload).catch(() => {
-          const idx = pushSubscriptions.indexOf(sub)
-          if (idx > -1) pushSubscriptions.splice(idx, 1)
-        })
+        webPush.sendNotification(sub, payload)
+          .then(() => console.log('[Nudge] web-push sent'))
+          .catch((e) => {
+            console.log(`[Nudge] web-push failed: HTTP ${e.statusCode || '?'} ${e.message}`)
+            const idx = pushSubscriptions.indexOf(sub)
+            if (idx > -1) pushSubscriptions.splice(idx, 1)
+          })
       })
     }
 
@@ -1652,6 +1735,7 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
 
     res.json({ nudged: isYes, message, raw: text, time: timeStr, toolCalls: toolCallsUsed, xhsVisitsToday: xhsVisitCount, dryRun })
   } catch (err) {
+    console.error('[Nudge] ERROR:', err.stack || err.message)
     res.status(500).json({ nudged: false, error: err.message })
   }
 })

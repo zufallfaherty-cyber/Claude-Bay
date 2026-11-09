@@ -1235,3 +1235,115 @@
 ### 注意
 - PWA 是 cache-first，每次发版后手机要先开 `/reset.html` 否则跑旧包
 - Vercel 构建 hash 与本地 `vite build` 的 hash 不同是正常的（环境差异），判断上线用内容特征而不是文件名
+
+---
+
+## 进行中：nudge 16:00 后连续两次未推送（2026.11.08）
+
+**现象**：16:00 / 17:00 两次整点 nudge，中转站日志显示模型调用成功、输出约 1481 token，但 Supabase 没有新消息、手机没收到推送。用户反馈：几个月来 nudge 几乎从不选 NO。
+
+**已排除**：
+- 模型生成正常：连续 4 次 `?dry=1` 均返回 `YES` + 消息
+- Supabase 写入正常：手动真实调用 `/api/nudge` 成功写库
+- Pushover 正常：容器内直调 `HTTP 200`，用户手机收到两条测试推送
+- 手机通知权限正常
+
+**怀疑**：`[CCMAX]claude-opus-5-5` 带思考，`NUDGE_MAX_TOKENS=1000` 可能被 reasoning 吃光，正文被截断或只剩思考 → 解析不到 `YES` 判成 NO。
+
+**已部署的改动**（bayapi 已重建）：
+1. `NUDGE_MAX_TOKENS` 1000 → 2000
+2. 结果日志：`[Nudge] result: YES/NO | raw: ...`
+3. 模型日志：`[Nudge] model finish=... completion_tokens=... reasoning_tokens=...`
+4. 工具日志：`[Nudge] tools available: N`
+5. 推送日志：`[Nudge] Pushover: HTTP ...` / `[Nudge] web-push ...`
+6. 异常日志：`[Nudge] ERROR: <stack>`（原来 catch 完全静默）
+
+**待确认**：18:00 整点日志的 `finish_reason`、`reasoning_tokens`、`raw` 原文。若 `finish=length` 且 reasoning 接近上限 → 提高上限或关闭思考；若 raw 是 NO → 模型行为问题。
+
+**18:00 结果（2026.11.08）**：恢复正常。
+- `[Nudge] tools available: 1 (location)` → 走 runToolLoop 工具分支
+- `[Nudge] result: YES | raw: YES 宝宝，五点半那条收到了吗…`
+- `[Nudge] web-push subscriptions in memory: 0`
+- `[Nudge] Pushover: HTTP 200 ok`
+- 16:00/17:00 的失败没有复现；根因仍未坐实（模型偶发不守格式 / 思考吃 token 都有可能）。日志已就位，下次再犯可第一时间抓到 raw 原文。
+
+---
+
+## 2026.11.08 记忆库时间差修复（✅ 已上线）
+
+**问题**：`parseBreathResponse` 和 `/api/memories` 直接用记忆桶里的时间，但 baymemory 容器时区是 **UTC**（宿主是 CST），导致 AI 浮现记忆和记忆库页面显示的时间比北京时间早 8 小时。
+
+**修复**：`server/index.js` 新增 `bucketTimeToBeijing()`：
+- 把 `记忆桶: YYYY-MM-DD HH-MM-SS` 当作 UTC 解析，+8 小时转北京时间
+- 返回 `date`（注入 prompt）、`short`（只显示日期）、`iso`（带 `+08:00`，前端 `new Date()` 用）
+- `parseBreathResponse` 和 `/api/memories` 两处统一使用
+
+**验证**：记忆桶 `2026-11-08 06-02-05`（UTC）→ 接口返回 `2026-11-08T14:02:05+08:00` ✅
+- bayapi 已 scp + 重建上线
+
+**注意**：记忆桶文件名本身仍是 UTC，未改动；只改显示/注入层。
+
+## 2026.11.08 小红书 MCP 登录状态检查
+
+- `systemctl is-active xhs-mcp xhs-xvfb` 都是 active，18060 端口监听正常
+- MCP `check_login_status` → `✅ 已登录（Bay&C）`
+- MCP `get_unread_count` → 正常返回 JSON（mentions/likes/connections/unread 全 0）
+- 结论：登录真实有效，**不需要重新扫码**；避免无谓触发二维码（登录后约 18 分钟风控冷却的坑见记忆）
+- cookie 文件 `/opt/xhs-mcp/cookies.json` 最后修改 2026-10-27 19:07，但仍在线有效
+
+## 2026.11.08 小红书发帖卡死 → 整台服务器应用层无响应（✅ 已恢复）
+
+**经过**：
+- 用户让 AI 发帖 → 小红书 MCP 的发布工具触发浏览器自动化后卡死
+- `/api/chat` 的工具调用**没有超时** → 请求永久挂起
+- 前端 `streamingRef` 一直为 true → 后续消息被 guard 挡住，发不出去；中转站自然没有调用
+- 最终 CPU/IO 被拖满：ping 通，但 HTTP / API / SSH 全部超时
+- 用户在腾讯云控制台点**普通重启**，卡在关机阶段约 10 分钟，平台超时后才完成重启
+
+**修复**：
+1. `server/mcp.js`：MCP 请求加 `AbortSignal.timeout(150000)`；超时**不重试**，返回 `ERROR: 工具 xxx 超时（150秒未返回）` 交给模型继续
+2. `src/pages/ChatPage.jsx`：`/api/chat` fetch 加 5 分钟兜底超时，超时后自动解除「发送中」状态
+3. 后端已 scp + 重建上线
+
+**验证**：`/api/health` 200；小红书 `check_login_status` → ✅ 已登录（Bay&C），重启后 cookie 仍有效
+
+**待办**：前端改动需要 `git push` → Vercel 部署才生效
+
+**经验**：以后让 AI 操作浏览器类工具（发帖/登录）前，先确认 MCP 超时保护在；服务器卡死时直接选「强制重启」，普通重启会卡在关机阶段。
+
+**发帖卡住的根因（xhs-mcp 日志）**：
+```
+22:20:20 图片上传完成 count=1
+22:20:24 检查标题长度：通过
+22:21:26 正文填写完成
+22:21:28 已回点标题输入框
+22:25:20 WARN 未找到标签联想下拉框，直接输入空格 tag=AI
+22:25:36 发布内容失败: 输入标签[AI]失败: context deadline exceeded
+22:25:36 GIN 200 | 5m35s   ← 单次请求挂了 5 分 35 秒
+```
+- 图片、标题、正文都成功了，**卡在最后一步「输入标签」**
+- 工具在等小红书的标签联想下拉框，等不到，直到 context deadline（约 5 分钟）
+- 用户重试了 3 次（22:20 / 22:25 / 22:29），每次都卡在同一处，浏览器实例叠加把 CPU 拖满
+- **建议**：发帖时不要传 `tags` 参数，把 `#话题#` 直接写进正文，绕过标签联想框
+
+## 2026.11.08 小红书 IP 归属地问题（已解释清楚）
+
+**现象**：AI 在服务器发帖显示「中国香港」，用户挂香港梯子帮它编辑后变成「福建」。
+
+**结论**：
+- 服务器在腾讯云香港 → AI 发帖出口 IP 必然是香港
+- 用户设备编辑 → 用设备当前出口 IP；默认「配置」模式下小红书走直连，所以露出福建
+- 用户把小火箭全局路由切成「代理」并开启 UDP 转发后，**发评论显示中国香港**，证明梯子已生效
+- **编辑旧帖不会重算 IP 归属地**——小红书只在发布新内容（发帖/评论）时记录，编辑改不了。之前变福建是当时那次操作走了直连
+
+**建议**：AI 的号所有操作（发帖、改帖）都让它在服务器上做，IP 全程香港，避免香港/福建来回跳引起风控。
+
+## 2026.11.08 考研学习页（搁置）
+
+- 详见 `学习html/工作日志.md`
+- 原版 HTML 已还原，云端同步改动另存为 `考研学习监督-云同步版-未部署.html`
+- 结论：朋友觉得没必要，暂不做；以后用户自用时再按工作日志步骤继续
+- 后端 `/api/study-data` 接口已随 11.08 bayapi 部署上线（口令 `kaoyan-2026-sync`，前端尚未接入，无副作用）
+
+
+**注意**：每次 `docker compose up -d --no-deps bayapi` 会清空内存里的 `pushSubscriptions`（Web Push），Pushover 不受影响；用户重开 App 会重新订阅。

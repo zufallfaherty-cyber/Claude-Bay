@@ -112,6 +112,8 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
   const response = await fetch('https://124-156-142-6.sslip.io/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    // 兜底超时：工具卡死时后端最多 2 分钟会返回，前端再留余量，超时后自动解除「发送中」
+    signal: AbortSignal.timeout(300000),
     body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, stream: useStream }),
   })
   if (!response.ok) {
