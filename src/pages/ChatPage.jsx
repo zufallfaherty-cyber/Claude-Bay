@@ -573,7 +573,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
-    const recentMsgs = trimmed.filter(m => m.role !== 'call_log').slice(-maxRounds * 2)
+    const recentMsgs = trimmed.filter(m => m.role !== 'call_log' && !/^📞\s*通话/.test(String(m.content || ''))).slice(-maxRounds * 2)
     const { keepId, hasImage } = keepLatestImagesOnly(recentMsgs)
     const apiMessages = recentMsgs.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
 
@@ -652,7 +652,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     // 通话旁白不参与上下文
-    const recentMessages = updatedMsgs.filter(m => m.role !== 'call_log').slice(-maxRounds * 2)
+    const recentMessages = updatedMsgs.filter(m => m.role !== 'call_log' && !/^📞\s*通话/.test(String(m.content || ''))).slice(-maxRounds * 2)
     // Only images on the current turn are sent; earlier ones become [图片].
     const { keepId, hasImage } = keepLatestImagesOnly(recentMessages)
     const apiMessages = recentMessages.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))

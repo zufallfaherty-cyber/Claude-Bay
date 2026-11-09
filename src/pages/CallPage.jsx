@@ -208,7 +208,7 @@ export default function CallPage({ currentSessionId }) {
       startedAtRef.current = Date.now()
       setCallId(data.callId)
       if (data.reply?.en) {
-        setHistory([{ role: 'assistant', en: data.reply.en, zh: data.reply.zh }])
+        setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh }])
         playBase64(data.reply?.audio)
       }
       setPhase('active')

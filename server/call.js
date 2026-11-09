@@ -209,20 +209,44 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     try {
       const context = await loadPersona(supabaseAdmin, helpers, req.body?.sessionId || '')
       const callId = crypto.randomUUID()
-
-      calls.set(callId, {
+      const systemPrompt = buildCallPrompt(context)
+      const call = {
         sessionId: req.body?.sessionId || null,
         userId: context.userId,
         startedAt: Date.now(),
         turns: [],
-        systemPrompt: buildCallPrompt(context),
-      })
+        systemPrompt,
+      }
+      calls.set(callId, call)
 
       // 会话超过 2 小时自动清理，防止内存泄漏
       setTimeout(() => calls.delete(callId), 2 * 60 * 60 * 1000).unref?.()
 
-      // 不播固定开场白：接通后由她先开口，他再回应
-      res.json({ callId })
+      // 接通第一句由他主动说：按上下文现生成，不用固定台词
+      let reply = null
+      try {
+        const cfg = await getUserApiConfig(supabaseAdmin)
+        const apiKey = cfg.api_key || process.env.API_KEY
+        const apiBase = cfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+        if (apiKey) {
+          const raw = await callLLM([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: '（电话刚接通，她还没出声。你先开口。第一句要短、自然，像真的接起电话——可以逗逗她，表达想念，或者只是叫一声她的名字。不要寒暄套话。）' },
+          ], { apiKey, apiBase, models: parseModels(cfg.api_model || process.env.MODEL) })
+          const r = parseReply(raw)
+          if (r) {
+            r.en = enforceShort(r.en)
+            const display = stripTags(r.en)
+            call.turns.push({ role: 'assistant', content: display })
+            const audio = await synthesize(r.en)
+            reply = { en: r.en, display, zh: r.zh, audio }
+          }
+        }
+      } catch (err) {
+        console.warn('[Call] 开场生成失败:', err.message)
+      }
+
+      res.json({ callId, reply })
     } catch (err) {
       console.error('[Call] start failed:', err)
       res.status(500).json({ error: err.message })
@@ -350,14 +374,28 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
       if (transcript) body = await summarizeCall(transcript, minutes)
 
       if (supabaseAdmin && call.userId) {
-        await supabaseAdmin.from('chat_messages').insert({
+        // 没有 sessionId 就落到最近的会话里，避免写进不存在的 session
+        let sid = call.sessionId
+        if (!sid) {
+          const { data } = await supabaseAdmin.from('chat_messages')
+            .select('session_id')
+            .eq('user_id', call.userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+          sid = data?.[0]?.session_id || null
+        }
+        if (!sid) return res.json({ ok: true })
+        const { error } = await supabaseAdmin.from('chat_messages').insert({
           id: crypto.randomUUID(),
-          session_id: call.sessionId || crypto.randomUUID(),
+          session_id: sid,
           user_id: call.userId,
-          role: 'call_log',
+          role: 'assistant',
           content: `📞 通话 ${minutes} 分钟\n${body || '你们聊了一会儿。'}`,
           created_at: new Date().toISOString(),
         })
+        if (error) console.warn('[Call] 写回聊天失败:', error.message)
+      } else {
+        console.warn('[Call] 跳过写回：userId=', call.userId)
       }
     } catch (err) {
       console.warn('[Call] 写回聊天失败:', err.message)
@@ -366,26 +404,45 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
   })
 
   // 通话旁白：第三人称、2-3 句中文
+  // 和记忆库的记忆总结一样，优先交给 DeepSeek 写；没配置就回退到聊天主模型
   async function summarizeCall(transcript, minutes) {
+    const messages = [
+      {
+        role: 'system',
+        content: `你在给一段电话通话写旁白。用第三人称、温柔克制的叙述语气，2-6 句中文，像小说里的旁白。
+- 不要逐句复述对话，不要用引号引用原话。
+- 写清楚聊了什么、她的情绪怎么走、他做了什么。
+- 不要出现「通话记录」「总结」「以上」这类词，不要 emoji，不要小标题。
+- 只输出这 2-6 句话本身。`,
+      },
+      {
+        role: 'user',
+        content: `通话大约 ${minutes} 分钟。对话如下：\n${transcript.slice(0, 3000)}`,
+      },
+    ]
+
+    const dsKey = process.env.DEEPSEEK_API_KEY
+    if (dsKey) {
+      try {
+        const raw = await callLLM(messages, {
+          apiKey: dsKey,
+          apiBase: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1',
+          models: [process.env.DEEPSEEK_MODEL || 'deepseek-chat'],
+          temperature: 0.7,
+          maxTokens: 260,
+        })
+        return String(raw || '').trim().replace(/^["「]|["」]$/g, '')
+      } catch (err) {
+        console.warn('[Call] DS 旁白失败，回退主模型:', err.message)
+      }
+    }
+
     try {
       const cfg = await getUserApiConfig(supabaseAdmin)
       const apiKey = cfg.api_key || process.env.API_KEY
       const apiBase = cfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
       if (!apiKey) return ''
-      const raw = await callLLM([
-        {
-          role: 'system',
-          content: `你在给一段电话通话写旁白。用第三人称、温柔克制的叙述语气，2-3 句中文，像小说里的旁白。
-- 不要逐句复述对话，不要用引号引用原话。
-- 写清楚聊了什么、她的情绪怎么走、他做了什么。
-- 不要出现「通话记录」「总结」「以上」这类词，不要 emoji，不要小标题。
-- 只输出这 2-3 句话本身。`,
-        },
-        {
-          role: 'user',
-          content: `通话大约 ${minutes} 分钟。对话如下：\n${transcript.slice(0, 3000)}`,
-        },
-      ], { apiKey, apiBase, models: parseModels(cfg.api_model || process.env.MODEL), temperature: 0.7, maxTokens: 260 })
+      const raw = await callLLM(messages, { apiKey, apiBase, models: parseModels(cfg.api_model || process.env.MODEL), temperature: 0.7, maxTokens: 260 })
       return String(raw || '').trim().replace(/^["「]|["」]$/g, '')
     } catch (err) {
       console.warn('[Call] 旁白生成失败:', err.message)

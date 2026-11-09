@@ -1449,3 +1449,11 @@
 - 截图：`预览效果/聊天页-他来电卡片-402x874.png`
 - 限制：只在聊天页开着时可见；没做推送通知
 - 2026.11.09 深夜：前端已 git push（f3f8b67），Vercel 自动部署；后端 v4 版已上线香港服务器
+
+### 通话第四轮修复（2026.11.09 深夜）
+- **开场白不再固定**：删掉 `GREETINGS` 四条硬编码台词，改成 `/start` 时用模型按上下文现生成第一句（提示词：可逗她、表达想念或只叫一声名字，不要寒暄套话），再走 TTS；生成失败前端显示「他在听」兜底
+- **旁白交给 DeepSeek**：`summarizeCall` 优先走 `DEEPSEEK_API_KEY`（`https://api.deepseek.com/v1` + `deepseek-chat`，和记忆库的记忆总结同一个模型），失败回退聊天主模型；旁白从 2-3 句放宽到 2-6 句
+- **call_log 写入修复**：`chat_messages.role` 有 `chat_messages_role_check` 约束拒绝 `call_log`；改为存 `role='assistant'` + 内容以 `📞 通话 N 分钟` 开头，前端 ChatBubble 按前缀渲染成居中旁白，聊天上下文过滤掉这类消息
+- 无 sessionId 时回退到用户最近一条消息所属 session，避免外键插入失败
+- 服务器 compose：给 bayapi 补 `DEEPSEEK_API_KEY/BASE_URL/MODEL`，并把 `ELEVENLABS_MODEL` 从 `eleven_v3` 改为 `eleven_v4`
+- 实测：开场白动态生成正常、带标签、有音频；DS 旁白写入成功（2-6 句第三人称）；清掉了一条早期英文拼接的测试旁白

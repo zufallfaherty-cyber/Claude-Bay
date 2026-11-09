@@ -83,8 +83,8 @@ export default function ChatBubble({ role, content, attachments, tools, timestam
 
   const avatarSrc = isUser ? bayAvatar : claudeAvatar
 
-  // 通话记录：居中的旁白，不是气泡
-  if (role === 'call_log') {
+  // 通话记录：居中的旁白，不是气泡（旧数据 role=call_log，新数据存在 assistant + 📞 前缀）
+  if (role === 'call_log' || /^📞\s*通话/.test(String(content || ''))) {
     const [head, ...rest] = String(content || '').split('\n')
     return (
       <div className="my-5 mx-auto max-w-[88%] text-center msg-enter">
