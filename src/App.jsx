@@ -9,6 +9,7 @@ import ChatPage from './pages/ChatPage'
 import ClaudeSpace from './pages/ClaudeSpace'
 import GamesPage from './pages/GamesPage'
 import LudoGame from './pages/LudoGame'
+import CallPage from './pages/CallPage'
 import ProfilePage from './pages/ProfilePage'
 import MemoryPage from './pages/MemoryPage'
 import AlbumPage from './pages/AlbumPage'
@@ -37,6 +38,7 @@ function App() {
   const isChat = location.pathname === '/chat'
   const isStudy = location.pathname === '/moods'
   const isGames = location.pathname === '/games'
+  const isCall = location.pathname === '/call'
   // Local-only visual preview (never active in production builds)
   const isPreview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
 
@@ -120,7 +122,7 @@ function App() {
         />
       )}
 
-      <main className={(isChat || isStudy || isGames)
+      <main className={(isChat || isStudy || isGames || isCall)
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
@@ -142,6 +144,7 @@ function App() {
             <Route path="/moods" element={<PageWrapper><ClaudeSpace /></PageWrapper>} />
             <Route path="/games" element={<PageWrapper><GamesPage /></PageWrapper>} />
             <Route path="/games/ludo" element={<PageWrapper><LudoGame /></PageWrapper>} />
+            <Route path="/call" element={<CallPage currentSessionId={currentSessionId} />} />
             <Route path="/profile" element={<PageWrapper><ProfilePage /></PageWrapper>} />
             <Route path="/album" element={<PageWrapper><AlbumPage /></PageWrapper>} />
             <Route path="/profile/memory" element={<PageWrapper><MemoryPage /></PageWrapper>} />
@@ -151,7 +154,7 @@ function App() {
         </Routes>
       </main>
 
-      {!isChat && <BottomNav />}
+      {!isChat && !isCall && <BottomNav />}
 
       {/* Route-change fade veil: a sibling layer, so it never disables the glass
           cards' backdrop-filter the way an animated page wrapper did. */}

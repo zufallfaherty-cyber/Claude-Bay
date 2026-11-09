@@ -1379,3 +1379,72 @@
 - **验证**：书房/游戏页 402×874 截图无可见白线，导航与场景自然衔接；首页及其他页面同样适用。
 
 **2026.11.09 已上线**：`git push` 成功（`83e06eb..ca80f3f`，直连 GitHub，绕开 7890 代理），Vercel 自动部署完成（用户确认）。手机看新版前先打开 `/reset.html` 清 PWA 缓存。
+
+## 2026.11.09 通话功能方案（已定稿，未开工）
+
+参考实现：`codeberg.org/donutbunelli/ringdonut`（MIT，半双工"对讲机式"AI 语音通话，含情绪标签 TTS、声学语气分析、主动来电状态机、证据式通话摘要）。已完整读完，本地副本在 `cc/_tmp_ringdonut`（只读）。
+
+**用户拍板的需求**
+- 输入：**打字为主 + 按住录音为辅**（大多时候不方便说话），AI 永远语音回
+- 输出语音：**中英双轨，默认英文男声**，可一键切中文
+- 字幕：**大字英文 + 小字中文翻译**
+- 体验：接受轮流说、每轮 3–6 秒反应（不做全双工）
+- 第一版范围：**双向** —— 我打给他 + 他在聊天中自己判断是否打来
+- 声线：角色是**男性**，想用 ElevenLabs Voice Design 自己捏专属音色
+- 我另加的硬约束：来电每日≤1 次、6 小时冷却、免打扰优先、来电可「文字接听」
+
+**必须补的三件外部准备**
+1. ElevenLabs 账号（Creator 档，语音必需）—— 用户还在看，不催
+2. Groq（Whisper STT，免费额度够）
+3. Supabase SQL Editor 跑 `001_call_schema.sql`（4 张表：call_sessions / call_turns / call_invites / call_preferences）
+
+**集成点（ringdonut → bunny-chat）**
+- host adapter ← 现有 Supabase service_role / chat_messages / user_settings / Ombre-Brain breath / Pushover + web-push
+- llm adapter ← 现有 API 中转（OpenAI 兼容）
+- 需要 CJS→ESM 改写；语音导演 prompt 必须改中文/双语（原版是英文伴侣）
+- 后端建议新建 `server/call/` 模块，index.js 里 `app.use('/api/call', …)`，避免再给 2277 行的 index.js 加 1500 行
+- 前端移植 `CallOverlay.jsx` + `call.css` + 录音/声学分析；游戏页「通话」标签从 toast 改为真入口
+- 第一版**不存通话录音**，只存文字与摘要
+
+**分期**：①接通通话（双向）→ ②声音/语气/摘要调优 → ③（可选）全双工 Realtime
+
+**当前状态**：方案已确认，用户先去看音色方案，代码未动。
+
+---
+
+## 2026.11.09 通话页 UI 第二版（已改完，待上线）
+
+用户看完第一版后的四条反馈，已全部改掉：
+
+1. **头像太大** → 裁剪比例从 20% 缩小（`width 386→309, height 515→412`），脸不再撑满圆，留出呼吸空间
+2. **只显示最新一句** → 改成 `history` 数组（保留最近 10 条），头像下方是可滚动对话记录，打字消息右对齐小字、他的台词居中大字英文＋小字中文，新消息自动滚到底、顶部渐隐
+3. **挂断按钮有文字** → 改成纯图标（听筒 SVG 旋转 135°），56px 红色圆
+4. **语音对讲藏在输入框里** → 独立成 72px 大圆按钮，绿色，与挂断并排；按住录音时变红色＋外圈扩散，下方小字提示「按住说话／松开发送／识别中…」
+
+截图：`预览效果/通话页-改版-402x874.png`
+
+**下一步**：`git push` 前端上线（手机先开 `/reset.html` 清 PWA 缓存）
+
+### 第三版微调（同日）
+- 挂断与对讲按钮统一 64px，圆底对齐；图标 26px
+- 等待页改成来电样式：红色挂断（返回）＋绿色接听，两个图标圆按钮并排；接通过程中接听键脉冲
+- 对话记录改成滚动歌词：顶部几乎透明 → 中段半透 → 底部清晰（CSS mask 渐变）
+- 输入框提示语去掉「（打字）」
+
+### 通话上下文对齐（同日）
+- `server/call.js` 的 `loadPersona` 重写：
+  - 聊天上文：优先取当前 session 最近 15 条，取不到回退全局最近 15 条（原来只有 8 条且不分 session）
+  - 小湾画像 + 承诺：直接复用 `index.js` 的 `getStudyContext()`
+  - 长期记忆：复用 `callOmbreTool('breath')` + `parseBreathResponse()`，取权重最高的 12 条
+  - `index.js` 挂载时把这三个函数传进 `createCallRouter`
+- 实测 `/api/call/start`：persona 238 / recent 1534 / memo 985 / memories 1943 字符，全部注入成功
+- 通话页头像固定为 `/portrait-call.jpg`（art/e2d，900×900 JPEG 89KB），不再读设置里的头像
+- 头像画幅缩到 75%：圆 184→138，声波画布 280→210、半径 112→84、条纹 84→64
+
+### 他主动打来电话（MVP，已部署后端）
+- 后端 `/api/chat`：enrichedPrompt 末尾追加 [打电话] 规则，允许模型在回复末尾输出 `[[CALL]]`；6 小时冷却（内存 `lastCallInviteAt`）
+- 非流式：剥离标记（`\n{3,}` 归一），返回 `invite: true`；流式：累积 fullText，done 前发 `{type:'invite'}`
+- 前端 ChatPage：`streamChat` 透传 invite → 收到后在消息列表底部渲染「他想听听你的声音 · 点这里接听」卡片 → 点进 `/call?incoming=1`
+- 通话页 `incoming=1`：标题「他打来了」，等待页文案「他想和你说说话」
+- 截图：`预览效果/聊天页-他来电卡片-402x874.png`
+- 限制：只在聊天页开着时可见；没做推送通知

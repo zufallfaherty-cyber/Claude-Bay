@@ -128,6 +128,7 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
       yield { type: 'tools', tools: data.toolCalls }
     }
     yield { type: 'text', text: data.content || '' }
+    if (data.invite) yield { type: 'invite' }
     return
   }
 
@@ -147,6 +148,7 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
         try {
           const parsed = JSON.parse(data)
           if (parsed.type === 'text') yield { type: 'text', text: parsed.text }
+          else if (parsed.type === 'invite') yield { type: 'invite' }
           else if (parsed.type === 'error') yield { type: 'error', error: parsed.error }
           else if (parsed.type === 'stop' || parsed.type === 'done') return
         } catch { /* skip */ }
@@ -162,6 +164,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [diag, setDiag] = useState(null)
+  const [callInvite, setCallInvite] = useState(
+    import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')
+  )
   const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
   const scrollRef = useRef(null)
@@ -661,6 +666,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     let content = ''
     let tools = []
+    let invite = false
     try {
       const stream = streamChat(apiMessages, {
         systemPrompt,
@@ -673,6 +679,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       for await (const chunk of stream) {
         if (chunk.type === 'text') {
           content += chunk.text
+        } else if (chunk.type === 'invite') {
+          invite = true
         } else if (chunk.type === 'tools') {
           tools = chunk.tools
         } else if (chunk.type === 'error') {
@@ -683,6 +691,10 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     } catch (err) {
       content += `❌ 连接失败：${err.message}`
     }
+
+    // 兜底：标记不该出现在气泡里
+    if (content.includes('[[CALL]]')) content = content.replace(/\[\[CALL\]\]/g, '').trim()
+    if (invite) setCallInvite(true)
 
     // Finalize
     messagesRef.current = messagesRef.current.map((m) =>
@@ -872,6 +884,25 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
               )
             })
           )}
+          {callInvite && (
+            <div className="flex justify-start px-1 pt-1">
+              <button
+                onClick={() => { setCallInvite(false); navigate('/call?incoming=1') }}
+                className="flex items-center gap-3 rounded-2xl bg-white/70 backdrop-blur px-3.5 py-2.5 shadow-[0_10px_26px_-18px_rgba(90,80,55,.6)] active:scale-[.98] transition"
+              >
+                <span className="w-10 h-10 rounded-full bg-[#6f8462] text-[#fbf8f0] flex items-center justify-center shrink-0">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+                  </svg>
+                </span>
+                <span className="text-left">
+                  <span className="block text-[13px] text-[#4C4945]">他想听听你的声音</span>
+                  <span className="block text-[11px] text-warm-gray mt-0.5">点这里接听</span>
+                </span>
+              </button>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
       </div>

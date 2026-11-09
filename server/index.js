@@ -6,6 +6,7 @@ import path from 'path'
 import webPush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
 import { createMcpClient, loadMcpConfig, saveMcpConfig } from './mcp.js'
+import { createCallRouter } from './call.js'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -14,6 +15,8 @@ const PORT = process.env.PORT || 3001
 const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || ''
 let supabaseAdmin = null
+// 他上次主动打电话的时间（内存态，重启清零；只用来做 12 小时冷却）
+let lastCallInviteAt = 0
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
 }
@@ -189,6 +192,9 @@ const XHS_NUDGE_SAFE_TOOLS = new Set([
 
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
+
+// 通话功能：打字 → 语音回复
+app.use('/api/call', createCallRouter(supabaseAdmin, { callOmbreTool, parseBreathResponse, getStudyContext }))
 
 // ── Ombre-Brain MCP client (memory engine) ──
 const OMBRE_BRAIN_URL = process.env.OMBRE_BRAIN_URL || ''
@@ -1870,6 +1876,14 @@ app.post('/api/chat', async (req, res) => {
   // Inject memo (portrait + promises) from Claude's Study
   try { enrichedPrompt += await getStudyContext() } catch {}
 
+  // ── 主动来电：每 6 小时最多一次 ──
+  const callAllowed = Date.now() - lastCallInviteAt > 12 * 60 * 60 * 1000
+  if (callAllowed) {
+    enrichedPrompt += `\n\n[打电话]
+如果你此刻特别想听到她的声音，或者感觉到她此刻很需要你的声音陪伴，可以在整段回复的最后单独加一行 [[CALL]]。
+只有真的想打时才用，不要解释这个标记，不要在一条回复里用两次，也不要每条都打。`
+  }
+
   // Build OpenAI-compatible messages array
   const apiMessages = []
   if (enrichedPrompt) {
@@ -1884,7 +1898,16 @@ app.post('/api/chat', async (req, res) => {
     try {
       const openAITools = await getEnabledOpenAITools()
       const { content, toolCalls } = await runToolLoop(apiMessages, openAITools, { temperature, maxTokens }, apiKey, apiBase, models)
-      return res.json({ content, toolCalls })
+      let finalContent = content || ''
+      let invite = false
+      if (finalContent.includes('[[CALL]]')) {
+        finalContent = finalContent.replace(/\[\[CALL\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
+        if (callAllowed) {
+          invite = true
+          lastCallInviteAt = Date.now()
+        }
+      }
+      return res.json({ content: finalContent, toolCalls, invite })
     } catch (err) {
       return res.status(500).json({ error: err.message })
     }
@@ -1913,6 +1936,7 @@ app.post('/api/chat', async (req, res) => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let fullText = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -1933,6 +1957,7 @@ app.post('/api/chat', async (req, res) => {
           const finishReason = parsed.choices?.[0]?.finish_reason
 
           if (delta?.content) {
+            fullText += delta.content
             res.write(`data: ${JSON.stringify({ type: 'text', text: delta.content })}\n\n`)
           }
           if (finishReason) {
@@ -1944,6 +1969,10 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
+    if (fullText.includes('[[CALL]]') && callAllowed) {
+      lastCallInviteAt = Date.now()
+      res.write(`data: ${JSON.stringify({ type: 'invite' })}\n\n`)
+    }
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
     res.end()
   } catch (err) {

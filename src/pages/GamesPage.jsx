@@ -52,7 +52,8 @@ export default function GamesPage() {
 
   const openSpot = (id) => {
     if (id === 'ludo') return navigate('/games/ludo')
-    showToast('通话 · 功能页面稍后开放')
+    if (id === 'call') return navigate('/call')
+    showToast('功能页面稍后开放')
   }
 
   return (
