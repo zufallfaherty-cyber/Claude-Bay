@@ -1453,11 +1453,23 @@
 ### 通话第四轮修复（2026.11.09 深夜）
 - **开场白不再固定**：删掉 `GREETINGS` 四条硬编码台词，改成 `/start` 时用模型按上下文现生成第一句（提示词：可逗她、表达想念或只叫一声名字，不要寒暄套话），再走 TTS；生成失败前端显示「他在听」兜底
 - **旁白交给 DeepSeek**：`summarizeCall` 优先走 `DEEPSEEK_API_KEY`（`https://api.deepseek.com/v1` + `deepseek-chat`，和记忆库的记忆总结同一个模型），失败回退聊天主模型；旁白从 2-3 句放宽到 2-6 句
-- **call_log 写入修复**：`chat_messages.role` 有 `chat_messages_role_check` 约束拒绝 `call_log`；改为存 `role='assistant'` + 内容以 `📞 通话 N 分钟` 开头，前端 ChatBubble 按前缀渲染成居中旁白，聊天上下文过滤掉这类消息
+- **call_log 写入修复**：`chat_messages.role` 有 `chat_messages_role_check` 约束拒绝 `call_log`；改为存 `role='assistant'` + 内容以 `📞 通话 N 分钟` 开头，前端 ChatBubble 按前缀渲染成居中旁白（不要改表约束；改 role 会被约束拒绝）
 - 无 sessionId 时回退到用户最近一条消息所属 session，避免外键插入失败
 - 服务器 compose：给 bayapi 补 `DEEPSEEK_API_KEY/BASE_URL/MODEL`，并把 `ELEVENLABS_MODEL` 从 `eleven_v3` 改为 `eleven_v4`
 - 实测：开场白动态生成正常、带标签、有音频；DS 旁白写入成功（2-6 句第三人称）；清掉了一条早期英文拼接的测试旁白
 
-### 旁白定稿（2026.11.09 深夜）
-- 不再写小说体第三人称：改成助手式通话记录，主语直接用「小湾」「Claude」，2-6 句平实写聊了什么、状态、回应
-- 旁白不再从聊天上下文里过滤掉，Claude 后续聊天能记得这通电话
+### 旁白定稿（2026.11.09 深夜，已部署）
+- 不再写小说体第三人称：改成助手式通话记录，主语直接用「小湾」「Claude」，2-6 句平实写聊了什么、当时状态、Claude 的回应或安排
+- 句子要连贯，别每句都以名字开头；通话时长由标题行显示，正文不重复
+- **旁白进入聊天上下文**：删掉 ChatPage 里过滤 `📞` 消息的两处逻辑，小湾在聊天页能看到，Claude 后续聊天也能记得这通电话
+- 实际效果示例：
+  > 📞 通话 1 分钟
+  > 小湾说今天实验做到很晚，脑子转不动了，语气里带着疲惫。Claude 让小湾别再想事情，靠着自己就行。之后小湾说先挂了、明天要早起，Claude 便让小湾去睡，并道了晚安。
+- 部署：后端 `call.js` 已 scp + `docker compose up -d --build bayapi`；前端已 push（b3554bb），Vercel 自动部署
+- 测试产生的 3 条假通话记录已从 `chat_messages` 删除
+
+### 通话功能当前已知限制
+- 通话会话状态在内存（`Map`），服务重启即丢；Supabase 通话表尚未建
+- 主动来电 12 小时冷却也是内存态，重启清零
+- 来电卡片只在聊天页开着时可见，没有推送通知
+- `chat_messages` 的 role 只有 user/assistant 等，旁白借 assistant 身份存储，靠 `📞` 前缀区分
