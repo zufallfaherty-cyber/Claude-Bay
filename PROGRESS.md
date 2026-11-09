@@ -1347,3 +1347,18 @@
 
 
 **注意**：每次 `docker compose up -d --no-deps bayapi` 会清空内存里的 `pushSubscriptions`（Web Push），Pushover 不受影响；用户重开 App 会重新订阅。
+
+---
+
+## 2026.11.09 小游戏页 → 客厅场景（已本地完成，待 push 上线）
+
+- **背景**：`art/f540a325…jpg` → `public/bg-games.jpg`（851×1849，154KB，未再压）。画面是暖光客厅：桌上摊着飞行棋棋盘，右边一台绿色拨号电话。文件名取了短名，方便 Vercel 缓存识别。
+- **思路同书房**：`GamesPage.jsx` 从玻璃卡片列表改成整屏场景——ResizeObserver 实测 `cover` 舞台（`Math.max`，非 contain），热点用图片百分比定位，`--k = 舞台宽 / 851` 统一缩放字号/间距，文字再加 `.study-float` 陀螺仪视差。
+- **两个入口**：
+  - 「飞行棋」写在棋盘中央（left 59.5% / top 73.6%）→ `/games/ludo`
+  - 「通话」写在电话左侧桌面（left 76% / top 68.2%，右对齐）→ 目前弹 toast「功能页面稍后开放」，**通话页还没做**
+- **样式**：`.games-wrap` / `.games-stage` 与 `.study-wrap` / `.study-stage` 共用同一组规则（套色洗光、cover 铺满）；新增 `.game-label`（cn + 细线 + 英文）与 `.on-board`（棋盘深鼠尾草 + 白晕）/ `.on-wood`（暖木褐）两种字色。顶部浮动标题「小游戏 / Little Games」+ 返回键，和书房一致。
+- **布局**：`App.jsx` 把 `/games` 也加入 `overflow-hidden` 分支，场景不滚动、不露底部空隙。
+- **验证**：iframe 精确限定 402×874 / 402×811 / 402×740 三档截图，标签都贴在棋盘和电话上（视口变矮时整幅图按高度放大，标签跟着图走，不漂移）。`npx vite build` 通过，oxlint 无新增问题。
+- **截图**：`预览效果/游戏页-客厅-402x874.png`
+- **待办**：通话功能页；上线需要 `git push` → Vercel，手机先开 `/reset.html` 清 PWA 缓存。

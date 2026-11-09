@@ -322,17 +322,20 @@ body {
   box-shadow: 0 4px 14px -10px rgba(70, 85, 62, 0.4);
 }
 
-.study-wrap {
+.study-wrap,
+.games-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
   background: #f3efe5;
 }
-.study-stage {
+.study-stage,
+.games-stage {
   position: absolute;
   overflow: hidden;
 }
-.study-stage > img {
+.study-stage > img,
+.games-stage > img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -341,7 +344,8 @@ body {
   filter: saturate(0.96) contrast(1.01) brightness(1.01);
 }
 /* Cream wash from the top, so the floating header stays readable */
-.study-stage::after {
+.study-stage::after,
+.games-stage::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -695,6 +699,60 @@ body {
   line-height: 1;
   letter-spacing: 0.12em;
   opacity: 0.75;
+}
+
+/* Game labels — written on the board / beside the phone in the living room */
+.game-label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(6px * var(--k));
+  border: 0;
+  background: transparent;
+  padding: calc(20px * var(--k)) calc(24px * var(--k));
+  margin: 0;
+  cursor: pointer;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+.game-label.is-center { transform: translate(-50%, -50%); }
+.game-label.is-right { align-items: flex-end; transform: translate(-100%, -50%); }
+.game-label:active { opacity: 0.82; }
+.game-label.is-center:active { transform: translate(-50%, -50%) scale(0.94); }
+.game-label.is-right:active { transform: translate(-100%, -50%) scale(0.94); }
+.game-label .cn {
+  font-size: calc(36px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.game-label .rule {
+  width: calc(46px * var(--k));
+  height: 1px;
+  background: currentColor;
+  opacity: 0.42;
+}
+.game-label .en {
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: calc(17px * var(--k));
+  line-height: 1;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+  opacity: 0.78;
+  white-space: nowrap;
+}
+/* On the board: deep sage ink, lifted by a soft white halo on the pale map */
+.game-label.on-board {
+  color: #3f4c38;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 16px rgba(255, 253, 245, 0.75);
+}
+/* On the sunlit wood beside the phone */
+.game-label.on-wood {
+  color: #554b3d;
+  text-shadow: 0 1px 2px rgba(255, 240, 214, 0.8), 0 0 16px rgba(255, 236, 205, 0.55);
 }
 
 /* Titles drift with the phone's tilt (fed by useTiltParallax), so they read as
