@@ -810,6 +810,22 @@ html.kb-open .chat-composer { padding-bottom: 6px; }
    the screen, so it must keep the full safe-area inset for the home indicator. */
 .bottom-nav { padding-bottom: max(6px, env(safe-area-inset-bottom, 0px)); }
 
+/* Scene pages (书房 / 游戏): continue the artwork under the nav so its
+   backdrop-blur has the same picture to sample as the home page's water.
+   The extra 24px tucks up behind <main> and softens the join. */
+.scene-under-nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(58px + max(6px, env(safe-area-inset-bottom, 0px)) + 24px);
+  z-index: 0;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+}
+
 /* Header overflow menu */
 .chat-menu {
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(252, 251, 247, 0.8));

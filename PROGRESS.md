@@ -1355,10 +1355,18 @@
 - **背景**：`art/f540a325…jpg` → `public/bg-games.jpg`（851×1849，154KB，未再压）。画面是暖光客厅：桌上摊着飞行棋棋盘，右边一台绿色拨号电话。文件名取了短名，方便 Vercel 缓存识别。
 - **思路同书房**：`GamesPage.jsx` 从玻璃卡片列表改成整屏场景——ResizeObserver 实测 `cover` 舞台（`Math.max`，非 contain），热点用图片百分比定位，`--k = 舞台宽 / 851` 统一缩放字号/间距，文字再加 `.study-float` 陀螺仪视差。
 - **两个入口**：
-  - 「飞行棋」写在骰子左下方、棋盘外的桌面（left 44% / top 78%）→ `/games/ludo`
+  - 「飞行棋」写在骰子左下方、棋盘外的桌面（left 44% / top 77%）→ `/games/ludo`
   - 「通话」写在电话左上（left 78.5% / top 64.5%，右对齐）→ 目前弹 toast「功能页面稍后开放」，**通话页还没做**
 - **样式**：`.games-wrap` / `.games-stage` 与 `.study-wrap` / `.study-stage` 共用同一组规则（套色洗光、cover 铺满）；新增 `.game-label`（cn + 细线 + 英文）与 `.on-board` / `.on-wood` 两种字色（均为暖棕 + 浅色晕光）。顶部浮动标题「小游戏 / Little Games」+ 返回键，和书房一致。
 - **布局**：`App.jsx` 把 `/games` 也加入 `overflow-hidden` 分支，场景不滚动、不露底部空隙。
 - **验证**：iframe 精确限定 402×874 / 402×811 / 402×740 三档截图，标签都贴在棋盘和电话上（视口变矮时整幅图按高度放大，标签跟着图走，不漂移）。`npx vite build` 通过，oxlint 无新增问题。
 - **截图**：`预览效果/游戏页-客厅-402x874.png`
 - **待办**：通话功能页；上线需要 `git push` → Vercel，手机先开 `/reset.html` 清 PWA 缓存。
+
+## 2026.11.09 书房/游戏页导航栏透出场景（已本地完成，待 push）
+
+- **现象**：底部导航栏在首页有透明毛玻璃感，进书房、游戏页却变成一块实色，很生硬。
+- **根因**：`BottomNav` 的 `bg-white/30 + backdrop-blur-xl` 本身没问题。首页有一层 App 级 `home-water-bg` 铺到导航栏背后，模糊有内容可采样；书房/游戏页的整屏场景画在 `<main>` 里，`<main>` 到导航栏上沿就结束，导航背后只剩容器的奶油底色 → 糊成一块实色。
+- **修复**：`App.jsx` 在 `/moods`、`/games` 时多渲染一层 `.scene-under-nav`（z-index 0，垫在导航下面），用对应的 `bg-study.jpg` / `bg-games.jpg` 以 `cover + center bottom` 只露出图片底部；高度 = 导航栏 58px + 安全区 + 24px，多出的 24px 藏进 `<main>` 下面做柔和过渡。导航栏自身样式完全没动，backdrop-blur 自然采样到场景。
+- **验证**：402×874 iframe 截图，书房/游戏页导航栏都能透出桌面木纹；首页和其他页面未改动。
+- **注意**：以后再加整屏场景页（类似书房），记得把路径加进 App 的 `scene-under-nav` 条件里，否则导航栏又会变实色。

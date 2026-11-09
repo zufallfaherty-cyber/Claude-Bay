@@ -107,6 +107,19 @@ function App() {
           />
         </>
       )}
+
+      {/* The scene pages draw their artwork inside <main>, which stops above the
+          nav — so the glass nav would blur a flat cream strip. Let the scene's
+          bottom edge continue behind the nav so its backdrop-blur samples the
+          same picture the home page does. */}
+      {(isStudy || isGames) && (
+        <div
+          className="scene-under-nav"
+          style={{ backgroundImage: `url('${isGames ? '/bg-games.jpg' : '/bg-study.jpg'}')` }}
+          aria-hidden="true"
+        />
+      )}
+
       <main className={(isChat || isStudy || isGames)
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
