@@ -164,9 +164,25 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [diag, setDiag] = useState(null)
-  const [callInvite, setCallInvite] = useState(
-    import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')
-  )
+  // 未接来电后他说「我再打一次」时，CallPage 会留一个标记，回到聊天页立刻显示来电卡片
+  const [callInvite, setCallInvite] = useState(() => {
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')) return true
+    try {
+      if (localStorage.getItem('bunny_call_invite') === '1') {
+        localStorage.removeItem('bunny_call_invite')
+        return true
+      }
+    } catch {}
+    return false
+  })
+  // 他打来但没接：卡片留在原地变红显示「无人接听」（6 小时内有效）
+  const [callMissedAt, setCallMissedAt] = useState(() => {
+    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('misseddemo')) return Date.now()
+    try {
+      const t = Number(localStorage.getItem('bunny_call_missed') || 0)
+      return Date.now() - t < 6 * 60 * 60 * 1000 ? t : 0
+    } catch { return 0 }
+  })
   const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
   const scrollRef = useRef(null)
@@ -333,6 +349,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           const sb = supabaseRef.current
           const currentSid = sidRef.current
           const uid = userRef.current?.id
+          // 未接来电后他要再打：恢复来电卡片
+          if (nudges.some(n => n.invite)) setCallInvite(true)
           nudges.forEach(n => {
             const targetSid = n.session_id
             if (!targetSid) return
@@ -885,6 +903,26 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
               )
             })
           )}
+          {/* 没接的那通：卡片不消失，变红显示「无人接听」 */}
+          {callMissedAt > 0 && (
+            <div className="flex gap-2 items-start mt-3.5">
+              <div className="chat-avatar w-7 h-7 rounded-full shrink-0 flex items-center justify-center overflow-hidden border border-white/80 bg-white/85 text-[13px]">
+                {(() => {
+                  const a = localStorage.getItem('avatar_claude') || ''
+                  return a.startsWith('data:') ? <img src={a} alt="" className="w-full h-full object-cover" /> : (a || '🌿')
+                })()}
+              </div>
+              <div className="rounded-[16px] rounded-tl-[6px] px-3.5 py-2 text-left bg-[#f9e4de]/85 border border-[#d98d7d]/30">
+                <span className="flex items-center gap-2 text-[13px] text-[#b8584a]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" style={{ transform: 'rotate(135deg)' }}>
+                    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+                  </svg>
+                  无人接听
+                </span>
+              </div>
+            </div>
+          )}
+
           {callInvite && (
             <div className="flex gap-2 items-start mt-3.5">
               <div className="chat-avatar w-7 h-7 rounded-full shrink-0 flex items-center justify-center overflow-hidden border border-white/80 bg-white/85 text-[13px]">

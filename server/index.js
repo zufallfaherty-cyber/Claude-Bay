@@ -17,6 +17,9 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || ''
 let supabaseAdmin = null
 // 他上次主动打电话的时间（内存态，重启清零；只用来做 8 小时冷却）
 let lastCallInviteAt = 0
+// 未接来电：一轮里没接到几次（内存态，6 小时没动静就归零）。第一次没接后最多再打一次。
+let missedCallStreak = 0
+let missedCallLastAt = 0
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
 }
@@ -1743,6 +1746,130 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
   } catch (err) {
     console.error('[Nudge] ERROR:', err.stack || err.message)
     res.status(500).json({ nudged: false, error: err.message })
+  }
+})
+
+// ── 未接来电：她没接到他的电话 → 他会知道，并且最多再打两次 ──
+app.post('/api/call/missed', async (_req, res) => {
+  try {
+    const nowMs = Date.now()
+    const utcNow = new Date()
+    const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
+    const hour = now.getUTCHours()
+    const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+
+    // 6 小时没再发生就当作新的一轮
+    if (nowMs - missedCallLastAt > 6 * 60 * 60 * 1000) missedCallStreak = 0
+    missedCallStreak++
+    missedCallLastAt = nowMs
+    // 第一次没接之后，最多再打一次
+    const canCallAgain = missedCallStreak <= 1
+    console.log(`[Call] 未接来电 #${missedCallStreak}${canCallAgain ? '（还能再打）' : '（这轮不再打了）'}`)
+
+    let personality = ''
+    try { personality = await getUserPersonality() } catch {}
+    let studyCtx = ''
+    try { studyCtx = await getStudyContext() } catch {}
+    let chatContext = ''
+    try {
+      let uid = null
+      try {
+        const { data: st } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+        uid = st?.user_id
+      } catch {}
+      const recentChats = await getRecentChats(6, uid)
+      chatContext = recentChats
+        .map(m => `${m.role === 'user' ? '小湾' : 'Claude'}：${m.content || ''}`)
+        .join('\n')
+    } catch {}
+
+    const userCfg = await getUserApiConfig()
+    const apiKey = userCfg.api_key || process.env.API_KEY || ''
+    const apiBase = userCfg.api_base || process.env.API_BASE || 'https://api.jiushi.xin/v1'
+    const models = parseModels(userCfg.api_model || process.env.MODEL, DEFAULT_MODELS)
+    if (!apiKey) return res.json({ ok: false, error: 'no api key', invite: false })
+
+    const systemPrompt = `${personality || '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落。用文字本身传递温度，不依赖emoji。不说教不催促。分段不留空行。'}
+
+现在时间：${timeStr}
+${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}${studyCtx || ''}
+
+你刚刚主动给小湾打了个电话，她没有接。
+写一两句你此刻想说的话（50 字以内）：可以有一点失落、可以猜她在忙什么、可以说你等她，也可以质问、可以抱怨。
+${canCallAgain
+  ? '如果你还想再试一次，在最后单独加一行 [[CALL]]（这会让她的手机再次出现你的来电）；不想再打就别加。'
+  : '你之前已经又打过，还是没接到。这次不要再打了，只留一条消息给她，绝对不要加 [[CALL]]。'}
+不要解释这个标记。`
+
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: '电话没人接。你想说什么？' },
+    ]
+    const { data } = await tryModels(models, apiKey, apiBase,
+      (m) => ({ model: m, messages: apiMessages, temperature: 0.9, max_tokens: NUDGE_MAX_TOKENS })
+    )
+    let text = data.choices?.[0]?.message?.content || ''
+    text = text.replace(/^(YES|NO)\s*/i, '').trim()
+    const wantsCall = canCallAgain && text.includes('[[CALL]]')
+    const message = text.replace(/\[\[CALL\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
+    if (!message || message.includes('工具调用')) {
+      console.log('[Call] 未接来电：模型没给出可用内容，只记录一次')
+      return res.json({ ok: false, invite: false })
+    }
+
+    const chinaISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}T${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}+08:00`
+    const msgId = Date.now().toString(36)
+    let targetSessionId = null
+    if (supabaseAdmin) {
+      try {
+        const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
+        const uid = settings?.user_id
+        if (uid) {
+          // 写进最近的真实聊天（不建 💌 新 session，和 nudge 一致）
+          const { data: recentSessions } = await supabaseAdmin
+            .from('chat_sessions')
+            .select('id, name')
+            .eq('user_id', uid)
+            .not('name', 'ilike', '💌%')
+            .order('updated_at', { ascending: false })
+            .limit(1)
+
+          if (recentSessions && recentSessions.length > 0) {
+            targetSessionId = recentSessions[0].id
+            await supabaseAdmin.from('chat_sessions')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', targetSessionId)
+          } else {
+            targetSessionId = crypto.randomUUID()
+            await supabaseAdmin.from('chat_sessions').insert({
+              id: targetSessionId, user_id: uid,
+              name: '新对话',
+              updated_at: new Date().toISOString(),
+            })
+          }
+
+          await supabaseAdmin.from('chat_messages').insert({
+            id: crypto.randomUUID(), session_id: targetSessionId, user_id: uid,
+            role: 'assistant', content: message,
+            attachments: [],
+            created_at: chinaISO,
+          })
+        }
+      } catch (e) { console.error('[Call] 未接来电写库失败:', e.message) }
+    }
+
+    // 前端轮询拿到这条，会刷新聊天并（如果 invite）弹出他的来电卡片
+    nudgeMessages.push({ id: msgId, text: message, time: timeStr, timestamp: chinaISO, session_id: targetSessionId, invite: wantsCall, retry: wantsCall })
+    if (nudgeMessages.length > 20) nudgeMessages.shift()
+
+    // 注意：未接来电不占用「主动来电」的 8 小时冷却（lastCallInviteAt 不动），
+    // 否则她一次没接，他就被禁打 8 小时，不合理。
+
+    console.log(`[Call] 未接来电回复：${message.replace(/\n/g, ' ').slice(0, 80)}${wantsCall ? ' [[再打]]' : ''}`)
+    res.json({ ok: true, message, invite: wantsCall, retry: wantsCall, streak: missedCallStreak, canCallAgain })
+  } catch (err) {
+    console.error('[Call] 未接来电处理失败:', err.message)
+    res.json({ ok: false, invite: false })
   }
 })
 

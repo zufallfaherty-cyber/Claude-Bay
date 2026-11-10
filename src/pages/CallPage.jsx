@@ -127,7 +127,11 @@ export default function CallPage({ currentSessionId }) {
   const [seconds, setSeconds] = useState(demo ? 47 : 0)
   const [error, setError] = useState('')
   const [credits, setCredits] = useState(null) // ElevenLabs 剩余字符
+  const [now, setNow] = useState(() => new Date())
   const startedAtRef = useRef(demo ? Date.now() - 47 * 1000 : Date.now())
+  // 来电没接就离开时上报一次；接通了（connectedRef）就不算未接
+  const connectedRef = useRef(false)
+  const missedSentRef = useRef(false)
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
   const audioElRef = useRef(null)
@@ -157,6 +161,21 @@ export default function CallPage({ currentSessionId }) {
   }
   useEffect(() => { loadCredits() }, [])
 
+  // 等待页的日期时间，每 20 秒刷新（跨分钟时不会停在旧值太久）
+  useEffect(() => {
+    if (phase !== 'idle') return
+    setNow(new Date())
+    const t = setInterval(() => setNow(new Date()), 20000)
+    return () => clearInterval(t)
+  }, [phase])
+
+  function fmtNow(d) {
+    const wd = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${wd} ${hh}:${mm}`
+  }
+
   // 用起始时间戳算，而不是每秒 +1：切后台时 iOS 会冻结定时器，+1 会少算
   useEffect(() => {
     if (phase !== 'active') return
@@ -182,6 +201,32 @@ export default function CallPage({ currentSessionId }) {
   }, [])
 
   useEffect(() => () => { audioRef.current?.pause() }, [])
+
+  // 来电页没按接听就离开（挂断/返回/直接关掉）→ 告诉后端「这次没接到」。
+  // pagehide 覆盖直接关掉标签页的情况，卸载时再兜一次；最多再打两次由后端计数。
+  useEffect(() => {
+    if (!incoming || demo) return
+    const report = () => {
+      if (connectedRef.current || missedSentRef.current) return
+      missedSentRef.current = true
+      // 立刻记下「这通没接」：回到聊天页那张卡片会留在原地变红，不是消失
+      try { localStorage.setItem('bunny_call_missed', String(Date.now())) } catch {}
+      const url = `${API_BASE}/api/call/missed`
+      try {
+        fetch(url, { method: 'POST', keepalive: true })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d?.invite) localStorage.setItem('bunny_call_invite', '1')
+          })
+          .catch(() => {})
+      } catch {}
+    }
+    window.addEventListener('pagehide', report)
+    return () => {
+      window.removeEventListener('pagehide', report)
+      report()
+    }
+  }, [])
 
   // ── 环绕音波 ──
   // 不接 AnalyserNode（会把 iOS 音频会话切走、导致没声音），
@@ -350,6 +395,12 @@ export default function CallPage({ currentSessionId }) {
         setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }])
         playBase64(data.reply?.audio)
       }
+      connectedRef.current = true
+      // 接通了：之前那条「无人接听」的状态作废
+      try {
+        localStorage.removeItem('bunny_call_missed')
+        localStorage.removeItem('bunny_call_invite')
+      } catch {}
       setPhase('active')
     } catch (e) {
       setError(e.message)
@@ -560,9 +611,10 @@ export default function CallPage({ currentSessionId }) {
 
       {/* 字幕 / 对话记录 */}
       <div className="flex-1 w-full flex flex-col px-7 min-h-0 py-3">
+        {/* 接通前：中间只放日期和时间，像一块安静的表 */}
         {phase === 'idle' && (
           <div className="flex-1 flex flex-col items-center justify-center">
-            <p className="text-[13px] tracking-[0.2em] text-[#8b7f68]">{incoming ? '他想和你说说话' : '他在等你的电话'}</p>
+            <p className="text-[11px] tracking-[0.22em] text-[#8b7f68]/75">{fmtNow(now)}</p>
           </div>
         )}
 
@@ -697,28 +749,44 @@ export default function CallPage({ currentSessionId }) {
         ) : phase === 'ended' ? (
           <p className="text-center text-[12px] tracking-[0.2em] text-[#8b7f68] pb-4">挂断中…</p>
         ) : (
-          // 等待接通：来电页面样式，挂断在左、接听在右
-          <div className="flex items-center justify-center gap-16 pb-8">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-16 h-16 rounded-full bg-[#b8584a] text-white flex items-center justify-center shadow-[0_16px_30px_-12px_rgba(150,70,55,.8)] active:scale-95 transition"
-              aria-label="挂断"
-            >
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)' }}>
-                <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-              </svg>
-            </button>
-            <button
-              onClick={startCall}
-              disabled={phase === 'connecting'}
-              className={`w-16 h-16 rounded-full bg-[#6f8462] text-[#fbf8f0] flex items-center justify-center shadow-[0_16px_32px_-14px_rgba(90,110,75,.9)] active:scale-95 transition ${phase === 'connecting' ? 'opacity-60 animate-pulse' : ''}`}
-              aria-label="接通"
-            >
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
-              </svg>
-            </button>
-          </div>
+          // 接通前：他打来 → 挂断 + 接听（保持原样）；我打过去 → 只有拨号，居中
+          incoming ? (
+            <div className="flex items-center justify-center gap-16 pb-8">
+              <button
+                onClick={() => navigate(-1)}
+                className="w-16 h-16 rounded-full bg-[#b8584a] text-white flex items-center justify-center shadow-[0_16px_30px_-12px_rgba(150,70,55,.8)] active:scale-95 transition"
+                aria-label="挂断"
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)' }}>
+                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+                </svg>
+              </button>
+              <button
+                onClick={startCall}
+                disabled={phase === 'connecting'}
+                className={`w-16 h-16 rounded-full bg-[#6f8462] text-[#fbf8f0] flex items-center justify-center shadow-[0_16px_32px_-14px_rgba(90,110,75,.9)] active:scale-95 transition ${phase === 'connecting' ? 'opacity-60 animate-pulse' : ''}`}
+                aria-label="接听"
+              >
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center pb-8">
+              <button
+                onClick={startCall}
+                disabled={phase === 'connecting'}
+                className={`h-16 min-w-[148px] px-7 rounded-[22px] bg-[#6f8462] text-[#fbf8f0] flex items-center justify-center gap-2.5 shadow-[0_16px_32px_-14px_rgba(90,110,75,.9)] active:scale-95 transition ${phase === 'connecting' ? 'opacity-60 animate-pulse' : ''}`}
+                aria-label="拨号"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+                </svg>
+                <span className="text-[14px] tracking-[0.18em] leading-none">拨号</span>
+              </button>
+            </div>
+          )
         )}
       </div>
     </div>
