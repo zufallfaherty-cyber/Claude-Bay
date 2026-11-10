@@ -284,6 +284,31 @@ body {
     radial-gradient(72% 46% at 50% 44%, rgba(252, 251, 247, 0.52) 0%, rgba(252, 251, 247, 0) 100%);
 }
 
+/* ── Profile: night water, white blossoms ──
+   整屏深色背景；玻璃卡片在上面浮着。底部加一层暖白雾，
+   让半透明的导航栏仍有足够对比度，深绿字看得清。 */
+.profile-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('/profile-bg.jpg') center 32% / cover no-repeat;
+  filter: saturate(0.92) contrast(1.02);
+}
+.profile-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(16, 22, 36, 0.34) 0%,
+      rgba(16, 22, 36, 0.10) 22%,
+      rgba(16, 22, 36, 0.00) 46%,
+      rgba(16, 22, 36, 0.16) 68%,
+      rgba(248, 246, 240, 0.34) 88%,
+      rgba(248, 246, 240, 0.62) 100%);
+}
+
 /* ── Study: the shelf itself is the interface ── */
 /* Paper-soft cards for the rooms that open off the shelf */
 .study-card {

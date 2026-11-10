@@ -39,6 +39,7 @@ function App() {
   const isStudy = location.pathname === '/moods'
   const isGames = location.pathname === '/games'
   const isCall = location.pathname === '/call'
+  const isProfile = location.pathname === '/profile'
   // Local-only visual preview (never active in production builds)
   const isPreview = import.meta.env.DEV && new URLSearchParams(location.search).has('preview')
 
@@ -114,6 +115,9 @@ function App() {
           nav — so the glass nav would blur a flat cream strip. Let the scene's
           bottom edge continue behind the nav so its backdrop-blur samples the
           same picture the home page does. */}
+      {/* 我的：整屏夜色白花，卡片是上面的半透明玻璃 */}
+      {isProfile && <div className="profile-bg" aria-hidden="true" />}
+
       {(isStudy || isGames) && (
         <div
           className="scene-under-nav"
