@@ -1493,3 +1493,8 @@
 - **小湾画像保存后白屏（2026.11.10 修复）**：根因是画像编辑用的 `contentEditable` 在编辑期间被浏览器直接改写 DOM，与 React 虚拟 DOM 不一致；点保存切回只读时 React 去 patch 旧节点抛 NotFoundError，整页白屏。修法：给该 div 加 `key={editingPortrait ? 'portrait-edit' : 'portrait-read'}`，切换编辑态时强制重挂，React 不再碰被篡改的节点。全局只有这一处 contentEditable。
 - **Groq 转写打通（2026.11.10）**：Vercel 函数 `api/groq-stt.js` 中转，Vercel 环境变量 `GROQ_API_KEY` 已配；服务器 compose `GROQ_PROXY_URL=https://claude-bay-two.vercel.app/api/groq-stt`。注意后端 Dockerfile 是 `COPY *.js`，改代码后必须 `docker compose up -d --build`，只 `up -d` 不会更新。
 - **Whisper 繁体问题**：Groq Whisper 中文常输出繁体（小灣、能聽見嗎），且加 prompt 会诱导模型模仿 prompt 标点（出现怪括号）。最终方案：不加 prompt，只传 `language=zh`；后端装 `opencc-js`，转写文本先 `t→cn` 转简，再走同音纠正。实测输出「嗨,我是小湾,能听见吗?」。
+- **iOS 通话「有声波没声音」（2026.11.10 排查中）**：
+  - 现象 1：Web Audio（AudioBuffer）播放在 iPhone PWA 里 AnalyserNode 有数据、destination 不出声 → 声波在动却没声音。新音色/新 key 与音频文件无关（`public/voice-test.mp3` 在手机浏览器可正常播放）。
+  - 修法：**播放改回原生 `<audio>` 元素**（系统媒体通道），声波在无频谱数据时用时间动画兜底。改完开场白有声。
+  - 现象 2：按住说话后，下一句又没声。iOS 录音会把 AVAudioSession 切到 PlayAndRecord（输出走听筒/被压低），停止后不自动恢复。正在用"录音结束播放 1 采样静音 buffer 踢回媒体会话"兜底；若无效，下一步方案是录音后显示「点一下继续」按钮，借用户手势强制恢复。
+  - 附带修了 PWA 缓存：`sw.js` 从 cache-first 改 network-first（`bunny-chat-v3`），部署后不再新旧资源混用（用户反馈的字幕大括号/字体乱）。

@@ -363,13 +363,26 @@ export default function CallPage({ currentSessionId }) {
         stream.getTracks().forEach((t) => t.stop())
         const features = summarizeMeter(meterRef.current)
         meterRef.current = null
-        // iOS 录音会把音频会话切走，旧 AudioContext 之后往往只有数据没有声音。
-        // 直接丢弃它，下一次播放由 ensureAudioCtx 重建一个新会话；新会话不可用时
-        // playBase64 会自动回退到原生 <audio>（一定能发声，代价是没有声波）。
+        // iOS 录音会把音频会话切到 PlayAndRecord（输出走听筒/被压低），录音
+        // 结束后系统不会自动切回媒体播放，于是下一句「播放了但没声音」。
+        // 用一段极短的静音 buffer 把会话踢回播放模式，再丢弃旧的播放上下文。
         try { audioCtxRef.current?.close?.() } catch {}
         audioCtxRef.current = null
         analyserRef.current = null
         sourceRef.current = null
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext
+          if (AC) {
+            const kick = new AC()
+            const b = kick.createBuffer(1, 1, 22050)
+            const s = kick.createBufferSource()
+            s.buffer = b
+            s.connect(kick.destination)
+            s.start(0)
+            kick.resume().catch(() => {})
+            setTimeout(() => { try { kick.close() } catch {} }, 1500)
+          }
+        } catch {}
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
         if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }
