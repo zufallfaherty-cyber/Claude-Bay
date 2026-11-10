@@ -126,6 +126,7 @@ export default function CallPage({ currentSessionId }) {
   const [input, setInput] = useState('')
   const [seconds, setSeconds] = useState(demo ? 47 : 0)
   const [error, setError] = useState('')
+  const [credits, setCredits] = useState(null) // ElevenLabs 剩余字符
   const startedAtRef = useRef(demo ? Date.now() - 47 * 1000 : Date.now())
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
@@ -145,6 +146,22 @@ export default function CallPage({ currentSessionId }) {
 
   // 通话页固定用这张照片（不跟随设置里的头像）
   const avatar = '/portrait-call.jpg'
+
+  // 每说一句就刷新一次剩余额度（TTS 按字符扣）
+  async function loadCredits() {
+    try {
+      const r = await fetch(`${API_BASE}/api/call/credits`)
+      const d = await r.json()
+      if (d?.ok && typeof d.remaining === 'number') setCredits(d.remaining)
+    } catch {}
+  }
+  useEffect(() => { loadCredits() }, [])
+
+  function fmtCredits(n) {
+    if (n >= 100000) return `${Math.round(n / 1000)}k`
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+    return String(n)
+  }
 
   // 用起始时间戳算，而不是每秒 +1：切后台时 iOS 会冻结定时器，+1 会少算
   useEffect(() => {
@@ -338,6 +355,7 @@ export default function CallPage({ currentSessionId }) {
       if (data.reply?.en) {
         setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }])
         playBase64(data.reply?.audio)
+        setTimeout(loadCredits, 1500)
       }
       setPhase('active')
     } catch (e) {
@@ -363,6 +381,7 @@ export default function CallPage({ currentSessionId }) {
       if (!res.ok) throw new Error(data.error || '他好像没听清')
       setHistory((h) => [...h, { role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }].slice(-10))
       playBase64(data.reply?.audio)
+      setTimeout(loadCredits, 1500)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -479,6 +498,16 @@ export default function CallPage({ currentSessionId }) {
           每次 new Audio() 都等于一个没被解锁的新元素，录音后尤其播不出声。
           复用同一个元素，点击时解锁一次，之后换 src 就能一直出声。 */}
       <audio ref={audioElRef} preload="auto" playsInline style={{ display: 'none' }} />
+
+      {/* 左上角：ElevenLabs 剩余额度（TTS 按字符扣，通话时能大概知道还能说多久） */}
+      {credits != null && (
+        <div
+          className="absolute left-5 text-[10px] tracking-[0.12em] text-[#8b7f68]/85 pointer-events-none select-none"
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 58px)' }}
+        >
+          剩余 {fmtCredits(credits)} 字符
+        </div>
+      )}
 
       {/* 顶部状态 */}
       <div className="w-full flex items-center justify-between px-6 pt-[max(18px,env(safe-area-inset-top))]">

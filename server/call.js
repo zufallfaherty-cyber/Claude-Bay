@@ -292,6 +292,29 @@ async function synthesize(text, attempt = 0) {
 export function createCallRouter(supabaseAdmin, helpers = {}) {
   const router = express.Router()
 
+  // 剩余额度：ElevenLabs 订阅里 character_count/character_limit（eleven_v4 按字符算）
+  router.get('/credits', async (req, res) => {
+    const key = process.env.ELEVENLABS_API_KEY
+    if (!key) return res.json({ ok: false })
+    try {
+      const r = await fetch(`${EL_BASE}/user/subscription`, {
+        headers: { 'xi-api-key': key },
+      })
+      if (!r.ok) {
+        console.warn(`[Call] 查额度失败 ${r.status}`)
+        return res.json({ ok: false })
+      }
+      const d = await r.json()
+      const limit = Number(d.character_limit) || 0
+      const used = Number(d.character_count) || 0
+      res.setHeader('Cache-Control', 'no-store')
+      res.json({ ok: true, limit, used, remaining: Math.max(0, limit - used) })
+    } catch (e) {
+      console.warn('[Call] 查额度出错:', e.message)
+      res.json({ ok: false })
+    }
+  })
+
   // 开始通话：返回 callId + 开场白（带语音）
   router.post('/start', async (req, res) => {
     try {
