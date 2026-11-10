@@ -9,6 +9,63 @@ function fmt(sec) {
   return `${m}:${s}`
 }
 
+// ── 录音时的声学采样：音量 / 停顿 / 音高 / 底噪，让后端能推断语气和环境 ──
+function startMeter(stream, ctx) {
+  const analyser = ctx.createAnalyser()
+  analyser.fftSize = 1024
+  const src = ctx.createMediaStreamSource(stream)
+  src.connect(analyser) // 只做分析，不接 destination，避免回声
+  const frames = []
+  const t0 = performance.now()
+  const buf = new Float32Array(analyser.fftSize)
+  const timer = setInterval(() => {
+    analyser.getFloatTimeDomainData(buf)
+    let sum = 0
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+    const rms = Math.sqrt(sum / buf.length)
+    let pitch = 0
+    if (rms > 0.008) {
+      const sr = ctx.sampleRate
+      const minLag = Math.floor(sr / 400)
+      const maxLag = Math.floor(sr / 80)
+      let bestCorr = 0
+      let bestLag = 0
+      for (let lag = minLag; lag <= maxLag; lag++) {
+        let corr = 0
+        for (let i = 0; i < buf.length - lag; i++) corr += buf[i] * buf[i + lag]
+        corr /= buf.length - lag
+        if (corr > bestCorr) { bestCorr = corr; bestLag = lag }
+      }
+      if (bestLag && bestCorr > rms * rms * 1.4) pitch = sr / bestLag
+    }
+    frames.push({ rms, pitch, t: performance.now() - t0 })
+  }, 100)
+  return { src, frames, timer }
+}
+
+function summarizeMeter(meter) {
+  if (!meter) return null
+  clearInterval(meter.timer)
+  try { meter.src.disconnect() } catch {}
+  const frames = meter.frames
+  if (frames.length < 3) return null
+  const rmsArr = frames.map((f) => f.rms)
+  const duration_s = frames[frames.length - 1].t / 1000
+  const energy_mean = rmsArr.reduce((a, b) => a + b, 0) / rmsArr.length
+  const energy_var = Math.sqrt(rmsArr.reduce((a, b) => a + (b - energy_mean) ** 2, 0) / rmsArr.length)
+  const sorted = [...rmsArr].sort((a, b) => a - b)
+  const noise_floor = sorted[Math.floor(sorted.length * 0.1)] || 0
+  const peak = sorted[sorted.length - 1] || 0
+  const thresh = Math.max(noise_floor * 2.2, peak * 0.12, 0.004)
+  const pause_ratio = rmsArr.filter((r) => r < thresh).length / rmsArr.length
+  const pitches = frames.map((f) => f.pitch).filter((p) => p > 0)
+  const pitch_mean_hz = pitches.length ? pitches.reduce((a, b) => a + b, 0) / pitches.length : 0
+  const pitch_var = pitches.length
+    ? Math.sqrt(pitches.reduce((a, b) => a + (b - pitch_mean_hz) ** 2, 0) / pitches.length)
+    : 0
+  return { duration_s, energy_mean, energy_var, noise_floor, pause_ratio, pitch_mean_hz, pitch_var }
+}
+
 export default function CallPage({ currentSessionId }) {
   const navigate = useNavigate()
   // 仅开发环境：?demo=1 直接展示通话中的界面，方便截图预览
@@ -35,6 +92,7 @@ export default function CallPage({ currentSessionId }) {
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
   const mediaRef = useRef(null)
+  const meterRef = useRef(null)
   const chunksRef = useRef([])
   const canvasRef = useRef(null)
   const audioCtxRef = useRef(null)
@@ -238,7 +296,7 @@ export default function CallPage({ currentSessionId }) {
     }
   }
 
-  async function sendText(raw, via = 'text') {
+  async function sendText(raw, via = 'text', toneHint = '') {
     const text = String(raw || '').trim()
     if (!text || thinking || transcribing || !callId) return
     setInput('')
@@ -249,7 +307,7 @@ export default function CallPage({ currentSessionId }) {
       const res = await fetch(`${API_BASE}/api/call/turn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ callId, text, via }),
+        body: JSON.stringify({ callId, text, via, toneHint }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '他好像没听清')
@@ -277,11 +335,24 @@ export default function CallPage({ currentSessionId }) {
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
       mediaRef.current = mr
       chunksRef.current = []
+      // 同时采样声学特征（音量/停顿/音高/底噪），随录音一起送去转写
+      meterRef.current = null
+      try {
+        const ctx = ensureAudioCtx()
+        if (ctx) {
+          if (ctx.state === 'suspended') await ctx.resume().catch(() => {})
+          meterRef.current = startMeter(stream, ctx)
+        }
+      } catch (e) {
+        console.warn('[Call] 声学采样不可用，仅转文字', e)
+      }
       mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop())
+        const features = summarizeMeter(meterRef.current)
+        meterRef.current = null
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
-        if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm')
+        if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }
       mr.start()
       setRecording(true)
@@ -297,7 +368,7 @@ export default function CallPage({ currentSessionId }) {
     try { mediaRef.current?.stop() } catch {}
   }
 
-  async function transcribeBlob(blob, mimeType) {
+  async function transcribeBlob(blob, mimeType, features) {
     setTranscribing(true)
     setError('')
     try {
@@ -310,12 +381,12 @@ export default function CallPage({ currentSessionId }) {
       const res = await fetch(`${API_BASE}/api/call/transcribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audioBase64: b64, mimeType }),
+        body: JSON.stringify({ audioBase64: b64, mimeType, features }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '没听清，再说一次？')
       setTranscribing(false)
-      if (data.text) sendText(data.text, 'voice')
+      if (data.text) sendText(data.text, 'voice', data.toneHint)
     } catch (e) {
       setError(e.message)
       setTranscribing(false)

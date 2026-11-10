@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3001
 const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || ''
 let supabaseAdmin = null
-// 他上次主动打电话的时间（内存态，重启清零；只用来做 12 小时冷却）
+// 他上次主动打电话的时间（内存态，重启清零；只用来做 8 小时冷却）
 let lastCallInviteAt = 0
 if (SUPABASE_URL && SUPABASE_SERVICE_ROLE) {
   supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE)
@@ -1876,8 +1876,8 @@ app.post('/api/chat', async (req, res) => {
   // Inject memo (portrait + promises) from Claude's Study
   try { enrichedPrompt += await getStudyContext() } catch {}
 
-  // ── 主动来电：每 6 小时最多一次 ──
-  const callAllowed = Date.now() - lastCallInviteAt > 12 * 60 * 60 * 1000
+  // ── 主动来电：每 8 小时最多一次 ──
+  const callAllowed = Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000
   if (callAllowed) {
     enrichedPrompt += `\n\n[打电话]
 如果你此刻特别想听到她的声音，或者感觉到她此刻很需要你的声音陪伴，可以在整段回复的最后单独加一行 [[CALL]]。

@@ -1473,3 +1473,20 @@
 - 主动来电 12 小时冷却也是内存态，重启清零
 - 来电卡片只在聊天页开着时可见，没有推送通知
 - `chat_messages` 的 role 只有 user/assistant 等，旁白借 assistant 身份存储，靠 `📞` 前缀区分
+
+## 2026.11.10 ElevenLabs 换号 + 主动来电冷却 8 小时
+
+- **换号换 key**：昨晚通话测试把旧账号积分用完，今天换新 ElevenLabs 账号。新 key 创建时勾选：文本转语音（访问）、语音转文本（访问）、音色（读取）、语音生成（访问）；其余全部无权限。
+- 新音色 ID `RAVSDRorrJLHAFZaJiMu`（旧 `oFuqfSOound6bwgUaqnE` 作废）。创建 key 后用 `GET /v1/voices/{id}` 验证 200、`POST /v1/text-to-speech` 验证 200/41KB 有效 mp3。
+- 服务器 `~/docker-compose.yml` 已更新 `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`（备份 `.bak.20261110*`），`docker compose up -d bayapi` 重建，health 200。
+- **语音转文本实测**：服务器没配 `GROQ_API_KEY`，实际走 ElevenLabs Scribe（`/v1/speech-to-text`，model `scribe_v1`）。用 TTS 自产音频回测：「Hi，我是小湾，能听见吗？」识别为「Hi，我是小弯，能听见吗？」，语种判定 zho 0.94。结论：可用，同音人名会错（小湾→小弯），必要时后端加同音纠正。注意 Scribe 消耗 ElevenLabs 额度，省额度可配 Groq（代码已优先走 Groq）。
+- **主动来电冷却 6h → 8h**（代码原本注释写 6h、实际 12h，已统一为 8h，`server/index.js` 1880 行）。scp + 重建 bayapi，线上已生效。
+- **Groq 配不了（2026.11.10 实测）**：香港服务器访问 `api.groq.com` 一律 403 Forbidden（Cloudflare `cf-ray …-HKG`，连不带 Authorization 的请求也 403），是 Groq 的地区封锁，不是 key 无效。因此**不要**把 GROQ_API_KEY 写进 compose——写上去会让转写直接抛错。
+- **转写容错（已上线）**：`call.js` 改为 Groq 失败自动 `console.warn` 并回退 ElevenLabs Scribe，整次转写不再因 Groq 不可用而失败。
+- **同音纠正（已上线）**：新增 `fixSttHomophones()`（`call.js` 顶部），当前规则：`小[弯碗婉丸]`→小湾、`克劳[特得]`→克劳德、`埃利奥特|艾略特`→Elliott。实测转写「Hi，我是小弯，能听见吗？」纠正为「Hi，我是小湾，能听见吗？」。以后发现新的高频错字往 `STT_HOMOPHONE_FIXES` 里加即可。
+- `call.js` 里 `EL_VOICE_ID` 默认值同步改为 `RAVSDRorrJLHAFZaJiMu`。
+- **声学语气/环境线索（2026.11.10，已实现）**：这是 11.09 方案里 ringdonut 的「声学语气分析」，当时只写了分期没开工，今天补上。
+  - 前端 `CallPage.jsx`：录音时用共用 AudioContext + AnalyserNode 每 100ms 采样 `rms/pitch`（自相关估音高），停止时汇总 `duration_s / energy_mean / energy_var / noise_floor / pause_ratio / pitch_mean_hz / pitch_var`，随 `/api/call/transcribe` 一起发。
+  - 后端 `call.js`：`sanitizeVoiceFeatures()` 对不可信数值 clamp；`buildToneHint()` 用规则翻译成中文线索（极轻／偏小／响亮、停顿多／一口气、语速快慢、音调起伏大／平稳、音高偏高、环境吵不吵），返回给前端；`/turn` 把线索作为当轮附注注入，并明确告诉模型「只用它体会状态，不要复述、别提测量/音高」。
+  - 实测：伪造 features 调 `/transcribe`，正常音量返回空线索，轻声+停顿+高起伏返回「声音极轻……停顿很多……音调起伏大……整体音高偏高」。正常语气无异常时不给线索，避免模型过度解读。
+  - 环境只能判断「安静 / 吵」的量级（底噪与说话音量差距），识别不了具体声音（狗叫、雨声）——要具体环境音得上专门的声音分类模型，当前不做。

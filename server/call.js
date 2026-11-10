@@ -8,7 +8,7 @@ import crypto from 'crypto'
 
 const DEFAULT_MODELS = '[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6'
 const EL_BASE = 'https://api.elevenlabs.io/v1'
-const EL_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'oFuqfSOound6bwgUaqnE'
+const EL_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'RAVSDRorrJLHAFZaJiMu'
 const EL_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_v4'
 
 // 内存会话：callId → { sessionId, userId, startedAt, turns, systemPrompt }
@@ -16,6 +16,71 @@ const calls = new Map()
 
 function parseModels(input) {
   return (input || DEFAULT_MODELS).split(',').map(m => m.trim()).filter(Boolean)
+}
+
+// 语音识别同音错字纠正：只处理明确的专有名词，避免误伤普通词
+const STT_HOMOPHONE_FIXES = [
+  [/小[弯碗婉丸]/g, '小湾'],
+  [/克劳[特得]/g, '克劳德'],
+  [/埃利奥特|艾略特/g, 'Elliott'],
+]
+function fixSttHomophones(text) {
+  if (!text) return text
+  let t = text
+  for (const [re, to] of STT_HOMOPHONE_FIXES) t = t.replace(re, to)
+  return t
+}
+
+// ── 声学特征 → 语气/环境线索（前端在录音时采样，这里是服务端清洗 + 翻译）──
+function sanitizeVoiceFeatures(value) {
+  if (!value || typeof value !== 'object') return null
+  const num = (x, min, max) => {
+    const n = Number(x)
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : 0
+  }
+  return {
+    duration_s: num(value.duration_s, 0, 120),
+    energy_mean: num(value.energy_mean, 0, 1),
+    energy_var: num(value.energy_var, 0, 1),
+    noise_floor: num(value.noise_floor, 0, 1),
+    pause_ratio: num(value.pause_ratio, 0, 1),
+    pitch_mean_hz: num(value.pitch_mean_hz, 0, 600),
+    pitch_var: num(value.pitch_var, 0, 300),
+  }
+}
+
+function buildToneHint(f, text) {
+  if (!f || !f.duration_s) return ''
+  const db = (rms) => (rms > 1e-6 ? 20 * Math.log10(rms) : -90)
+  const hints = []
+  const edb = db(f.energy_mean)
+  const fdb = db(f.noise_floor)
+
+  // 音量
+  if (edb < -47) hints.push('声音极轻，几乎是气声或耳语')
+  else if (edb < -39) hints.push('声音比平时小，放得很轻')
+  else if (edb > -10) hints.push('声音很响亮')
+
+  // 节奏 / 停顿
+  if (f.pause_ratio > 0.5) hints.push('停顿很多，断断续续，像在犹豫或没什么力气')
+  else if (f.pause_ratio > 0.35) hints.push('中间停顿偏多')
+  else if (f.pause_ratio < 0.08 && f.duration_s > 2) hints.push('几乎一口气说完，很连贯')
+
+  // 语速（用转写字数 / 时长粗估）
+  const chars = (text || '').replace(/\s/g, '').length
+  const cps = chars / Math.max(f.duration_s, 0.8)
+  if (cps > 6.5) hints.push('语速明显偏快')
+  else if (chars > 2 && cps < 2.2) hints.push('说得比较慢')
+
+  // 音高 / 起伏
+  if (f.pitch_var > 45) hints.push('音调起伏大，情绪外露（撒娇、兴奋或委屈都可能）')
+  else if (f.pitch_var > 0 && f.pitch_var < 12 && f.duration_s > 2) hints.push('音调平稳，情绪收敛')
+  if (f.pitch_mean_hz > 280) hints.push('整体音高偏高')
+
+  // 环境：底噪离说话音量太近 → 房间里不安静
+  if (fdb > -50 && edb - fdb < 9) hints.push('周围环境有点吵，不像安静的室内')
+
+  return hints.join('；')
 }
 
 // 精简版模型降级：失败就换下一个
@@ -274,15 +339,20 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
       if (!apiKey) return res.status(500).json({ error: 'LLM 未配置' })
 
       const via = req.body?.via === 'voice' ? 'voice' : 'text'
-      call.turns.push({ role: 'user', content: String(text).trim(), via })
+      const toneHint = typeof req.body?.toneHint === 'string'
+        ? req.body.toneHint.replace(/\s+/g, ' ').trim().slice(0, 200)
+        : ''
+      call.turns.push({ role: 'user', content: String(text).trim(), via, toneHint })
       const messages = [
         { role: 'system', content: call.systemPrompt },
-        ...call.turns.map(t => ({
-          role: t.role,
-          content: t.via
-            ? `${t.via === 'voice' ? '（她开口说的，语音转成的文字' : '（她打字发的'}）${t.content}`
-            : t.content,
-        })),
+        ...call.turns.map(t => {
+          if (!t.via) return { role: t.role, content: t.content }
+          const prefix = t.via === 'voice' ? '（她开口说的，语音转成的文字' : '（她打字发的'
+          const hint = t.toneHint
+            ? `\n[语音语气线索：${t.toneHint}。这是麦克风测出来的线索，用来体会她此刻的状态；不要复述，也不要提到“线索/测量/音高”这些词，自然回应她的语气就好]`
+            : ''
+          return { role: t.role, content: `${prefix}）${t.content}${hint}` }
+        }),
       ]
 
       const raw = await callLLM(messages, {
@@ -316,45 +386,58 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     if (!buf.length) return res.status(400).json({ error: '录音是空的' })
     if (buf.length > 8 * 1024 * 1024) return res.status(413).json({ error: '录音太长了，控制在 30 秒内' })
 
+    // 兜底转写：ElevenLabs Scribe
+    async function scribeTranscribe() {
+      const elKey = process.env.ELEVENLABS_API_KEY
+      if (!elKey) throw new Error('语音转文字未配置')
+      const fd = new FormData()
+      fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
+      fd.append('model_id', 'scribe_v1')
+      const r = await fetch(`${EL_BASE}/speech-to-text`, {
+        method: 'POST',
+        headers: { 'xi-api-key': elKey },
+        body: fd,
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        const msg = d.detail?.message || `STT ${r.status}`
+        throw new Error(msg.includes('permission') ? '语音转文字权限未开启' : msg)
+      }
+      return d.text || ''
+    }
+
     try {
       const groqKey = process.env.GROQ_API_KEY
       let text = ''
+      let groqFailed = false
 
       if (groqKey) {
-        const fd = new FormData()
-        fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
-        fd.append('model', 'whisper-large-v3-turbo')
-        fd.append('response_format', 'json')
-        const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${groqKey}` },
-          body: fd,
-        })
-        const d = await r.json().catch(() => ({}))
-        if (!r.ok) throw new Error(d.error?.message || `Groq STT ${r.status}`)
-        text = d.text || ''
-      } else {
-        const elKey = process.env.ELEVENLABS_API_KEY
-        if (!elKey) throw new Error('语音转文字未配置')
-        const fd = new FormData()
-        fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
-        fd.append('model_id', 'scribe_v1')
-        const r = await fetch(`${EL_BASE}/speech-to-text`, {
-          method: 'POST',
-          headers: { 'xi-api-key': elKey },
-          body: fd,
-        })
-        const d = await r.json().catch(() => ({}))
-        if (!r.ok) {
-          const msg = d.detail?.message || `STT ${r.status}`
-          throw new Error(msg.includes('permission') ? '语音转文字权限未开启' : msg)
+        try {
+          const fd = new FormData()
+          fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
+          fd.append('model', 'whisper-large-v3-turbo')
+          fd.append('response_format', 'json')
+          const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${groqKey}` },
+            body: fd,
+          })
+          const d = await r.json().catch(() => ({}))
+          if (!r.ok) throw new Error(d.error?.message || `Groq STT ${r.status}`)
+          text = d.text || ''
+        } catch (e) {
+          // Groq 不可用（被封/限流/欠费）时自动退回 Scribe，不让整次转写失败
+          console.warn('[Call] Groq 转写失败，退回 Scribe:', e.message)
+          groqFailed = true
         }
-        text = d.text || ''
       }
 
-      text = text.trim()
+      if (!groqKey || groqFailed) text = await scribeTranscribe()
+
+      text = fixSttHomophones(text.trim())
       if (!text) return res.status(422).json({ error: '没听清，再说一次？' })
-      res.json({ text })
+      const features = sanitizeVoiceFeatures(req.body?.features)
+      res.json({ text, toneHint: buildToneHint(features, text) })
     } catch (err) {
       console.error('[Call] transcribe failed:', err)
       res.status(500).json({ error: err.message })
