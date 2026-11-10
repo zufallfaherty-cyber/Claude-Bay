@@ -826,9 +826,17 @@ ${canCallAgain
         apiBase: localStorage.getItem('api_base') || '',
         apiKey: localStorage.getItem('api_key') || '',
         apiModel: localStorage.getItem('api_model') || '',
-      }, false)
+      }, true) // 真流式：像正常聊天那样逐字出来
       for await (const chunk of stream) {
-        if (chunk.type === 'text') content += chunk.text
+        // 流式过程中就把 [[CALL]] 滤掉，别让她看到标记
+        if (chunk.type === 'text') {
+          content += chunk.text.replace(/\[\[CALL\]\]/g, '')
+          // 边收边渲染，才是逐字打出来的效果
+          messagesRef.current = messagesRef.current.map(m =>
+            m.id === assistantId ? { ...m, content } : m
+          )
+          setMessages([...messagesRef.current])
+        }
         else if (chunk.type === 'invite') invite = true
         else if (chunk.type === 'tools') tools = chunk.tools
         else if (chunk.type === 'error') { content += `❌ 出错了：${chunk.error}`; break }
