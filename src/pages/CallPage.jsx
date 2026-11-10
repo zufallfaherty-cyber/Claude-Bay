@@ -134,8 +134,6 @@ export default function CallPage({ currentSessionId }) {
   const audioCtxRef = useRef(null)
   const analyserRef = useRef(null)
   const sourceRef = useRef(null)
-  // 刚录过音之后，iOS 的 Web Audio 会话不可靠，下一句强制走原生播放（一定能出声）
-  const forceNativeRef = useRef(false)
   const listRef = useRef(null)
 
   // 有新消息就滚到底部
@@ -233,9 +231,9 @@ export default function CallPage({ currentSessionId }) {
           let v
           if (data) {
             v = data[Math.floor(t * data.length * 0.55)] / 255
-          } else {
-            v = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
           }
+          // 原生播放时 analyser 没有数据，用时间驱动让声波保持轻微呼吸感
+          if (!data || v < 0.02) v = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
           const len = 1.9 + v * 18
           const alpha = 0.14 + v * 0.55
           ctx2d.beginPath()
@@ -260,39 +258,17 @@ export default function CallPage({ currentSessionId }) {
     return bytes.buffer
   }
 
-  // 走 Web Audio 解码播放：iOS 上反复 createMediaElementSource 会让部分句子静音
-  //（字幕有、声音没有，且隔一句丢一句），直接播 AudioBuffer 最稳
+  // 只用原生 <audio> 播放。
+  // 历史教训：iOS PWA 里 Web Audio 的 AudioBuffer 播放会「有声波没声音」
+  //（AnalyserNode 有数据、destination 不出声），且录音之后整个音频会话
+  // 会被切走；原生播放器走的是系统媒体通道，和浏览器里放 mp3 一样稳。
+  // 代价：声波没有真实数据，环形退化为时间驱动的轻微起伏。
   async function playBase64(b64) {
     if (!b64) { console.warn('[Call] 没有音频数据'); return }
     try { audioRef.current?.pause() } catch {}
     setSpeaking(true)
     const done = () => setSpeaking(false)
 
-    const ctx = forceNativeRef.current ? null : ensureAudioCtx()
-    forceNativeRef.current = false
-    if (ctx) {
-      try {
-        if (ctx.state !== 'running') {
-          await Promise.race([ctx.resume().catch(() => {}), new Promise(r => setTimeout(r, 600))])
-        }
-        if (ctx.state === 'running') {
-          const buf = await ctx.decodeAudioData(b64ToArrayBuffer(b64))
-          try { sourceRef.current?.stop?.() } catch {}
-          const src = ctx.createBufferSource()
-          src.buffer = buf
-          src.connect(analyserRef.current || ctx.destination)
-          sourceRef.current = src
-          src.onended = done
-          src.start()
-          return
-        }
-        console.warn('[Call] AudioContext 未恢复，退回原生播放', ctx.state)
-      } catch (e) {
-        console.warn('[Call] WebAudio 播放失败，退回原生播放', e)
-      }
-    }
-
-    // 回退：原生 <audio>。不接 analyser —— 接了之后 iOS 有概率整句静音
     let url = ''
     try { url = URL.createObjectURL(new Blob([b64ToArrayBuffer(b64)], { type: 'audio/mpeg' })) }
     catch { url = `data:audio/mpeg;base64,${b64}` }
@@ -394,7 +370,6 @@ export default function CallPage({ currentSessionId }) {
         audioCtxRef.current = null
         analyserRef.current = null
         sourceRef.current = null
-        forceNativeRef.current = true
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
         if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }

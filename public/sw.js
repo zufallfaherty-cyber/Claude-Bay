@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bunny-chat-v2'
+const CACHE_NAME = 'bunny-chat-v3'
 
 const PRECACHE_URLS = [
   '/',
@@ -27,7 +27,9 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch — network-first for API, cache-first for assets
+// Fetch — network-first everywhere (离线时回退缓存)
+// 改成 network-first 之前是 cache-first：每次部署后第一次打开仍是旧版，
+// HTML 和带 hash 的 JS 容易新旧混用，出现样式/字体错乱。现在永远先拿新文件。
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
@@ -35,11 +37,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) {
     return
   }
+  if (event.request.method !== 'GET') return
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request).then((response) => {
-        if (response.ok && event.request.method === 'GET') {
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok) {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, clone)
@@ -47,9 +50,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response
       })
-
-      return cached || fetched
-    })
+      .catch(() => caches.match(event.request))
   )
 })
 
