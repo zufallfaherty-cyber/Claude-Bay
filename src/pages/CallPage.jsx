@@ -130,6 +130,7 @@ export default function CallPage({ currentSessionId }) {
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
   const audioElRef = useRef(null)
+  const envRef = useRef(null) // { env: Float32Array, hop: 秒/格 } 音量包络
   const mediaRef = useRef(null)
   const meterRef = useRef(null)
   const chunksRef = useRef([])
@@ -171,9 +172,10 @@ export default function CallPage({ currentSessionId }) {
 
   useEffect(() => () => { audioRef.current?.pause() }, [])
 
-  // ── 环绕音波：纯时间驱动的装饰动画 ──
-  // 不再接 AnalyserNode：通话页只保留系统播放器这一条音频通道，
-  // 任何 Web Audio 上下文都可能把 iOS 的音频会话切走，导致「有声波没声音」。
+  // ── 环绕音波 ──
+  // 不接 AnalyserNode（会把 iOS 音频会话切走、导致没声音），
+  // 改成离线解码出「音量包络」：播放时按 audio.currentTime 取当前音量，
+  // 声波就跟着他说话的起伏跳。只解码、不接扬声器，安全。
 
   useEffect(() => {
     let raf
@@ -198,8 +200,16 @@ export default function CallPage({ currentSessionId }) {
         for (let i = 0; i < bars; i += 1) {
           const t = i / bars
           const angle = t * Math.PI * 2 - Math.PI / 2
-          const v = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
-          const len = 1.9 + v * 18
+          // 他正在说话时用真实音量包络，其余时间用轻微的时间动画
+          let amp = 0
+          const el = audioElRef.current
+          if (envRef.current && el && !el.paused && !el.ended) {
+            const idx = Math.floor(el.currentTime / envRef.current.hop)
+            amp = envRef.current.env[idx] || 0
+          }
+          const idle = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
+          const v = amp > 0 ? Math.min(1, amp * 1.15) * (0.75 + 0.25 * Math.sin(time / 120 + t * Math.PI * 6)) : idle
+          const len = 1.9 + v * (amp > 0 ? 26 : 18)
           const alpha = 0.14 + v * 0.55
           ctx2d.beginPath()
           ctx2d.strokeStyle = `rgba(116, 136, 102, ${alpha})`
@@ -223,11 +233,43 @@ export default function CallPage({ currentSessionId }) {
     if (!a) return
     // 他正在说话时不要打断
     if (!a.paused && !String(a.src).includes('silence.wav')) return
+    envRef.current = null // 静音阶段别用上一句的包络
     try {
       a.src = '/silence.wav'
       a.currentTime = 0
       a.play().catch(() => {})
     } catch {}
+  }
+
+  // 离线解码出音量包络：每 40ms 一格 RMS，归一化到 0..1。
+  // 用 OfflineAudioContext 只做解码，不连接扬声器，不会碰音频会话。
+  async function computeEnvelope(arrayBuffer) {
+    try {
+      const OC = window.OfflineAudioContext || window.webkitOfflineAudioContext
+      if (!OC) return null
+      const ctx = new OC(1, 1, 22050)
+      const buf = await ctx.decodeAudioData(arrayBuffer.slice(0))
+      const ch = buf.getChannelData(0)
+      const hop = 0.04
+      const step = Math.max(1, Math.floor(buf.sampleRate * hop))
+      const n = Math.ceil(ch.length / step)
+      const env = new Float32Array(n)
+      let max = 0
+      for (let i = 0; i < n; i += 1) {
+        const s = i * step
+        const e = Math.min(ch.length, s + step)
+        let sum = 0
+        let c = 0
+        for (let j = s; j < e; j += 4) { sum += ch[j] * ch[j]; c += 1 }
+        const rms = Math.sqrt(sum / Math.max(1, c))
+        env[i] = rms
+        if (rms > max) max = rms
+      }
+      if (max > 0) for (let i = 0; i < n; i += 1) env[i] = Math.min(1, env[i] / max)
+      return { env, hop }
+    } catch {
+      return null
+    }
   }
 
   function b64ToArrayBuffer(b64) {
@@ -250,9 +292,14 @@ export default function CallPage({ currentSessionId }) {
     try { audio.pause() } catch {}
     setSpeaking(true)
 
+    const bytes = b64ToArrayBuffer(b64)
     let url = ''
-    try { url = URL.createObjectURL(new Blob([b64ToArrayBuffer(b64)], { type: 'audio/mpeg' })) }
+    try { url = URL.createObjectURL(new Blob([bytes], { type: 'audio/mpeg' })) }
     catch { url = `data:audio/mpeg;base64,${b64}` }
+
+    // 声波用的真实音量包络（异步算，算完自然接上）
+    envRef.current = null
+    computeEnvelope(bytes).then((e) => { if (e) envRef.current = e })
 
     const prevUrl = audio.dataset.blob || ''
     audio.dataset.blob = url.startsWith('blob:') ? url : ''
