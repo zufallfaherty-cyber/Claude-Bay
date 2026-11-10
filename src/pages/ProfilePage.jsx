@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import useTiltParallax from '../hooks/useTiltParallax'
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
@@ -61,6 +62,8 @@ const features = [
 
 export default function ProfilePage() {
   const navigate = useNavigate()
+  // 和首页同一套陀螺仪，幅度取最小的一档（3px），像纸片被轻轻推了一下
+  useTiltParallax()
 
   return (
     <div className="relative flex flex-col min-h-full">
@@ -103,7 +106,7 @@ export default function ProfilePage() {
               animate="animate"
               transition={{ delay: 0.05 + i * 0.05, duration: 0.45, ease: [0.32, 0, 0.23, 1] }}
               onClick={() => navigate(f.path)}
-              className="island glass-water shape-island relative pl-4 pr-11 py-4 text-left flex flex-col items-start justify-center min-h-[118px] active:scale-[0.96] transition-transform"
+              className="island glass-water shape-island tilt-layer-1 relative pl-4 pr-11 py-4 text-left flex flex-col items-start justify-center min-h-[118px] active:scale-[0.96] transition-transform"
             >
               <f.Icon className="relative w-[24px] h-[24px] text-white/85" />
               <span className="relative mt-2 text-[14px] leading-tight tracking-[0.06em] text-white/95">{f.label}</span>
