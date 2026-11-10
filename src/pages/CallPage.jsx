@@ -18,14 +18,22 @@ function startMeter(stream, ctx) {
   const frames = []
   const t0 = performance.now()
   const buf = new Float32Array(analyser.fftSize)
+  const freq = new Float32Array(analyser.frequencyBinCount)
   const timer = setInterval(() => {
     analyser.getFloatTimeDomainData(buf)
     let sum = 0
-    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i]
+    let zc = 0
+    for (let i = 0; i < buf.length; i++) {
+      sum += buf[i] * buf[i]
+      if (i > 0 && (buf[i - 1] >= 0) !== (buf[i] >= 0)) zc++
+    }
     const rms = Math.sqrt(sum / buf.length)
+    const zcr = zc / (buf.length - 1)
     let pitch = 0
+    let centroid = 0
     if (rms > 0.008) {
       const sr = ctx.sampleRate
+      // 音高：自相关
       const minLag = Math.floor(sr / 400)
       const maxLag = Math.floor(sr / 80)
       let bestCorr = 0
@@ -37,8 +45,19 @@ function startMeter(stream, ctx) {
         if (corr > bestCorr) { bestCorr = corr; bestLag = lag }
       }
       if (bestLag && bestCorr > rms * rms * 1.4) pitch = sr / bestLag
+      // 音色亮度：频谱质心（低频多 = 低沉，高频多 = 清亮/尖）
+      analyser.getFloatFrequencyData(freq)
+      const binHz = sr / analyser.fftSize
+      let cNum = 0
+      let cDen = 0
+      for (let i = 1; i < freq.length; i++) {
+        const mag = Math.pow(10, freq[i] / 20)
+        cNum += i * binHz * mag
+        cDen += mag
+      }
+      if (cDen > 0) centroid = cNum / cDen
     }
-    frames.push({ rms, pitch, t: performance.now() - t0 })
+    frames.push({ rms, pitch, zcr, centroid, t: performance.now() - t0 })
   }, 100)
   return { src, frames, timer }
 }
@@ -63,7 +82,17 @@ function summarizeMeter(meter) {
   const pitch_var = pitches.length
     ? Math.sqrt(pitches.reduce((a, b) => a + (b - pitch_mean_hz) ** 2, 0) / pitches.length)
     : 0
-  return { duration_s, energy_mean, energy_var, noise_floor, pause_ratio, pitch_mean_hz, pitch_var }
+  const voiced = frames.filter((f) => f.rms > 0.008)
+  const centroid_mean = voiced.length
+    ? voiced.reduce((a, f) => a + (f.centroid || 0), 0) / voiced.length
+    : 0
+  const zcr_mean = voiced.length
+    ? voiced.reduce((a, f) => a + (f.zcr || 0), 0) / voiced.length
+    : 0
+  return {
+    duration_s, energy_mean, energy_var, noise_floor, pause_ratio,
+    pitch_mean_hz, pitch_var, spectral_centroid_hz: centroid_mean, zcr_mean,
+  }
 }
 
 export default function CallPage({ currentSessionId }) {

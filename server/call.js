@@ -46,6 +46,8 @@ function sanitizeVoiceFeatures(value) {
     pause_ratio: num(value.pause_ratio, 0, 1),
     pitch_mean_hz: num(value.pitch_mean_hz, 0, 600),
     pitch_var: num(value.pitch_var, 0, 300),
+    spectral_centroid_hz: num(value.spectral_centroid_hz, 0, 8000),
+    zcr_mean: num(value.zcr_mean, 0, 1),
   }
 }
 
@@ -76,6 +78,17 @@ function buildToneHint(f, text) {
   if (f.pitch_var > 45) hints.push('音调起伏大，情绪外露（撒娇、兴奋或委屈都可能）')
   else if (f.pitch_var > 0 && f.pitch_var < 12 && f.duration_s > 2) hints.push('音调平稳，情绪收敛')
   if (f.pitch_mean_hz > 280) hints.push('整体音高偏高')
+
+  // 音色（粗略倾向，不是声纹识别）：音区 + 亮度 + 气声
+  if (f.pitch_mean_hz > 0) {
+    if (f.pitch_mean_hz < 120) hints.push('音区很低，声音压得比较沉')
+    else if (f.pitch_mean_hz > 300) hints.push('音区偏高，声音比较细')
+  }
+  if (f.spectral_centroid_hz > 0) {
+    if (f.spectral_centroid_hz < 1100) hints.push('音色偏低沉、偏厚')
+    else if (f.spectral_centroid_hz > 2800) hints.push('音色清亮、偏尖')
+  }
+  if (f.zcr_mean > 0.16) hints.push('声音带明显气声或沙哑感')
 
   // 环境：底噪离说话音量太近 → 房间里不安静
   if (fdb > -50 && edb - fdb < 9) hints.push('周围环境有点吵，不像安静的室内')
@@ -407,23 +420,35 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
     }
 
     try {
+      // 香港直连 Groq 会被地区封锁，优先走 GROQ_PROXY_URL（Vercel /api/groq-stt）；
+      // 没有代理时仍可直连（本地/其他地区），两者都失败才退回 Scribe。
+      const groqProxy = process.env.GROQ_PROXY_URL
       const groqKey = process.env.GROQ_API_KEY
       let text = ''
       let groqFailed = false
 
-      if (groqKey) {
+      if (groqProxy || groqKey) {
         try {
-          const fd = new FormData()
-          fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
-          fd.append('model', 'whisper-large-v3-turbo')
-          fd.append('response_format', 'json')
-          const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${groqKey}` },
-            body: fd,
-          })
+          let r
+          if (groqProxy) {
+            r = await fetch(groqProxy, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ audioBase64: buf.toString('base64'), mimeType }),
+            })
+          } else {
+            const fd = new FormData()
+            fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
+            fd.append('model', 'whisper-large-v3-turbo')
+            fd.append('response_format', 'json')
+            r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${groqKey}` },
+              body: fd,
+            })
+          }
           const d = await r.json().catch(() => ({}))
-          if (!r.ok) throw new Error(d.error?.message || `Groq STT ${r.status}`)
+          if (!r.ok) throw new Error(d.error?.message || d.error || `Groq STT ${r.status}`)
           text = d.text || ''
         } catch (e) {
           // Groq 不可用（被封/限流/欠费）时自动退回 Scribe，不让整次转写失败
@@ -432,7 +457,7 @@ export function createCallRouter(supabaseAdmin, helpers = {}) {
         }
       }
 
-      if (!groqKey || groqFailed) text = await scribeTranscribe()
+      if ((!groqProxy && !groqKey) || groqFailed) text = await scribeTranscribe()
 
       text = fixSttHomophones(text.trim())
       if (!text) return res.status(422).json({ error: '没听清，再说一次？' })
