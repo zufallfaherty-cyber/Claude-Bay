@@ -1760,23 +1760,6 @@ app.get('/api/call/cooldown', (_req, res) => {
   })
 })
 
-// ── 未接计数（放服务器：重启即清零，也方便跨端一致）──
-app.post('/api/call/missed/tick', (_req, res) => {
-  const nowMs = Date.now()
-  if (nowMs - missedCallLastAt > 6 * 60 * 60 * 1000) missedCallStreak = 0
-  missedCallStreak++
-  missedCallLastAt = nowMs
-  res.json({ ok: true, streak: missedCallStreak, canCallAgain: missedCallStreak <= 1 })
-})
-
-// 接通成功 = 这一轮结束，次数归零
-app.post('/api/call/missed/reset', (_req, res) => {
-  missedCallStreak = 0
-  missedCallLastAt = 0
-  console.log('[Call] 未接计数已清零')
-  res.json({ ok: true })
-})
-
 // ── 未接来电（旧接口，前端已改走 /api/chat 流式；保留做兜底）──
 // 她没接到他的电话 → 他会知道，第一次没接之后最多再打一次
 app.post('/api/call/missed', async (req, res) => {
@@ -1789,13 +1772,9 @@ app.post('/api/call/missed', async (req, res) => {
     const hour = now.getUTCHours()
     const timeStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 周${'日一二三四五六'[now.getDay()]} ${String(hour).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
-    // 6 小时没再发生就当作新的一轮
-    if (nowMs - missedCallLastAt > 6 * 60 * 60 * 1000) missedCallStreak = 0
-    missedCallStreak++
-    missedCallLastAt = nowMs
-    // 第一次没接之后，最多再打一次
-    const canCallAgain = missedCallStreak <= 1
-    console.log(`[Call] 未接来电 #${missedCallStreak}${canCallAgain ? '（还能再打）' : '（这轮不再打了）'}`)
+    // 未接只回一条消息，不再打第二次（这个旧接口只做兜底）
+    const canCallAgain = false
+    console.log('[Call] 未接来电：只留一条消息，不再打')
 
     let personality = ''
     try { personality = await getUserPersonality() } catch {}
@@ -2009,8 +1988,9 @@ app.post('/api/chat', async (req, res) => {
   const {
     messages, systemPrompt, temperature = 0.8, maxTokens = 6000,
     apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true,
-    // 未接来电：前端把语境塞进 system，后端补一条用户消息，并允许无视 8 小时冷却打回来
-    extraPrompt = '', forcedUserTurn = '', allowCall = false,
+    // 未接来电：前端把语境塞进 system，后端补一条用户消息；
+    // suppressCall = 这一轮绝对不弹来电（挂断后只发一条消息）
+    extraPrompt = '', forcedUserTurn = '', allowCall = false, suppressCall = false,
   } = req.body
 
   if (!messages || !Array.isArray(messages)) {
@@ -2056,8 +2036,8 @@ app.post('/api/chat', async (req, res) => {
   // Inject memo (portrait + promises) from Claude's Study
   try { enrichedPrompt += await getStudyContext() } catch {}
 
-  // ── 主动来电：每 8 小时最多一次。allowCall 是「未接之后再打」，不受冷却限制 ──
-  const callAllowed = allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000
+  // ── 主动来电：每 8 小时最多一次。suppressCall 的这一轮完全不提打电话 ──
+  const callAllowed = !suppressCall && (allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000)
   console.log(`[Chat] callAllowed=${callAllowed} stream=${isStream} models=${models.join(',')} promptLen=${enrichedPrompt.length} msgs=${messages.length}`)
   if (callAllowed) {
     enrichedPrompt += `\n\n[打电话]

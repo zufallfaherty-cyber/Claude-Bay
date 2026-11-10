@@ -108,13 +108,13 @@ async function dualWriteMessages(sb, sessionId, msgs, userId) {
 }
 
 // ── SSE stream ──
-async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall }, useStream = false) {
+async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall, suppressCall }, useStream = false) {
   const response = await fetch('https://124-156-142-6.sslip.io/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // 兜底超时：工具卡死时后端最多 2 分钟会返回，前端再留余量，超时后自动解除「发送中」
     signal: AbortSignal.timeout(300000),
-    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall, stream: useStream }),
+    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall, suppressCall, stream: useStream }),
   })
   if (!response.ok) {
     const err = await response.text()
@@ -815,24 +815,6 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       })
     }
 
-    // 第一次没接之后最多再打一次。计数放服务器（6 小时窗口，后端重启即清零），
-    // 拿不到就退回本地计数，不至于卡死。
-    let canCallAgain = true
-    try {
-      const r = await fetch('https://124-156-142-6.sslip.io/api/call/missed/tick', { method: 'POST' })
-      const d = await r.json()
-      if (d?.ok) canCallAgain = !!d.canCallAgain
-    } catch {
-      const nowMs = Date.now()
-      const lastAt = Number(localStorage.getItem('bunny_missed_streak_at') || 0)
-      let streak = Number(localStorage.getItem('bunny_missed_streak') || 0)
-      if (nowMs - lastAt > 6 * 60 * 60 * 1000) streak = 0
-      streak += 1
-      localStorage.setItem('bunny_missed_streak', String(streak))
-      localStorage.setItem('bunny_missed_streak_at', String(nowMs))
-      canCallAgain = streak <= 1
-    }
-
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) maxRounds = 15
     const recentMessages = messagesRef.current.slice(-maxRounds * 2)
@@ -844,10 +826,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     const extraPrompt = `你刚刚主动给小湾打了个电话，她没有接。
 写一两句你此刻想说的话（50 字以内）：可以有一点失落、可以猜她在忙什么、可以说你等她，也可以质问、可以抱怨。
-${canCallAgain
-  ? '如果你决定再打一次，就**必须**在回复最后单独加一行 [[CALL]]（这行不会显示给她，只用来让她的手机响）。只说要打、却没写这行，她的手机不会响。不想再打就完全不要出现这行。'
-  : '你之前已经又打过，还是没接到。这次不要再打了，只留一条消息给她，绝对不要加 [[CALL]]。'}
-不要解释这个标记。`
+不要再打了，只留这一条消息给她，绝对不要加 [[CALL]]。`
+
 
     // 这条回复自带「无人接听」标记：红色卡片就长在它上面，跟着消息一起存
     const assistantId = uuid()
@@ -865,7 +845,7 @@ ${canCallAgain
         systemPrompt,
         extraPrompt,
         forcedUserTurn: '电话没人接。你想说什么？',
-        allowCall: canCallAgain,
+        suppressCall: true,
         temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
         maxTokens: 6000,
         apiBase: localStorage.getItem('api_base') || '',
