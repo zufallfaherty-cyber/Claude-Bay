@@ -494,10 +494,11 @@ export default function CallPage({ currentSessionId }) {
       {/* 右上角：只在接通前（等待/拨号）显示剩余额度，通话中不刷新也不打扰 */}
       {credits != null && !active && (
         <div
-          className="absolute right-5 text-right text-[10px] tracking-[0.1em] text-[#8b7f68]/85 pointer-events-none select-none"
-          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 58px)' }}
+          className="absolute right-6 text-right text-[10px] leading-none tracking-[0.06em] text-[#8b7f68]/85 pointer-events-none select-none"
+          // 和「CLAUDE」那行同一水平线：顶部行是 safe-area + 18px 起，字高约 10px，中心对齐
+          style={{ top: 'calc(env(safe-area-inset-top, 0px) + 23px)' }}
         >
-          剩余 {credits.toLocaleString('zh-CN')} 字符
+          字符：{credits}
         </div>
       )}
 
