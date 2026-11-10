@@ -130,6 +130,7 @@ export default function CallPage({ currentSessionId }) {
   const startedAtRef = useRef(demo ? Date.now() - 47 * 1000 : Date.now())
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
+  const audioElRef = useRef(null)
   const mediaRef = useRef(null)
   const meterRef = useRef(null)
   const chunksRef = useRef([])
@@ -219,9 +220,13 @@ export default function CallPage({ currentSessionId }) {
   // 在用户手势里放一段极轻的静音，换取 iOS 对后续程序化播放的许可。
   // 接听/拨号、松开发送都会调用。
   function primeAudio() {
+    const a = audioElRef.current
+    if (!a) return
+    // 他正在说话时不要打断
+    if (!a.paused && !String(a.src).includes('silence.wav')) return
     try {
-      const a = new Audio('/silence.wav')
-      a.volume = 0.02
+      a.src = '/silence.wav'
+      a.currentTime = 0
       a.play().catch(() => {})
     } catch {}
   }
@@ -241,24 +246,27 @@ export default function CallPage({ currentSessionId }) {
   async function playBase64(b64) {
     if (!b64) { console.warn('[Call] 没有音频数据'); return }
     setLastAudio(b64)
-    try { audioRef.current?.pause() } catch {}
+    const audio = audioElRef.current
+    if (!audio) { console.warn('[Call] 播放器元素还没挂上'); return }
+    audioRef.current = audio
+    try { audio.pause() } catch {}
     setSpeaking(true)
-    const done = () => setSpeaking(false)
 
     let url = ''
     try { url = URL.createObjectURL(new Blob([b64ToArrayBuffer(b64)], { type: 'audio/mpeg' })) }
     catch { url = `data:audio/mpeg;base64,${b64}` }
-    const audio = new Audio(url)
-    audioRef.current = audio
-    audio.preload = 'auto'
+
+    const prevUrl = audio.dataset.blob || ''
+    audio.dataset.blob = url.startsWith('blob:') ? url : ''
     audio.onended = () => {
-      done()
-      if (url.startsWith('blob:')) { try { URL.revokeObjectURL(url) } catch {} }
+      setSpeaking(false)
+      if (prevUrl) { try { URL.revokeObjectURL(prevUrl) } catch {} }
     }
     audio.onerror = audio.onended
+    audio.src = url
     audio.play().catch((e) => {
       console.warn('[Call] 播放失败', e)
-      audio.onended()
+      audio.onended?.()
     })
   }
 
@@ -333,6 +341,9 @@ export default function CallPage({ currentSessionId }) {
       mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop())
+        // 麦克风真正关掉之后再「占」一次播放器，把会话从录音态切回播放态。
+        // 这次不在手势里，但元素已经在点击时被解锁过，切 src 播放是允许的。
+        setTimeout(() => primeAudio(), 120)
         const features = summarizeMeter(meterRef.current)
         meterRef.current = null
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
@@ -413,6 +424,11 @@ export default function CallPage({ currentSessionId }) {
         WebkitTouchCallout: 'none',
       }}
     >
+      {/* 全程只用一个播放器元素：iOS 的音频「激活」是按元素记的，
+          每次 new Audio() 都等于一个没被解锁的新元素，录音后尤其播不出声。
+          复用同一个元素，点击时解锁一次，之后换 src 就能一直出声。 */}
+      <audio ref={audioElRef} preload="auto" playsInline style={{ display: 'none' }} />
+
       {/* 顶部状态 */}
       <div className="w-full flex items-center justify-between px-6 pt-[max(18px,env(safe-area-inset-top))]">
         <button
