@@ -20,7 +20,7 @@ function parseModels(input) {
 
 // 语音识别同音错字纠正：只处理明确的专有名词，避免误伤普通词
 const STT_HOMOPHONE_FIXES = [
-  [/小[弯碗婉丸]/g, '小湾'],
+  [/小[弯灣碗婉丸]/g, '小湾'],
   [/克劳[特得]/g, '克劳德'],
   [/埃利奥特|艾略特/g, 'Elliott'],
 ]
