@@ -815,15 +815,23 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       })
     }
 
-    // 同一轮 6 小时内有效；第一次没接之后最多再打一次
-    const nowMs = Date.now()
-    const lastAt = Number(localStorage.getItem('bunny_missed_streak_at') || 0)
-    let streak = Number(localStorage.getItem('bunny_missed_streak') || 0)
-    if (nowMs - lastAt > 6 * 60 * 60 * 1000) streak = 0
-    streak += 1
-    localStorage.setItem('bunny_missed_streak', String(streak))
-    localStorage.setItem('bunny_missed_streak_at', String(nowMs))
-    const canCallAgain = streak <= 1
+    // 第一次没接之后最多再打一次。计数放服务器（6 小时窗口，后端重启即清零），
+    // 拿不到就退回本地计数，不至于卡死。
+    let canCallAgain = true
+    try {
+      const r = await fetch('https://124-156-142-6.sslip.io/api/call/missed/tick', { method: 'POST' })
+      const d = await r.json()
+      if (d?.ok) canCallAgain = !!d.canCallAgain
+    } catch {
+      const nowMs = Date.now()
+      const lastAt = Number(localStorage.getItem('bunny_missed_streak_at') || 0)
+      let streak = Number(localStorage.getItem('bunny_missed_streak') || 0)
+      if (nowMs - lastAt > 6 * 60 * 60 * 1000) streak = 0
+      streak += 1
+      localStorage.setItem('bunny_missed_streak', String(streak))
+      localStorage.setItem('bunny_missed_streak_at', String(nowMs))
+      canCallAgain = streak <= 1
+    }
 
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) maxRounds = 15

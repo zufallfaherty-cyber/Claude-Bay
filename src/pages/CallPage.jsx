@@ -394,6 +394,7 @@ export default function CallPage({ currentSessionId }) {
         localStorage.removeItem('bunny_missed_streak')
         localStorage.removeItem('bunny_missed_streak_at')
       } catch {}
+      fetch('https://124-156-142-6.sslip.io/api/call/missed/reset', { method: 'POST' }).catch(() => {})
       setPhase('active')
     } catch (e) {
       setError(e.message)

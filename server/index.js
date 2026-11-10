@@ -1760,6 +1760,23 @@ app.get('/api/call/cooldown', (_req, res) => {
   })
 })
 
+// ── 未接计数（放服务器：重启即清零，也方便跨端一致）──
+app.post('/api/call/missed/tick', (_req, res) => {
+  const nowMs = Date.now()
+  if (nowMs - missedCallLastAt > 6 * 60 * 60 * 1000) missedCallStreak = 0
+  missedCallStreak++
+  missedCallLastAt = nowMs
+  res.json({ ok: true, streak: missedCallStreak, canCallAgain: missedCallStreak <= 1 })
+})
+
+// 接通成功 = 这一轮结束，次数归零
+app.post('/api/call/missed/reset', (_req, res) => {
+  missedCallStreak = 0
+  missedCallLastAt = 0
+  console.log('[Call] 未接计数已清零')
+  res.json({ ok: true })
+})
+
 // ── 未接来电（旧接口，前端已改走 /api/chat 流式；保留做兜底）──
 // 她没接到他的电话 → 他会知道，第一次没接之后最多再打一次
 app.post('/api/call/missed', async (req, res) => {
