@@ -1,6 +1,8 @@
 # Claude&Bay 项目进度
 
-## 最后更新：2026年11月07日
+## 最后更新：2026年11月11日
+
+> 日志按时间往下追加：**新内容在文件最下面**（不是最上面）。
 
 ---
 
@@ -1510,3 +1512,4 @@
 - **通话页剩余额度（2026.11.10）**：后端新增 `GET /api/call/credits`（`call.js`），走 ElevenLabs `/v1/user/subscription`，返回 `{limit, used, remaining}`。注意：查询额度需要 key 有「用户 → 访问」权限（`user_read`），否则 401 `missing_permissions`；用户已在后台补勾。前端 `CallPage.jsx` 只在**接通前**左上角显示「剩余 xx k 字符」，通话中不显示、不刷新，避免打扰。
 - **「我的」页改版（2026.11.11）**：背景换成 `art/d9fad7e2…png`（夜色白花），压成 `public/profile-bg.jpg`（852×1846，119KB，原图 1.7MB）。背景层放在 `App.jsx` 的 `isProfile` 分支（`.profile-bg`），和首页 `.home-water-bg` 同一套做法：absolute 铺满、main 在上面滚——不能放在 ProfilePage 里，否则背景会跟着内容滚走。四张功能卡用首页的 `glass-water` + `shape-island`，图标直接用首页那两颗（月亮/文件夹），工具箱新画简洁扳手、设置新画齿轮；箭头沿用首页 `ArrowCircle`（右侧垂直居中）。卡片不倾斜。底部原本加过暖白雾让导航可读，用户嫌「逐渐变白」难看，改为底部轻压暗角；导航栏在 `/profile` 单独加深文字（`BottomNav` 里 `onProfile`）。
 - **白屏排查（2026.11.11）**：用户反馈更新后「黑屏后白屏」。实测线上 HTML/JS/CSS 都正常返回（`index-CILMWCxa.js` 可下载），Vercel 部署没问题，判断是手机端旧缓存混新文件。已做两件事：`sw.js` 缓存版本 v3 → **v4**（强制清旧缓存）；给 `<Routes>` 包了 `ErrorBoundary`（`src/components/ErrorBoundary.jsx`），以后页面崩了会显示错误文字 + 「重新加载」按钮，不再无声白屏。
+- **「我的」页陀螺仪（2026.11.11）**：`ProfilePage.jsx` 调 `useTiltParallax()`，卡片用 `tilt-layer-1`（3px，首页卡片是 `tilt-layer-3` 即 8px），`.profile-bg` 反向 `-2px`，做出比首页更轻的视差。iOS 仍需要一次触摸才会给陀螺仪权限。
