@@ -134,6 +134,8 @@ export default function CallPage({ currentSessionId }) {
   const audioCtxRef = useRef(null)
   const analyserRef = useRef(null)
   const sourceRef = useRef(null)
+  // 刚录过音之后，iOS 的 Web Audio 会话不可靠，下一句强制走原生播放（一定能出声）
+  const forceNativeRef = useRef(false)
   const listRef = useRef(null)
 
   // 有新消息就滚到底部
@@ -266,7 +268,8 @@ export default function CallPage({ currentSessionId }) {
     setSpeaking(true)
     const done = () => setSpeaking(false)
 
-    const ctx = ensureAudioCtx()
+    const ctx = forceNativeRef.current ? null : ensureAudioCtx()
+    forceNativeRef.current = false
     if (ctx) {
       try {
         if (ctx.state !== 'running') {
@@ -384,9 +387,14 @@ export default function CallPage({ currentSessionId }) {
         stream.getTracks().forEach((t) => t.stop())
         const features = summarizeMeter(meterRef.current)
         meterRef.current = null
-        // 录音会话结束后让播放用的 AudioContext 回到前台，iOS 才不会整段静音
-        const pctx = audioCtxRef.current
-        if (pctx && pctx.state === 'suspended') pctx.resume().catch(() => {})
+        // iOS 录音会把音频会话切走，旧 AudioContext 之后往往只有数据没有声音。
+        // 直接丢弃它，下一次播放由 ensureAudioCtx 重建一个新会话；新会话不可用时
+        // playBase64 会自动回退到原生 <audio>（一定能发声，代价是没有声波）。
+        try { audioCtxRef.current?.close?.() } catch {}
+        audioCtxRef.current = null
+        analyserRef.current = null
+        sourceRef.current = null
+        forceNativeRef.current = true
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
         if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }
