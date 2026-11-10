@@ -207,10 +207,16 @@ export default function CallPage({ currentSessionId }) {
             const idx = Math.floor(el.currentTime / envRef.current.hop)
             amp = envRef.current.env[idx] || 0
           }
-          const idle = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
-          const v = amp > 0 ? Math.min(1, amp * 1.15) * (0.75 + 0.25 * Math.sin(time / 120 + t * Math.PI * 6)) : idle
-          const len = 1.9 + v * (amp > 0 ? 26 : 18)
-          const alpha = 0.14 + v * 0.55
+          // 安静的呼吸动画要看得见：两层正弦叠加、幅度给足
+          const idle =
+            0.34 +
+            0.16 * Math.sin(time / 1100 + t * Math.PI * 4) +
+            0.08 * Math.sin(time / 430 + t * Math.PI * 9)
+          const v = amp > 0
+            ? Math.min(1, amp * 1.2) * (0.72 + 0.28 * Math.sin(time / 120 + t * Math.PI * 6))
+            : idle
+          const len = 2.6 + v * (amp > 0 ? 30 : 28)
+          const alpha = 0.18 + v * 0.62
           ctx2d.beginPath()
           ctx2d.strokeStyle = `rgba(116, 136, 102, ${alpha})`
           ctx2d.lineWidth = 1.8
