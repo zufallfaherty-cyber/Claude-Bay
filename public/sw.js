@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bunny-chat-v3'
+const CACHE_NAME = 'bunny-chat-v4'
 
 const PRECACHE_URLS = [
   '/',

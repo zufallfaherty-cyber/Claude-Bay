@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { migrateLocalToSupabase } from './lib/migrate'
 import BottomNav from './components/BottomNav'
+import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
 import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
@@ -130,6 +131,7 @@ function App() {
         ? 'flex-1 min-h-0 overflow-hidden relative z-10'
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
+        <ErrorBoundary key={location.pathname}>
         <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route
@@ -156,6 +158,7 @@ function App() {
             <Route path="/profile/tools" element={<PageWrapper><ToolboxPage /></PageWrapper>} />
             <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
         </Routes>
+        </ErrorBoundary>
       </main>
 
       {!isChat && !isCall && <BottomNav />}
