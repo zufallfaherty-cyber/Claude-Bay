@@ -451,6 +451,10 @@ export default function CallPage({ currentSessionId }) {
       className="relative h-full flex flex-col items-center bg-[#efe9dc] overflow-hidden"
       style={{
         backgroundImage: 'radial-gradient(circle at 50% 18%, #faf5ea 0%, #e8dfcd 58%, #d9cdb6 100%)',
+        // 通话页禁止长按选中/复制，避免按住说话时弹出文本选择菜单
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+        WebkitTouchCallout: 'none',
       }}
     >
       {/* 顶部状态 */}
@@ -581,6 +585,7 @@ export default function CallPage({ currentSessionId }) {
                 onKeyDown={(e) => { if (e.key === 'Enter') send() }}
                 placeholder="说点什么…"
                 className="flex-1 bg-transparent text-[14px] text-[#4b4232] placeholder:text-[#a89d88] outline-none py-1.5"
+                style={{ WebkitUserSelect: 'text', userSelect: 'text', WebkitTouchCallout: 'default' }}
                 disabled={thinking}
               />
               <button
@@ -619,7 +624,8 @@ export default function CallPage({ currentSessionId }) {
                       : 'bg-[#6f8462] text-[#fbf8f0] shadow-[0_16px_32px_-14px_rgba(90,110,75,.9)] active:scale-95'
                   }`}
                   aria-label="按住说话"
-                  style={{ touchAction: 'none' }}
+                  onContextMenu={(e) => e.preventDefault()}
+                  style={{ touchAction: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
                   {recording ? (
                     <span className="w-5 h-5 rounded-[5px] bg-white animate-pulse" />
