@@ -387,10 +387,12 @@ export default function CallPage({ currentSessionId }) {
         playBase64(data.reply?.audio)
       }
       connectedRef.current = true
-      // 接通了：之前那条「无人接听」的状态作废
+      // 接通了：之前那条「无人接听」的状态作废，未接计数也归零（下次还能打）
       try {
         localStorage.removeItem('bunny_call_missed')
         localStorage.removeItem('bunny_call_invite')
+        localStorage.removeItem('bunny_missed_streak')
+        localStorage.removeItem('bunny_missed_streak_at')
       } catch {}
       setPhase('active')
     } catch (e) {
