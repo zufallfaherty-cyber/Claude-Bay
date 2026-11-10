@@ -157,12 +157,6 @@ export default function CallPage({ currentSessionId }) {
   }
   useEffect(() => { loadCredits() }, [])
 
-  function fmtCredits(n) {
-    if (n >= 100000) return `${Math.round(n / 1000)}k`
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-    return String(n)
-  }
-
   // 用起始时间戳算，而不是每秒 +1：切后台时 iOS 会冻结定时器，+1 会少算
   useEffect(() => {
     if (phase !== 'active') return
@@ -497,13 +491,13 @@ export default function CallPage({ currentSessionId }) {
           复用同一个元素，点击时解锁一次，之后换 src 就能一直出声。 */}
       <audio ref={audioElRef} preload="auto" playsInline style={{ display: 'none' }} />
 
-      {/* 左上角：只在接通前（等待/拨号）显示剩余额度，通话中不刷新也不打扰 */}
+      {/* 右上角：只在接通前（等待/拨号）显示剩余额度，通话中不刷新也不打扰 */}
       {credits != null && !active && (
         <div
-          className="absolute left-5 text-[10px] tracking-[0.12em] text-[#8b7f68]/85 pointer-events-none select-none"
+          className="absolute right-5 text-right text-[10px] tracking-[0.1em] text-[#8b7f68]/85 pointer-events-none select-none"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 58px)' }}
         >
-          剩余 {fmtCredits(credits)} 字符
+          剩余 {credits.toLocaleString('zh-CN')} 字符
         </div>
       )}
 
@@ -514,7 +508,10 @@ export default function CallPage({ currentSessionId }) {
           className="w-9 h-9 shrink-0 rounded-full bg-white/45 backdrop-blur flex items-center justify-center text-[#5f5442]"
           aria-label="返回"
         >
-          ‹
+          {/* 用图标而不是「‹」字符：字符基线会让它看起来偏下，垂直居中得靠 padding 猜 */}
+          <svg width="9" height="15" viewBox="0 0 9 15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7.2 1.3 1.4 7.5l5.8 6.2" />
+          </svg>
         </button>
         <div className="flex-1 min-w-0 text-center">
           <div className="text-[15px] tracking-[0.28em] text-[#5f5442]">CLAUDE</div>
