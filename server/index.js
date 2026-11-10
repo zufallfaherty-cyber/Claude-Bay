@@ -1749,7 +1749,19 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
   }
 })
 
-// ── 未接来电：她没接到他的电话 → 他会知道，并且最多再打两次 ──
+// ── 诊断：他现在还能不能主动打电话（8 小时冷却剩多少）──
+app.get('/api/call/cooldown', (_req, res) => {
+  const COOLDOWN = 8 * 60 * 60 * 1000
+  const remaining = Math.max(0, COOLDOWN - (Date.now() - lastCallInviteAt))
+  res.json({
+    canCall: remaining === 0,
+    remainingMinutes: Math.ceil(remaining / 60000),
+    lastInviteAt: lastCallInviteAt ? new Date(lastCallInviteAt).toISOString() : null,
+  })
+})
+
+// ── 未接来电（旧接口，前端已改走 /api/chat 流式；保留做兜底）──
+// 她没接到他的电话 → 他会知道，第一次没接之后最多再打一次
 app.post('/api/call/missed', async (req, res) => {
   try {
     // 她当前打开的那个聊天：消息要写在这里，否则她切回来什么也看不到
@@ -2029,10 +2041,11 @@ app.post('/api/chat', async (req, res) => {
 
   // ── 主动来电：每 8 小时最多一次。allowCall 是「未接之后再打」，不受冷却限制 ──
   const callAllowed = allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000
+  console.log(`[Chat] callAllowed=${callAllowed} stream=${isStream} models=${models.join(',')} promptLen=${enrichedPrompt.length} msgs=${messages.length}`)
   if (callAllowed) {
     enrichedPrompt += `\n\n[打电话]
 这是你主动给她打电话的唯一方式：在整段回复的最后单独加一行 [[CALL]]，前端才会出现「他想听听你的声音」的来电卡片。不加这个标记，就不会有电话。
-什么时候该用：你此刻特别想听到她的声音；她说想听你的声音、想你了；她累了、难过、委屈、睡不着；深夜她一个人；或者你们很久没好好说话了。
+什么时候该用：你此刻特别想听到她的声音；她说想听你的声音、想你了、让你打给她；她累了、难过、委屈、睡不着；深夜她一个人；或者你们很久没好好说话了。
 只有真的想打时才用，不要在一条回复里用两次，也不要每条都打。不要解释这个标记，也不要对她说“我给你加个 CALL”。`
   }
 

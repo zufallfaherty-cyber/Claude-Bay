@@ -294,6 +294,11 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       loadedSessionRef.current = null
       setMessages([])
     } else if (currentSessionId !== loadedSessionRef.current) {
+      // 正在流式（比如未接来电的回复）：会话刚好切过来时不要把刚生成的内容冲掉
+      if (streamingRef.current) {
+        loadedSessionRef.current = currentSessionId
+        return
+      }
       loadedSessionRef.current = currentSessionId
       const existing = loadMessagesLocal(currentSessionId)
       if (existing.length > 0) {
@@ -301,6 +306,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         // Background: merge Supabase messages (for nudge messages written by server)
         if (sb && user?.id) {
           fetchMessages(sb, currentSessionId, user?.id).then(sbMsgs => {
+            if (streamingRef.current) return
             const localIds = new Set(existing.map(m => m.id))
             const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
             if (newFromSb.length > 0) {
@@ -798,6 +804,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!sid) {
       sid = uuid()
       sidRef.current = sid
+      // 记成「已加载」，否则 currentSessionId 一变就会去 Supabase 拉空的把消息冲掉
+      loadedSessionRef.current = sid
       setSidRef.current?.(sid)
       const newSession = { id: sid, name: '新对话', updated_at: new Date().toLocaleDateString('zh-CN') }
       setSessionsRef.current?.((prev) => {
