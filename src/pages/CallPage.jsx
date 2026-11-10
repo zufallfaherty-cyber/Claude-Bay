@@ -134,6 +134,7 @@ export default function CallPage({ currentSessionId }) {
   const chunksRef = useRef([])
   const canvasRef = useRef(null)
   const listRef = useRef(null)
+  const kickRef = useRef(null)
 
   // 有新消息就滚到底部
   useEffect(() => {
@@ -336,6 +337,14 @@ export default function CallPage({ currentSessionId }) {
   function stopRec() {
     if (!recording) return
     setRecording(false)
+    // 关键：必须在这个「用户手势」里播一点声音。iOS 录音结束后音频会话
+    // 停在 PlayAndRecord，之后程序化播放（他那句回复）会没声音；
+    // 手势内放一段 0.15 秒静音，把会话切回媒体播放。
+    try {
+      const kick = new Audio('/silence.wav')
+      kickRef.current = kick
+      kick.play().catch(() => {})
+    } catch {}
     try { mediaRef.current?.stop() } catch {}
   }
 
