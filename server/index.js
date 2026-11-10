@@ -1828,7 +1828,7 @@ ${chatContext ? '\n最近聊天记录：\n' + chatContext : ''}${studyCtx || ''}
 你刚刚主动给小湾打了个电话，她没有接。
 写一两句你此刻想说的话（50 字以内）：可以有一点失落、可以猜她在忙什么、可以说你等她，也可以质问、可以抱怨。
 ${canCallAgain
-  ? '如果你还想再试一次，在最后单独加一行 [[CALL]]（这会让她的手机再次出现你的来电）；不想再打就别加。'
+  ? '如果你决定再打一次，就**必须**在回复最后单独加一行 [[CALL]]（这行不会显示给她，只用来让她的手机响）。只说要打、却没写这行，她的手机不会响。不想再打就完全不要出现这行。'
   : '你之前已经又打过，还是没接到。这次不要再打了，只留一条消息给她，绝对不要加 [[CALL]]。'}
 不要解释这个标记。`
 
@@ -2156,6 +2156,11 @@ app.post('/api/chat', async (req, res) => {
           // skip
         }
       }
+    }
+
+    // 诊断：未接再打场景（allowCall）看模型到底有没有输出标记
+    if (allowCall || fullText.includes('[[CALL]]')) {
+      console.log(`[Chat] allowCall=${allowCall} callAllowed=${callAllowed} callTag=${fullText.includes('[[CALL]]')} tail=${JSON.stringify(fullText.slice(-80))}`)
     }
 
     if (fullText.includes('[[CALL]]') && callAllowed) {
