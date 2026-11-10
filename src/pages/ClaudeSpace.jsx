@@ -256,6 +256,10 @@ export default function ClaudeSpace() {
 
                 <div className={`portrait-sheet ${editingPortrait ? 'is-editing' : ''}`}>
                   <div
+                    // key 随编辑态切换：contentEditable 期间浏览器会直接改写 DOM，
+                    // 和 React 的虚拟 DOM 对不上，切换回只读时 React 去 patch 会抛
+                    // NotFoundError 导致整页白屏。换 key 强制重挂，React 就不碰旧节点了。
+                    key={editingPortrait ? 'portrait-edit' : 'portrait-read'}
                     ref={portraitEditorRef}
                     className={`portrait-text ${editingPortrait ? 'is-editing' : ''}`}
                     contentEditable={editingPortrait}
