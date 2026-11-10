@@ -10,7 +10,12 @@ function fmt(sec) {
 }
 
 // ── 录音时的声学采样：音量 / 停顿 / 音高 / 底噪，让后端能推断语气和环境 ──
-function startMeter(stream, ctx) {
+// 注意：必须用独立 AudioContext。共用播放用的 ctx 会让 iOS 把整个音频会话
+// 切到录音模式，导致之后的通话播放只有声波没有声音（且页面内无法恢复）。
+function startMeter(stream) {
+  const AC = window.AudioContext || window.webkitAudioContext
+  if (!AC) return null
+  const ctx = new AC()
   const analyser = ctx.createAnalyser()
   analyser.fftSize = 1024
   const src = ctx.createMediaStreamSource(stream)
@@ -59,13 +64,15 @@ function startMeter(stream, ctx) {
     }
     frames.push({ rms, pitch, zcr, centroid, t: performance.now() - t0 })
   }, 100)
-  return { src, frames, timer }
+  return { ctx, src, frames, timer }
 }
 
 function summarizeMeter(meter) {
   if (!meter) return null
   clearInterval(meter.timer)
   try { meter.src.disconnect() } catch {}
+  // 立刻关掉录音专用的 AudioContext，让 iOS 回到正常播放的音频会话
+  try { meter.ctx.close().catch(() => {}) } catch {}
   const frames = meter.frames
   if (frames.length < 3) return null
   const rmsArr = frames.map((f) => f.rms)
@@ -364,14 +371,11 @@ export default function CallPage({ currentSessionId }) {
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
       mediaRef.current = mr
       chunksRef.current = []
-      // 同时采样声学特征（音量/停顿/音高/底噪），随录音一起送去转写
+      // 同时采样声学特征（音量/停顿/音高/底噪），随录音一起送去转写。
+      // startMeter 会自己建独立 AudioContext，不碰播放用的那个。
       meterRef.current = null
       try {
-        const ctx = ensureAudioCtx()
-        if (ctx) {
-          if (ctx.state === 'suspended') await ctx.resume().catch(() => {})
-          meterRef.current = startMeter(stream, ctx)
-        }
+        meterRef.current = startMeter(stream)
       } catch (e) {
         console.warn('[Call] 声学采样不可用，仅转文字', e)
       }
@@ -380,6 +384,9 @@ export default function CallPage({ currentSessionId }) {
         stream.getTracks().forEach((t) => t.stop())
         const features = summarizeMeter(meterRef.current)
         meterRef.current = null
+        // 录音会话结束后让播放用的 AudioContext 回到前台，iOS 才不会整段静音
+        const pctx = audioCtxRef.current
+        if (pctx && pctx.state === 'suspended') pctx.resume().catch(() => {})
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
         if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }
