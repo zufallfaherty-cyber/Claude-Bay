@@ -126,6 +126,7 @@ export default function CallPage({ currentSessionId }) {
   const [input, setInput] = useState('')
   const [seconds, setSeconds] = useState(demo ? 47 : 0)
   const [error, setError] = useState('')
+  const [lastAudio, setLastAudio] = useState('')
   const startedAtRef = useRef(demo ? Date.now() - 47 * 1000 : Date.now())
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
@@ -216,6 +217,16 @@ export default function CallPage({ currentSessionId }) {
     return () => cancelAnimationFrame(raf)
   }, [])
 
+  // 在用户手势里放一段极轻的静音，换取 iOS 对后续程序化播放的许可。
+  // 接听/拨号、松开发送都会调用。
+  function primeAudio() {
+    try {
+      const a = new Audio('/silence.wav')
+      a.volume = 0.02
+      a.play().catch(() => {})
+    } catch {}
+  }
+
   function b64ToArrayBuffer(b64) {
     const bin = atob(b64)
     const bytes = new Uint8Array(bin.length)
@@ -230,6 +241,7 @@ export default function CallPage({ currentSessionId }) {
   // 代价：声波没有真实数据，环形退化为时间驱动的轻微起伏。
   async function playBase64(b64) {
     if (!b64) { console.warn('[Call] 没有音频数据'); return }
+    setLastAudio(b64)
     try { audioRef.current?.pause() } catch {}
     setSpeaking(true)
     const done = () => setSpeaking(false)
@@ -252,6 +264,7 @@ export default function CallPage({ currentSessionId }) {
   }
 
   async function startCall() {
+    primeAudio() // 在点击手势里解锁音频，开场白才能自动出声
     setPhase('connecting')
     setError('')
     try {
@@ -518,6 +531,21 @@ export default function CallPage({ currentSessionId }) {
           <p className="mt-3 mx-auto text-center text-[12px] text-[#a05a45] bg-white/50 rounded-full px-4 py-2">{error}</p>
         )}
       </div>
+
+      {/* 重播兜底：点一下这个按钮，一定在用户手势里播放，iOS 挡不住。
+          自动播放偶尔没声时，靠它补救。 */}
+      {active && lastAudio && (
+        <button
+          onClick={() => { primeAudio(); playBase64(lastAudio) }}
+          className="mx-auto mb-2 flex items-center gap-1.5 rounded-full bg-white/55 backdrop-blur px-3.5 py-1.5 text-[11px] tracking-[0.1em] text-[#6b7d5c] active:scale-95 transition"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 5 6 9H2v6h4l5 4V5z" />
+            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+          </svg>
+          没声音？点这里重播
+        </button>
+      )}
 
       {/* 底部 */}
       <div
