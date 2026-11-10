@@ -10,8 +10,10 @@ function fmt(sec) {
 }
 
 // ── 录音时的声学采样：音量 / 停顿 / 音高 / 底噪，让后端能推断语气和环境 ──
-// 注意：必须用独立 AudioContext。共用播放用的 ctx 会让 iOS 把整个音频会话
-// 切到录音模式，导致之后的通话播放只有声波没有声音（且页面内无法恢复）。
+// ⚠️ 暂时停用（startRec 里不再调用）：iOS 上录音期间创建 AudioContext 会让
+// 音频会话停在录音态，导致灵动岛麦克风不消失、整通电话没声音。
+// 等播放链路稳定后再用开关恢复；恢复正常后把下面的 eslint 注释删掉。
+// eslint-disable-next-line no-unused-vars
 function startMeter(stream) {
   const AC = window.AudioContext || window.webkitAudioContext
   if (!AC) return null
@@ -131,9 +133,6 @@ export default function CallPage({ currentSessionId }) {
   const meterRef = useRef(null)
   const chunksRef = useRef([])
   const canvasRef = useRef(null)
-  const audioCtxRef = useRef(null)
-  const analyserRef = useRef(null)
-  const sourceRef = useRef(null)
   const listRef = useRef(null)
 
   // 有新消息就滚到底部
@@ -171,34 +170,9 @@ export default function CallPage({ currentSessionId }) {
 
   useEffect(() => () => { audioRef.current?.pause() }, [])
 
-  // ── 环绕音波：把播放中的音频接进 AnalyserNode，逐帧画环形频谱 ──
-  function ensureAudioCtx() {
-    try {
-      if (!audioCtxRef.current) {
-        const AC = window.AudioContext || window.webkitAudioContext
-        if (!AC) return null
-        audioCtxRef.current = new AC()
-        const analyser = audioCtxRef.current.createAnalyser()
-        analyser.fftSize = 512
-        analyser.smoothingTimeConstant = 0.8
-        analyser.connect(audioCtxRef.current.destination)
-        analyserRef.current = analyser
-      }
-      // iOS 必须在用户手势里放一点声音，后面的程序化播放才不会被拦
-      try {
-        if (!audioCtxRef.current.__unlocked) {
-          const buf = audioCtxRef.current.createBuffer(1, 1, 22050)
-          const src = audioCtxRef.current.createBufferSource()
-          src.buffer = buf
-          src.connect(audioCtxRef.current.destination)
-          src.start(0)
-          audioCtxRef.current.__unlocked = true
-        }
-      } catch {}
-      if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume().catch(() => {})
-      return audioCtxRef.current
-    } catch { return null }
-  }
+  // ── 环绕音波：纯时间驱动的装饰动画 ──
+  // 不再接 AnalyserNode：通话页只保留系统播放器这一条音频通道，
+  // 任何 Web Audio 上下文都可能把 iOS 的音频会话切走，导致「有声波没声音」。
 
   useEffect(() => {
     let raf
@@ -219,21 +193,11 @@ export default function CallPage({ currentSessionId }) {
         const cy = size / 2
         const baseR = 84
         const bars = 64
-        let data = null
-        if (analyserRef.current) {
-          data = new Uint8Array(analyserRef.current.frequencyBinCount)
-          analyserRef.current.getByteFrequencyData(data)
-        }
 
         for (let i = 0; i < bars; i += 1) {
           const t = i / bars
           const angle = t * Math.PI * 2 - Math.PI / 2
-          let v
-          if (data) {
-            v = data[Math.floor(t * data.length * 0.55)] / 255
-          }
-          // 原生播放时 analyser 没有数据，用时间驱动让声波保持轻微呼吸感
-          if (!data || v < 0.02) v = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
+          const v = 0.10 + 0.05 * Math.sin(time / 900 + t * Math.PI * 4)
           const len = 1.9 + v * 18
           const alpha = 0.14 + v * 0.55
           ctx2d.beginPath()
@@ -287,7 +251,6 @@ export default function CallPage({ currentSessionId }) {
   }
 
   async function startCall() {
-    ensureAudioCtx() // 在用户手势里创建，iOS 才允许出声音
     setPhase('connecting')
     setError('')
     try {
@@ -350,39 +313,15 @@ export default function CallPage({ currentSessionId }) {
       const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined)
       mediaRef.current = mr
       chunksRef.current = []
-      // 同时采样声学特征（音量/停顿/音高/底噪），随录音一起送去转写。
-      // startMeter 会自己建独立 AudioContext，不碰播放用的那个。
+      // 声学采样暂时关闭：录音期间再建 AudioContext 会让 iOS 的音频会话
+      // 一直停在录音态（灵动岛麦克风不消失、之后整通电话没声音）。
+      // startMeter/summarizeMeter 先保留，等声音链路稳定后再以开关方式启用。
       meterRef.current = null
-      try {
-        meterRef.current = startMeter(stream)
-      } catch (e) {
-        console.warn('[Call] 声学采样不可用，仅转文字', e)
-      }
       mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop())
         const features = summarizeMeter(meterRef.current)
         meterRef.current = null
-        // iOS 录音会把音频会话切到 PlayAndRecord（输出走听筒/被压低），录音
-        // 结束后系统不会自动切回媒体播放，于是下一句「播放了但没声音」。
-        // 用一段极短的静音 buffer 把会话踢回播放模式，再丢弃旧的播放上下文。
-        try { audioCtxRef.current?.close?.() } catch {}
-        audioCtxRef.current = null
-        analyserRef.current = null
-        sourceRef.current = null
-        try {
-          const AC = window.AudioContext || window.webkitAudioContext
-          if (AC) {
-            const kick = new AC()
-            const b = kick.createBuffer(1, 1, 22050)
-            const s = kick.createBufferSource()
-            s.buffer = b
-            s.connect(kick.destination)
-            s.start(0)
-            kick.resume().catch(() => {})
-            setTimeout(() => { try { kick.close() } catch {} }, 1500)
-          }
-        } catch {}
         const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' })
         if (blob.size > 800) transcribeBlob(blob, mime || 'audio/webm', features)
       }
@@ -616,7 +555,6 @@ export default function CallPage({ currentSessionId }) {
                   onPointerUp={(e) => { e.preventDefault(); stopRec() }}
                   onPointerCancel={(e) => { e.preventDefault(); stopRec() }}
                   onPointerLeave={() => { if (recording) stopRec() }}
-                  onContextMenu={(e) => e.preventDefault()}
                   disabled={thinking || transcribing}
                   className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-150 disabled:opacity-40 ${
                     recording
