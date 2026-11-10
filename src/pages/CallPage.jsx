@@ -355,7 +355,6 @@ export default function CallPage({ currentSessionId }) {
       if (data.reply?.en) {
         setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }])
         playBase64(data.reply?.audio)
-        setTimeout(loadCredits, 1500)
       }
       setPhase('active')
     } catch (e) {
@@ -381,7 +380,6 @@ export default function CallPage({ currentSessionId }) {
       if (!res.ok) throw new Error(data.error || '他好像没听清')
       setHistory((h) => [...h, { role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }].slice(-10))
       playBase64(data.reply?.audio)
-      setTimeout(loadCredits, 1500)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -499,8 +497,8 @@ export default function CallPage({ currentSessionId }) {
           复用同一个元素，点击时解锁一次，之后换 src 就能一直出声。 */}
       <audio ref={audioElRef} preload="auto" playsInline style={{ display: 'none' }} />
 
-      {/* 左上角：ElevenLabs 剩余额度（TTS 按字符扣，通话时能大概知道还能说多久） */}
-      {credits != null && (
+      {/* 左上角：只在接通前（等待/拨号）显示剩余额度，通话中不刷新也不打扰 */}
+      {credits != null && !active && (
         <div
           className="absolute left-5 text-[10px] tracking-[0.12em] text-[#8b7f68]/85 pointer-events-none select-none"
           style={{ top: 'calc(env(safe-area-inset-top, 0px) + 58px)' }}
