@@ -387,7 +387,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         .catch(() => {})
     }
     fetchNudges()
-    const interval = setInterval(fetchNudges, 3 * 60 * 1000)
+    // 30 秒一拉：未接来电/他主动发的消息要尽快出现在聊天里（模型生成要几秒，
+    // 原来 3 分钟一次，她切回来会觉得「他什么都没说」）
+    const interval = setInterval(fetchNudges, 30 * 1000)
     return () => clearInterval(interval)
   }, [])
 

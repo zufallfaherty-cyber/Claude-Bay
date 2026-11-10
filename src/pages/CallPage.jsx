@@ -213,7 +213,14 @@ export default function CallPage({ currentSessionId }) {
       try { localStorage.setItem('bunny_call_missed', String(Date.now())) } catch {}
       const url = `${API_BASE}/api/call/missed`
       try {
-        fetch(url, { method: 'POST', keepalive: true })
+        // 带上当前聊天，他的话会写进她正打开的这个对话
+        const sid = localStorage.getItem('bunny_current_session') || ''
+        fetch(url, {
+          method: 'POST',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: sid }),
+        })
           .then((r) => r.json())
           .then((d) => {
             if (d?.invite) localStorage.setItem('bunny_call_invite', '1')

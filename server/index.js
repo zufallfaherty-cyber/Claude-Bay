@@ -1750,8 +1750,10 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
 })
 
 // ── 未接来电：她没接到他的电话 → 他会知道，并且最多再打两次 ──
-app.post('/api/call/missed', async (_req, res) => {
+app.post('/api/call/missed', async (req, res) => {
   try {
+    // 她当前打开的那个聊天：消息要写在这里，否则她切回来什么也看不到
+    const reqSessionId = String(req.body?.sessionId || '')
     const nowMs = Date.now()
     const utcNow = new Date()
     const now = new Date(utcNow.getTime() + 8 * 60 * 60 * 1000)
@@ -1825,27 +1827,44 @@ ${canCallAgain
         const { data: settings } = await supabaseAdmin.from('user_settings').select('user_id').limit(1).single()
         const uid = settings?.user_id
         if (uid) {
-          // 写进最近的真实聊天（不建 💌 新 session，和 nudge 一致）
-          const { data: recentSessions } = await supabaseAdmin
-            .from('chat_sessions')
-            .select('id, name')
-            .eq('user_id', uid)
-            .not('name', 'ilike', '💌%')
-            .order('updated_at', { ascending: false })
-            .limit(1)
+          // 优先写进她当时打开的那个聊天：她切回来立刻能看到
+          if (reqSessionId) {
+            const { data: own } = await supabaseAdmin
+              .from('chat_sessions')
+              .select('id')
+              .eq('id', reqSessionId)
+              .eq('user_id', uid)
+              .maybeSingle()
+            if (own?.id) targetSessionId = own.id
+          }
 
-          if (recentSessions && recentSessions.length > 0) {
-            targetSessionId = recentSessions[0].id
+          if (targetSessionId) {
             await supabaseAdmin.from('chat_sessions')
               .update({ updated_at: new Date().toISOString() })
               .eq('id', targetSessionId)
           } else {
-            targetSessionId = crypto.randomUUID()
-            await supabaseAdmin.from('chat_sessions').insert({
-              id: targetSessionId, user_id: uid,
-              name: '新对话',
-              updated_at: new Date().toISOString(),
-            })
+            // 前端没给或对不上：退回最近的真实聊天（不建 💌 新 session，和 nudge 一致）
+            const { data: recentSessions } = await supabaseAdmin
+              .from('chat_sessions')
+              .select('id, name')
+              .eq('user_id', uid)
+              .not('name', 'ilike', '💌%')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+
+            if (recentSessions && recentSessions.length > 0) {
+              targetSessionId = recentSessions[0].id
+              await supabaseAdmin.from('chat_sessions')
+                .update({ updated_at: new Date().toISOString() })
+                .eq('id', targetSessionId)
+            } else {
+              targetSessionId = crypto.randomUUID()
+              await supabaseAdmin.from('chat_sessions').insert({
+                id: targetSessionId, user_id: uid,
+                name: '新对话',
+                updated_at: new Date().toISOString(),
+              })
+            }
           }
 
           await supabaseAdmin.from('chat_messages').insert({
