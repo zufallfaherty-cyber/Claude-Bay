@@ -157,6 +157,28 @@ async function* streamChat(messages, { systemPrompt, temperature, maxTokens, api
   }
 }
 
+// 没人接的那通：作为聊天里的一条记录（跟着消息走，切页面回来也还在）
+function MissedCallCard() {
+  const avatar = localStorage.getItem('avatar_claude') || ''
+  return (
+    <div className="flex gap-2 items-start mt-3.5">
+      <div className="chat-avatar w-7 h-7 rounded-full shrink-0 flex items-center justify-center overflow-hidden border border-white/80 bg-white/85 text-[13px]">
+        {avatar.startsWith('data:')
+          ? <img src={avatar} alt="" className="w-full h-full object-cover" />
+          : (avatar || '🌿')}
+      </div>
+      <div className="rounded-[16px] rounded-tl-[6px] px-3.5 py-2 text-left bg-[#f9e4de]/85 border border-[#d98d7d]/30">
+        <span className="flex items-center gap-2 text-[13px] text-[#b8584a]">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" style={{ transform: 'rotate(135deg)' }}>
+            <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+          </svg>
+          无人接听
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function ChatPage({ currentSessionId, setCurrentSessionId, sessions, setSessions }) {
   const navigate = useNavigate()
   const { supabase, user } = useAuth()
@@ -229,6 +251,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         // Also enrich from Supabase in background (merge messages saved by server/nudge, don't replace local)
         if (sb && user?.id) {
           fetchMessages(sb, bestSid, user?.id).then(sbMsgs => {
+            // 正在流式（比如未接来电的那句）就别覆盖，否则刚生成的消息会被冲掉
+            if (streamingRef.current) return
             if (sbMsgs.length > 0) {
               const localIds = new Set(bestMsgs.map(m => m.id))
               const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
@@ -254,6 +278,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           const lastSid = lastRealSession ? lastRealSession.id : sbSessions[0]?.id
           if (lastSid) {
             fetchMessages(sb, lastSid, user?.id).then(sbMsgs => {
+              if (streamingRef.current) return
               if (sbMsgs.length > 0) {
                 const capped = sbMsgs.slice(-MAX_LOADED_MSGS)
                 saveMessagesLocal(lastSid, capped)
@@ -354,7 +379,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
                     const merged = [...currentMsgs, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
                     const capped = merged.slice(-MAX_LOADED_MSGS)
                     saveMessagesLocal(targetSid, capped)
-                    if (targetSid === currentSid) {
+                    if (targetSid === currentSid && !streamingRef.current) {
                       setMessages(capped)
                     }
                   }
@@ -808,8 +833,12 @@ ${canCallAgain
   : '你之前已经又打过，还是没接到。这次不要再打了，只留一条消息给她，绝对不要加 [[CALL]]。'}
 不要解释这个标记。`
 
+    // 这条回复自带「无人接听」标记：红色卡片就长在它上面，跟着消息一起存
     const assistantId = uuid()
-    messagesRef.current = [...messagesRef.current, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]
+    messagesRef.current = [...messagesRef.current, {
+      id: assistantId, role: 'assistant', content: '', timestamp: Date.now(),
+      missedCall: Date.now(),
+    }]
     setMessages(messagesRef.current)
 
     let content = ''
@@ -867,9 +896,8 @@ ${canCallAgain
     } catch {}
     if (!t0 || Date.now() - t0 > 6 * 60 * 60 * 1000) return
     missedHandledRef.current = true
-    setCallMissedAt(t0)
-    // 等本地消息加载完再发起，避免他那条被后来的 setMessages 覆盖
-    const timer = setTimeout(() => { handleMissedCall() }, 1200)
+    // 占位消息里带 missedCall 标记，红色卡片会立刻跟着出现
+    const timer = setTimeout(() => { handleMissedCall() }, 300)
     return () => clearTimeout(timer)
   }, [handleMissedCall])
 
@@ -990,7 +1018,7 @@ ${canCallAgain
               const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
               const prev = messages[i - 1]
               const isContinuation = !!prev && prev.role === msg.role && (msg.timestamp - prev.timestamp) < 5 * 60 * 1000
-              return (
+              const bubble = (
                 <ChatBubble
                   key={msg.id}
                   role={msg.role}
@@ -1003,10 +1031,14 @@ ${canCallAgain
                   onRegenerate={handleRegenerate}
                 />
               )
+              // 未接来电：红色卡片长在他这句回复的上方
+              return msg.missedCall
+                ? [<MissedCallCard key={`missed-${msg.id}`} />, bubble]
+                : bubble
             })
           )}
-          {/* 没接的那通：卡片不消失，变红显示「无人接听」 */}
-          {callMissedAt > 0 && (
+          {/* 预览用（?misseddemo）；真实情况卡片跟着他那条回复走 */}
+          {callMissedAt > 0 && !messages.some(m => m.missedCall) && (
             <div className="flex gap-2 items-start mt-3.5">
               <div className="chat-avatar w-7 h-7 rounded-full shrink-0 flex items-center justify-center overflow-hidden border border-white/80 bg-white/85 text-[13px]">
                 {(() => {
