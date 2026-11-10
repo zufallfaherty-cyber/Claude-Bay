@@ -126,8 +126,6 @@ export default function CallPage({ currentSessionId }) {
   const [input, setInput] = useState('')
   const [seconds, setSeconds] = useState(demo ? 47 : 0)
   const [error, setError] = useState('')
-  const [lastAudio, setLastAudio] = useState('')
-  const [needTap, setNeedTap] = useState(false)
   const startedAtRef = useRef(demo ? Date.now() - 47 * 1000 : Date.now())
   const speakingRef = useRef(false)
   const audioRef = useRef(null)
@@ -246,7 +244,6 @@ export default function CallPage({ currentSessionId }) {
   // 代价：声波没有真实数据，环形退化为时间驱动的轻微起伏。
   async function playBase64(b64) {
     if (!b64) { console.warn('[Call] 没有音频数据'); return }
-    setLastAudio(b64)
     const audio = audioElRef.current
     if (!audio) { console.warn('[Call] 播放器元素还没挂上'); return }
     audioRef.current = audio
@@ -286,7 +283,7 @@ export default function CallPage({ currentSessionId }) {
       startedAtRef.current = Date.now()
       setCallId(data.callId)
       if (data.reply?.en) {
-        setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh }])
+        setHistory([{ role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }])
         playBase64(data.reply?.audio)
       }
       setPhase('active')
@@ -311,9 +308,7 @@ export default function CallPage({ currentSessionId }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '他好像没听清')
-      setHistory((h) => [...h, { role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh }].slice(-10))
-      // 语音输入之后 iOS 常常把回复播到没声的通道上，把这句的重播按钮做显眼
-      setNeedTap(via === 'voice')
+      setHistory((h) => [...h, { role: 'assistant', en: data.reply.display || data.reply.en, zh: data.reply.zh, audio: data.reply?.audio }].slice(-10))
       playBase64(data.reply?.audio)
     } catch (e) {
       setError(e.message)
@@ -516,7 +511,12 @@ export default function CallPage({ currentSessionId }) {
                   {m.text}
                 </p>
               ) : (
-                <div key={i} className="text-center">
+                <div
+                  key={i}
+                  // 点哪句就重播哪句：句子上存着这条语音的音频
+                  onClick={() => { if (m.audio) { primeAudio(); playBase64(m.audio) } }}
+                  className={`text-center ${m.audio ? 'cursor-pointer active:opacity-60 transition-opacity' : ''}`}
+                >
                   <p
                     className="text-[18px] leading-[1.55] text-[#4b4232]"
                     style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
@@ -545,25 +545,6 @@ export default function CallPage({ currentSessionId }) {
           <p className="mt-3 mx-auto text-center text-[12px] text-[#a05a45] bg-white/50 rounded-full px-4 py-2">{error}</p>
         )}
       </div>
-
-      {/* 重播兜底：点一下这个按钮，一定在用户手势里播放，iOS 挡不住。
-          自动播放偶尔没声时，靠它补救。 */}
-      {active && lastAudio && (
-        <button
-          onClick={() => { primeAudio(); setNeedTap(false); playBase64(lastAudio) }}
-          className={`mx-auto mb-2 flex items-center gap-1.5 rounded-full backdrop-blur transition active:scale-95 ${
-            needTap
-              ? 'bg-[#6f8462] text-white px-4 py-2 text-[12px] tracking-[0.12em] shadow-[0_10px_24px_-12px_rgba(90,110,75,.9)] animate-pulse'
-              : 'bg-white/55 text-[#6b7d5c] px-3.5 py-1.5 text-[11px] tracking-[0.1em]'
-          }`}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 5 6 9H2v6h4l5 4V5z" />
-            <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-          </svg>
-          {needTap ? '点这里听他说' : '没声音？点这里重播'}
-        </button>
-      )}
 
       {/* 底部 */}
       <div
