@@ -294,8 +294,7 @@ body {
   pointer-events: none;
   background: url('/profile-bg.jpg') center 32% / cover no-repeat;
   filter: saturate(0.92) contrast(1.02);
-  /* 背景朝卡片反方向轻微漂移，和首页同一套视差，幅度更小 */
-  translate: calc(var(--tilt-x, 0) * -2px) calc(var(--tilt-y, 0) * -2px);
+  /* 背景保持不动，只有卡片轻微漂 —— 动的是玻璃，不是画面 */
 }
 .profile-bg::after {
   content: '';
