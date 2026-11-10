@@ -135,7 +135,6 @@ export default function CallPage({ currentSessionId }) {
   const chunksRef = useRef([])
   const canvasRef = useRef(null)
   const listRef = useRef(null)
-  const kickRef = useRef(null)
 
   // 有新消息就滚到底部
   useEffect(() => {
@@ -351,13 +350,9 @@ export default function CallPage({ currentSessionId }) {
     if (!recording) return
     setRecording(false)
     // 关键：必须在这个「用户手势」里播一点声音。iOS 录音结束后音频会话
-    // 停在 PlayAndRecord，之后程序化播放（他那句回复）会没声音；
-    // 手势内放一段 0.15 秒静音，把会话切回媒体播放。
-    try {
-      const kick = new Audio('/silence.wav')
-      kickRef.current = kick
-      kick.play().catch(() => {})
-    } catch {}
+    // 停在 PlayAndRecord，之后程序化播放（他那句回复）会没声音。
+    // 这一次点击是用户的 click 手势，在里面播 0.15 秒极轻声，把会话踢回媒体播放。
+    primeAudio()
     try { mediaRef.current?.stop() } catch {}
   }
 
@@ -588,17 +583,17 @@ export default function CallPage({ currentSessionId }) {
 
               <div className="flex flex-col items-center">
                 <button
-                  onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startRec() }}
-                  onPointerUp={(e) => { e.preventDefault(); stopRec() }}
-                  onPointerCancel={(e) => { e.preventDefault(); stopRec() }}
-                  onPointerLeave={() => { if (recording) stopRec() }}
+                  // 点击开始录音，再点一下发送。
+                  // 不用「按住说话」：iOS 上 pointerup 不算音频解锁手势，
+                  // click 才算——这样停止录音的这一次点击可以把音频会话踢回播放。
+                  onClick={() => { recording ? stopRec() : startRec() }}
                   disabled={thinking || transcribing}
                   className={`w-16 h-16 rounded-full flex items-center justify-center transition-all duration-150 disabled:opacity-40 ${
                     recording
                       ? 'bg-[#b8584a] text-white scale-95 shadow-[0_0_0_10px_rgba(184,88,74,.16),0_16px_30px_-12px_rgba(150,70,55,.8)]'
                       : 'bg-[#6f8462] text-[#fbf8f0] shadow-[0_16px_32px_-14px_rgba(90,110,75,.9)] active:scale-95'
                   }`}
-                  aria-label="按住说话"
+                  aria-label={recording ? '点击发送' : '点击录音'}
                   onContextMenu={(e) => e.preventDefault()}
                   style={{ touchAction: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                 >
@@ -612,7 +607,7 @@ export default function CallPage({ currentSessionId }) {
                   )}
                 </button>
                 <span className="mt-2 text-[10px] tracking-[0.18em] text-[#8b7f68]">
-                  {recording ? '松开发送' : transcribing ? '识别中…' : '按住说话'}
+                  {recording ? '点击发送' : transcribing ? '识别中…' : '点击录音'}
                 </span>
               </div>
             </div>
