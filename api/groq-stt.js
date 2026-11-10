@@ -31,9 +31,9 @@ export default async function handler(req, res) {
     fd.append('file', new Blob([buf], { type: mimeType }), 'audio.m4a')
     fd.append('model', 'whisper-large-v3-turbo')
     fd.append('response_format', 'json')
-    // Whisper 中文偶尔输出繁体/同音错字，用 prompt 引导成简体并给出常用人名
+    // 只指定语种；不要加 prompt——实测会诱导 Whisper 模仿 prompt 的标点，输出怪括号。
+    // 繁体输出由后端 opencc 统一转简体。
     fd.append('language', 'zh')
-    fd.append('prompt', '以下是普通话简体中文的亲密对话。常用人名：小湾（不要写成小弯、小灣）、Claude（克劳德）。')
 
     const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',

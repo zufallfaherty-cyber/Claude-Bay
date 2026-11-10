@@ -1491,3 +1491,5 @@
   - 实测：伪造 features 调 `/transcribe`，正常音量返回空线索，轻声+停顿+高起伏返回「声音极轻……停顿很多……音调起伏大……整体音高偏高」。正常语气无异常时不给线索，避免模型过度解读。
   - 环境只能判断「安静 / 吵」的量级（底噪与说话音量差距），识别不了具体声音（狗叫、雨声）——要具体环境音得上专门的声音分类模型，当前不做。
 - **小湾画像保存后白屏（2026.11.10 修复）**：根因是画像编辑用的 `contentEditable` 在编辑期间被浏览器直接改写 DOM，与 React 虚拟 DOM 不一致；点保存切回只读时 React 去 patch 旧节点抛 NotFoundError，整页白屏。修法：给该 div 加 `key={editingPortrait ? 'portrait-edit' : 'portrait-read'}`，切换编辑态时强制重挂，React 不再碰被篡改的节点。全局只有这一处 contentEditable。
+- **Groq 转写打通（2026.11.10）**：Vercel 函数 `api/groq-stt.js` 中转，Vercel 环境变量 `GROQ_API_KEY` 已配；服务器 compose `GROQ_PROXY_URL=https://claude-bay-two.vercel.app/api/groq-stt`。注意后端 Dockerfile 是 `COPY *.js`，改代码后必须 `docker compose up -d --build`，只 `up -d` 不会更新。
+- **Whisper 繁体问题**：Groq Whisper 中文常输出繁体（小灣、能聽見嗎），且加 prompt 会诱导模型模仿 prompt 标点（出现怪括号）。最终方案：不加 prompt，只传 `language=zh`；后端装 `opencc-js`，转写文本先 `t→cn` 转简，再走同音纠正。实测输出「嗨,我是小湾,能听见吗?」。

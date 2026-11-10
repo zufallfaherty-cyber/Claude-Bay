@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 import express from 'express'
 import crypto from 'crypto'
+import OpenCC from 'opencc-js'
 
 const DEFAULT_MODELS = '[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6'
 const EL_BASE = 'https://api.elevenlabs.io/v1'
@@ -24,9 +25,11 @@ const STT_HOMOPHONE_FIXES = [
   [/克劳[特得]/g, '克劳德'],
   [/埃利奥特|艾略特/g, 'Elliott'],
 ]
+// Whisper 经常输出繁体，先转简体再纠同音
+const toSimplified = OpenCC.Converter({ from: 't', to: 'cn' })
 function fixSttHomophones(text) {
   if (!text) return text
-  let t = text
+  let t = toSimplified(text)
   for (const [re, to] of STT_HOMOPHONE_FIXES) t = t.replace(re, to)
   return t
 }
