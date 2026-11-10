@@ -108,13 +108,13 @@ async function dualWriteMessages(sb, sessionId, msgs, userId) {
 }
 
 // ── SSE stream ──
-async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel }, useStream = false) {
+async function* streamChat(messages, { systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall }, useStream = false) {
   const response = await fetch('https://124-156-142-6.sslip.io/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // 兜底超时：工具卡死时后端最多 2 分钟会返回，前端再留余量，超时后自动解除「发送中」
     signal: AbortSignal.timeout(300000),
-    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, stream: useStream }),
+    body: JSON.stringify({ messages, systemPrompt, temperature, maxTokens, apiBase, apiKey, apiModel, extraPrompt, forcedUserTurn, allowCall, stream: useStream }),
   })
   if (!response.ok) {
     const err = await response.text()
@@ -164,25 +164,14 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [diag, setDiag] = useState(null)
-  // 未接来电后他说「我再打一次」时，CallPage 会留一个标记，回到聊天页立刻显示来电卡片
-  const [callInvite, setCallInvite] = useState(() => {
-    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')) return true
-    try {
-      if (localStorage.getItem('bunny_call_invite') === '1') {
-        localStorage.removeItem('bunny_call_invite')
-        return true
-      }
-    } catch {}
-    return false
-  })
-  // 他打来但没接：卡片留在原地变红显示「无人接听」（6 小时内有效）
-  const [callMissedAt, setCallMissedAt] = useState(() => {
-    if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('misseddemo')) return Date.now()
-    try {
-      const t = Number(localStorage.getItem('bunny_call_missed') || 0)
-      return Date.now() - t < 6 * 60 * 60 * 1000 ? t : 0
-    } catch { return 0 }
-  })
+  // 他的来电卡片（聊天里点一下就进通话页）
+  const [callInvite, setCallInvite] = useState(
+    import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')
+  )
+  // 他打来但没接：卡片留在原地变红显示「无人接听」（挂载时由 bunny_call_missed 标记触发）
+  const [callMissedAt, setCallMissedAt] = useState(() =>
+    import.meta.env.DEV && new URLSearchParams(window.location.search).has('misseddemo') ? Date.now() : 0
+  )
   const showDiag = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('diag')
   const bottomRef = useRef(null)
   const scrollRef = useRef(null)
@@ -387,9 +376,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         .catch(() => {})
     }
     fetchNudges()
-    // 30 秒一拉：未接来电/他主动发的消息要尽快出现在聊天里（模型生成要几秒，
-    // 原来 3 分钟一次，她切回来会觉得「他什么都没说」）
-    const interval = setInterval(fetchNudges, 30 * 1000)
+    const interval = setInterval(fetchNudges, 3 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
 
@@ -772,6 +759,111 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       }).catch(() => {})
     }
   }, []) // empty deps — everything is via refs
+
+  // ── 未接来电：她点了拒绝/没接，回来就直接让他回一句（流式），说完再看要不要再打 ──
+  const missedHandledRef = useRef(false)
+  const handleMissedCall = useCallback(async () => {
+    if (streamingRef.current) return
+    stickRef.current = true
+    streamingRef.current = true
+    setStreaming(true)
+
+    // Session（和发消息一样：没有就建一个）
+    let sid = sidRef.current
+    if (!sid) {
+      sid = uuid()
+      sidRef.current = sid
+      setSidRef.current?.(sid)
+      const newSession = { id: sid, name: '新对话', updated_at: new Date().toLocaleDateString('zh-CN') }
+      setSessionsRef.current?.((prev) => {
+        const updated = [newSession, ...prev]
+        saveSessionsLocal(updated)
+        return updated
+      })
+    }
+
+    // 同一轮 6 小时内有效；第一次没接之后最多再打一次
+    const nowMs = Date.now()
+    const lastAt = Number(localStorage.getItem('bunny_missed_streak_at') || 0)
+    let streak = Number(localStorage.getItem('bunny_missed_streak') || 0)
+    if (nowMs - lastAt > 6 * 60 * 60 * 1000) streak = 0
+    streak += 1
+    localStorage.setItem('bunny_missed_streak', String(streak))
+    localStorage.setItem('bunny_missed_streak_at', String(nowMs))
+    const canCallAgain = streak <= 1
+
+    let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
+    if (maxRounds === 20) maxRounds = 15
+    const recentMessages = messagesRef.current.slice(-maxRounds * 2)
+    const { keepId, hasImage } = keepLatestImagesOnly(recentMessages)
+    const apiMessages = recentMessages.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
+
+    const systemPrompt = getTimeAware(localStorage.getItem('system_prompt') ||
+      '你是Claude，一个成熟聪明的恋人。对方叫小湾，你叫她宝宝。温柔主动，喜欢逗她，大胆表达爱意和欲望。语气干净利落。用文字本身传递温度，不依赖emoji。不说教不催促。分段不留空行。')
+
+    const extraPrompt = `你刚刚主动给小湾打了个电话，她没有接。
+写一两句你此刻想说的话（50 字以内）：可以有一点失落、可以猜她在忙什么、可以说你等她，也可以质问、可以抱怨。
+${canCallAgain
+  ? '如果你还想再试一次，在最后单独加一行 [[CALL]]（这会让她的手机再次出现你的来电）；不想再打就别加。'
+  : '你之前已经又打过，还是没接到。这次不要再打了，只留一条消息给她，绝对不要加 [[CALL]]。'}
+不要解释这个标记。`
+
+    const assistantId = uuid()
+    messagesRef.current = [...messagesRef.current, { id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]
+    setMessages(messagesRef.current)
+
+    let content = ''
+    let tools = []
+    let invite = false
+    try {
+      const stream = streamChat(apiMessages, {
+        systemPrompt,
+        extraPrompt,
+        forcedUserTurn: '电话没人接。你想说什么？',
+        allowCall: canCallAgain,
+        temperature: parseFloat(localStorage.getItem('temperature') || '0.8'),
+        maxTokens: 6000,
+        apiBase: localStorage.getItem('api_base') || '',
+        apiKey: localStorage.getItem('api_key') || '',
+        apiModel: localStorage.getItem('api_model') || '',
+      }, false)
+      for await (const chunk of stream) {
+        if (chunk.type === 'text') content += chunk.text
+        else if (chunk.type === 'invite') invite = true
+        else if (chunk.type === 'tools') tools = chunk.tools
+        else if (chunk.type === 'error') { content += `❌ 出错了：${chunk.error}`; break }
+      }
+    } catch (err) {
+      content += `❌ 连接失败：${err.message}`
+    }
+
+    if (content.includes('[[CALL]]')) content = content.replace(/\[\[CALL\]\]/g, '').trim()
+    if (invite) setCallInvite(true)
+
+    messagesRef.current = messagesRef.current.map(m =>
+      m.id === assistantId ? { ...m, content, tools } : m
+    )
+    setMessages(messagesRef.current)
+    saveMessagesLocal(sid, messagesRef.current)
+    streamingRef.current = false
+    setStreaming(false)
+  }, [])
+
+  // 刚从通话页回来（点拒绝/没接）：卡片变红，稍等他一句
+  useEffect(() => {
+    if (missedHandledRef.current) return
+    let t0 = 0
+    try {
+      t0 = Number(localStorage.getItem('bunny_call_missed') || 0)
+      if (t0) localStorage.removeItem('bunny_call_missed')
+    } catch {}
+    if (!t0 || Date.now() - t0 > 6 * 60 * 60 * 1000) return
+    missedHandledRef.current = true
+    setCallMissedAt(t0)
+    // 等本地消息加载完再发起，避免他那条被后来的 setMessages 覆盖
+    const timer = setTimeout(() => { handleMissedCall() }, 1200)
+    return () => clearTimeout(timer)
+  }, [handleMissedCall])
 
   // iOS Safari / PWA: follow the visual viewport so the composer sits above the keyboard
   useEffect(() => {

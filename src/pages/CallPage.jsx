@@ -209,24 +209,8 @@ export default function CallPage({ currentSessionId }) {
     const report = () => {
       if (connectedRef.current || missedSentRef.current) return
       missedSentRef.current = true
-      // 立刻记下「这通没接」：回到聊天页那张卡片会留在原地变红，不是消失
+      // 只留一个标记：回聊天页时那张卡片会变红「无人接听」，他随即直接回一句（流式）
       try { localStorage.setItem('bunny_call_missed', String(Date.now())) } catch {}
-      const url = `${API_BASE}/api/call/missed`
-      try {
-        // 带上当前聊天，他的话会写进她正打开的这个对话
-        const sid = localStorage.getItem('bunny_current_session') || ''
-        fetch(url, {
-          method: 'POST',
-          keepalive: true,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: sid }),
-        })
-          .then((r) => r.json())
-          .then((d) => {
-            if (d?.invite) localStorage.setItem('bunny_call_invite', '1')
-          })
-          .catch(() => {})
-      } catch {}
     }
     window.addEventListener('pagehide', report)
     return () => {

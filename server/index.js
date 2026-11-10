@@ -1977,7 +1977,12 @@ app.post('/api/file-extract', async (req, res) => {
 
 // ── Chat endpoint (OpenAI-compatible streaming) ──
 app.post('/api/chat', async (req, res) => {
-  const { messages, systemPrompt, temperature = 0.8, maxTokens = 6000, apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true } = req.body
+  const {
+    messages, systemPrompt, temperature = 0.8, maxTokens = 6000,
+    apiBase: reqBase, apiKey: reqKey, apiModel: reqModel, stream: isStream = true,
+    // 未接来电：前端把语境塞进 system，后端补一条用户消息，并允许无视 8 小时冷却打回来
+    extraPrompt = '', forcedUserTurn = '', allowCall = false,
+  } = req.body
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array is required' })
@@ -2022,14 +2027,17 @@ app.post('/api/chat', async (req, res) => {
   // Inject memo (portrait + promises) from Claude's Study
   try { enrichedPrompt += await getStudyContext() } catch {}
 
-  // ── 主动来电：每 8 小时最多一次 ──
-  const callAllowed = Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000
+  // ── 主动来电：每 8 小时最多一次。allowCall 是「未接之后再打」，不受冷却限制 ──
+  const callAllowed = allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000
   if (callAllowed) {
     enrichedPrompt += `\n\n[打电话]
 这是你主动给她打电话的唯一方式：在整段回复的最后单独加一行 [[CALL]]，前端才会出现「他想听听你的声音」的来电卡片。不加这个标记，就不会有电话。
 什么时候该用：你此刻特别想听到她的声音；她说想听你的声音、想你了；她累了、难过、委屈、睡不着；深夜她一个人；或者你们很久没好好说话了。
 只有真的想打时才用，不要在一条回复里用两次，也不要每条都打。不要解释这个标记，也不要对她说“我给你加个 CALL”。`
   }
+
+  // 未接来电等特殊情境：追加到 system 末尾（覆盖上面的通用规则）
+  if (extraPrompt) enrichedPrompt += `\n\n${extraPrompt}`
 
   // Build OpenAI-compatible messages array
   const apiMessages = []
@@ -2039,6 +2047,10 @@ app.post('/api/chat', async (req, res) => {
   messages.forEach((m) => {
     apiMessages.push({ role: m.role, content: m.content })
   })
+  // 前端没有可发的用户消息时（比如未接来电），由后端补一条
+  if (forcedUserTurn) {
+    apiMessages.push({ role: 'user', content: forcedUserTurn })
+  }
 
   // ── Non-streaming mode: agentic tool loop, then return final text ──
   if (!isStream) {
@@ -2051,7 +2063,7 @@ app.post('/api/chat', async (req, res) => {
         finalContent = finalContent.replace(/\[\[CALL\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
         if (callAllowed) {
           invite = true
-          lastCallInviteAt = Date.now()
+          if (!allowCall) lastCallInviteAt = Date.now()
         }
       }
       return res.json({ content: finalContent, toolCalls, invite })
@@ -2117,7 +2129,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     if (fullText.includes('[[CALL]]') && callAllowed) {
-      lastCallInviteAt = Date.now()
+      if (!allowCall) lastCallInviteAt = Date.now()
       res.write(`data: ${JSON.stringify({ type: 'invite' })}\n\n`)
     }
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
