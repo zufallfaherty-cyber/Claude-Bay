@@ -6,11 +6,57 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 }
 
+// ── 与首页同一套细线条图标（stroke 1.3，圆头）──
+// 记忆库 / 文件库直接用首页那两个，保证两边一模一样
+function IconMoon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M20.6 14.3A8.6 8.6 0 1 1 12.7 2.9a6.7 6.7 0 0 0 7.9 11.4Z" />
+      <path d="M17.4 5.1l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+function IconFolder(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M3 7.4a2 2 0 0 1 2-2h4.2l2 2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    </svg>
+  )
+}
+// 简洁扳手
+function IconWrench(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94Z" />
+    </svg>
+  )
+}
+// 齿轮轮廓（不是辐条）
+function IconGear(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="5.4" />
+      <circle cx="12" cy="12" r="1.9" />
+      <path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.8 5.8l2.3 2.3M15.9 15.9l2.3 2.3M18.2 5.8l-2.3 2.3M8.1 15.9l-2.3 2.3" />
+    </svg>
+  )
+}
+
+function ArrowCircle(props) {
+  return (
+    <span className={`w-6 h-6 rounded-full bg-white/15 border border-white/35 flex items-center justify-center text-white/70 ${props.className || ''}`}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </span>
+  )
+}
+
 const features = [
-  { label: '记忆库', desc: 'Our Memories', path: '/profile/memory' },
-  { label: '文件库', desc: 'Files', path: '/profile/files' },
-  { label: '工具箱', desc: 'MCP Tools', path: '/profile/tools' },
-  { label: '设置', desc: 'Settings', path: '/settings' },
+  { label: '记忆库', desc: 'Memories', sub: '/ 我们的点滴 /', path: '/profile/memory', Icon: IconMoon },
+  { label: '文件库', desc: 'Files', sub: '/ 你的文件，我来保管 /', path: '/profile/files', Icon: IconFolder },
+  { label: '工具箱', desc: 'MCP Tools', sub: '/ 我能帮你做的事 /', path: '/profile/tools', Icon: IconWrench },
+  { label: '设置', desc: 'Settings', sub: '/ 把这里变成家 /', path: '/settings', Icon: IconGear },
 ]
 
 export default function ProfilePage() {
@@ -45,7 +91,7 @@ export default function ProfilePage() {
         />
       </div>
 
-      {/* Feature Cards — 与首页同一套液体玻璃 */}
+      {/* Feature Cards — 首页同款液体玻璃 + 细线图标 */}
       <div className="relative z-10 px-5 pb-10">
         <p className="text-[9.5px] tracking-[0.3em] text-white/50 uppercase mb-3 px-2">功能</p>
         <div className="grid grid-cols-2 gap-3">
@@ -57,10 +103,18 @@ export default function ProfilePage() {
               animate="animate"
               transition={{ delay: 0.05 + i * 0.05, duration: 0.45, ease: [0.32, 0, 0.23, 1] }}
               onClick={() => navigate(f.path)}
-              className="glass-water shape-island relative px-4 py-6 flex flex-col items-center justify-center text-center gap-2.5 active:scale-[0.96] transition-transform"
+              className="island glass-water shape-island relative pl-4 pr-11 py-4 text-left flex flex-col items-start justify-center min-h-[118px] active:scale-[0.96] transition-transform"
             >
-              <span className="relative text-[15px] font-medium tracking-[0.08em] text-white/95">{f.label}</span>
-              <span className="relative text-[10.5px] tracking-[0.16em] text-white/55">{f.desc}</span>
+              <f.Icon className="relative w-[24px] h-[24px] text-white/85" />
+              <span className="relative mt-2 text-[14px] leading-tight tracking-[0.06em] text-white/95">{f.label}</span>
+              <span
+                className="relative mt-0.5 text-[9px] italic text-white/60 leading-none"
+                style={{ fontFamily: '"Playfair Display", serif' }}
+              >
+                {f.desc}
+              </span>
+              <span className="relative mt-1 text-[7.5px] tracking-[0.08em] text-white/45 leading-none">{f.sub}</span>
+              <ArrowCircle className="absolute right-3.5 top-1/2 -translate-y-1/2" />
             </motion.button>
           ))}
         </div>

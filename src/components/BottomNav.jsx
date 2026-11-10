@@ -63,9 +63,11 @@ const tabs = [
 export default function BottomNav() {
   const navigate = useNavigate()
   const location = useLocation()
+  // 「我的」是深色背景，文字要更实一点才看得清
+  const onProfile = location.pathname === '/profile'
 
   return (
-    <nav className="bottom-nav relative z-20 flex-shrink-0 bg-white/30 backdrop-blur-xl shadow-[0_-6px_20px_-14px_rgba(70,85,62,0.28)]">
+    <nav className={`bottom-nav relative z-20 flex-shrink-0 backdrop-blur-xl shadow-[0_-6px_20px_-14px_rgba(70,85,62,0.28)] ${onProfile ? 'bg-white/50' : 'bg-white/30'}`}>
       <div className="relative">
         <div className="h-[58px] flex items-center justify-around px-2">
           {tabs.map((tab) => {
@@ -81,7 +83,7 @@ export default function BottomNav() {
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
                 className={`flex-1 flex flex-col items-center gap-[3px] py-1.5 rounded-xl transition-all active:scale-90 ${
-                  active ? 'text-sage-deep' : 'text-warm-gray/55'
+                  active ? 'text-sage-deep' : (onProfile ? 'text-[#5a5f52]/85' : 'text-warm-gray/55')
                 }`}
               >
                 {tab.icon(active)}
