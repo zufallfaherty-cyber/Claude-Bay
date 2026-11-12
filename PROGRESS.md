@@ -1538,3 +1538,13 @@
 
 ### 待办
 - 治本：前端迁到香港服务器（`124-156-142-6.sslip.io`，Caddy 静态托管 dist + `/api/*` 反代 bayapi），彻底不再依赖被墙的 Vercel。需要用户重新把网址加到主屏幕。
+
+### 前端迁到香港服务器（2026.11.12 完成）
+- 静态文件放 `/srv/bay`（`scp dist/.` 上传，2.4MB），Caddy 改为：`/api/*` 反代 `127.0.0.1:3001`，其余 `root * /srv/bay` + `try_files {path} /index.html` + `file_server`；`/qr*`、`/xhs-login/*` 原样保留。旧 Caddyfile 备份 `/etc/caddy/Caddyfile.bak.20261112`。
+- **关闭 HTTP/3**（全局 `servers { protocols h1 h2 }`）：跨境 UDP 443/QUIC 被干扰，浏览器 headless 和 Edge 报 `ERR_CONNECTION_CLOSED`，关掉后正常渲染。手机浏览器同样受益。
+- 静态资源头：`/assets/*` → `Cache-Control: public, max-age=31536000, immutable`；`/`, `/index.html`, `/sw.js` → `no-cache`。`encode gzip` 开着（入口 JS 573KB → gzip 171KB）。
+- **首屏拆包**：`App.jsx` 除 `LoginPage` 外全部 `React.lazy` + `Suspense`。入口从 725KB → 573KB，各页面独立 chunk（ChatPage 37KB、Dashboard 17KB 等）。第二次打开走 immutable 缓存，基本秒开。
+- 新地址：`https://124-156-142-6.sslip.io`。国内直连可达（实测 200），但跨境单流带宽不稳（本机 18–42KB/s），首次打开仍有十几秒；服务器出口实测 86MB/s，静态托管不吃 CPU/内存。
+- Vercel 版继续保留（自动部署），作为备用入口。
+- 以后前端更新：`npx vite build` → `scp -r dist/. ubuntu@124.156.142.6:/srv/bay/`（不再 push 即生效）。
+- 待办：按用户手机实测速度决定是否再优化（图片压 WebP / 字体本地化）。
