@@ -25,28 +25,9 @@
 }
 
 html, body, #root {
-  /* 100vh 兜底：不支持 dvh 的 WebView（微信 / 部分旧 Safari）会让整条声明失效，
-     高度变成 auto，整页被内容撑长。用 @supports 覆盖，构建器不会把两条合并掉。 */
-  height: 100vh;
+  height: 100dvh;
   width: 100%;
   overflow-x: hidden;
-}
-
-@supports (height: 100dvh) {
-  html, body, #root {
-    height: 100dvh;
-  }
-}
-
-/* iOS Safari 在聚焦字号小于 16px 的输入框时会自动把整页放大，
-   登录一次之后整个 App 看起来就被"拉长/变小"了。把 iOS 上的
-   表单字号固定到 16px，禁止浏览器自动缩放。 */
-@supports (-webkit-touch-callout: none) {
-  input,
-  textarea,
-  select {
-    font-size: 16px !important;
-  }
 }
 
 body {
