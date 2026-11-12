@@ -17,10 +17,27 @@
 
     <title>Claudecompany</title>
   </head>
-  <body>
+  <body style="background:#F7F5F2;color:#3D3A38">
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <noscript style="display:block;padding:48px 24px;text-align:center">需要开启 JavaScript 才能使用 Claude &amp; Bay</noscript>
     <script>
+      // 兜底：脚本没下载成功 / React 整体崩溃时，不让页面变成无声白屏。
+      function showBootError(msg) {
+        var root = document.getElementById('root')
+        if (!root || root.firstChild) return
+        root.innerHTML =
+          '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:0 32px;text-align:center;background:#F7F5F2;color:#3D3A38;font:15px/1.7 -apple-system,PingFang SC,sans-serif">' +
+          '<p style="font-size:34px;margin:0">🌿</p>' +
+          '<p style="margin:0 0 4px">页面没有加载成功</p>' +
+          '<p style="margin:0;font-size:12px;line-height:1.6;color:#8B8582;word-break:break-all;max-width:18rem">' + msg + '</p>' +
+          '<button onclick="location.reload()" style="margin-top:14px;border:0;border-radius:999px;background:#6E8C64;color:#fff;padding:11px 26px;font-size:14px">重新加载</button>' +
+          '</div>'
+      }
+      window.addEventListener('error', function (e) {
+        // 资源加载失败（script/link）不会冒泡到 React，这里兜住
+        showBootError(e && e.message ? e.message : '资源加载失败，请检查网络')
+      }, true)
+      setTimeout(function () { showBootError('加载超时，可能是网络不稳定') }, 12000)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js')
       }
