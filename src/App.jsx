@@ -1,22 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { useAuth } from './contexts/AuthContext'
 import { migrateLocalToSupabase } from './lib/migrate'
 import BottomNav from './components/BottomNav'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
-import Dashboard from './pages/Dashboard'
-import ChatPage from './pages/ChatPage'
-import ClaudeSpace from './pages/ClaudeSpace'
-import GamesPage from './pages/GamesPage'
-import LudoGame from './pages/LudoGame'
-import CallPage from './pages/CallPage'
-import ProfilePage from './pages/ProfilePage'
-import MemoryPage from './pages/MemoryPage'
-import AlbumPage from './pages/AlbumPage'
-import FilesPage from './pages/FilesPage'
-import ToolboxPage from './pages/ToolboxPage'
-import Settings from './pages/Settings'
+
+// 首屏包太大，跨境加载慢：页面按需拆包，先到的只有登录页 / 首页
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ChatPage = lazy(() => import('./pages/ChatPage'))
+const ClaudeSpace = lazy(() => import('./pages/ClaudeSpace'))
+const GamesPage = lazy(() => import('./pages/GamesPage'))
+const LudoGame = lazy(() => import('./pages/LudoGame'))
+const CallPage = lazy(() => import('./pages/CallPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const MemoryPage = lazy(() => import('./pages/MemoryPage'))
+const AlbumPage = lazy(() => import('./pages/AlbumPage'))
+const FilesPage = lazy(() => import('./pages/FilesPage'))
+const ToolboxPage = lazy(() => import('./pages/ToolboxPage'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 // ── Page wrapper ──
 // No transform/opacity animation here on purpose: Safari drops a descendant's
@@ -132,6 +134,11 @@ function App() {
         : `flex-1 overflow-y-auto relative z-10 ${isHome ? 'pb-0' : 'pb-[26px]'}`}
       >
         <ErrorBoundary key={location.pathname}>
+        <Suspense fallback={
+          <div className="h-full flex items-center justify-center bg-cream">
+            <p className="text-sm text-warm-gray">加载中…</p>
+          </div>
+        }>
         <Routes location={location} key={location.pathname}>
             <Route path="/" element={<PageWrapper><Dashboard /></PageWrapper>} />
             <Route
@@ -158,6 +165,7 @@ function App() {
             <Route path="/profile/tools" element={<PageWrapper><ToolboxPage /></PageWrapper>} />
             <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
         </Routes>
+        </Suspense>
         </ErrorBoundary>
       </main>
 
