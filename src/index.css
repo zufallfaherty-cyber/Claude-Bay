@@ -38,6 +38,17 @@ html, body, #root {
   }
 }
 
+/* iOS Safari 在聚焦字号小于 16px 的输入框时会自动把整页放大，
+   登录一次之后整个 App 看起来就被"拉长/变小"了。把 iOS 上的
+   表单字号固定到 16px，禁止浏览器自动缩放。 */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 body {
   background-color: var(--color-cream);
   color: var(--color-warm-dark);
