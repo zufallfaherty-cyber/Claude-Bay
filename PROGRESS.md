@@ -1521,3 +1521,20 @@
 - **未接计数迁到服务端（2026.11.10）**：「一次没接最多再打一次」原来记在手机 localStorage（`bunny_missed_streak`），多轮测试后名额用完、又没法远程清。改为 `POST /api/call/missed/tick` 计数（内存态、6 小时窗口），接通时 `POST /api/call/missed/reset` 清零。好处：`docker compose up -d --build bayapi` 重建即清零，跨设备一致。localStorage 只在 tick 请求失败时兜底。
 - **取消「再打一次」（2026.11.10）**：模型反复只说「我再打一次」却不输出 `[[CALL]]`，体验不稳定。改为**拒接/挂断后他只回一条消息，不再有第二通电话**：`/api/chat` 新增 `suppressCall`（这一轮既不注入打电话指令，也不认模型输出的 `[[CALL]]`），未接回复改传 `suppressCall: true`；`allowCall`/`missed/tick`/`missed/reset` 一并移除。拒接依然**不占** 8 小时来电冷却（suppressCall 时 `callAllowed=false`，不更新 `lastCallInviteAt`）。普通聊天里他主动打电话（8 小时一次）不受影响。
 - **拒接回复的口吻修正（2026.11.10）**：取消第二通后，`extraPrompt` 里原来的「不要再打了 / 绝对不要加 `[[CALL]]`」会让模型自己说「我打不了 / 我不能打」，很出戏。改成中性语境：「就像平常发消息一样说你想说的，不用交代电话的事，也不用解释自己」。弹不弹来电由后端 `suppressCall` 兜底，不依赖模型自觉。排查结论：多次实测日志 `[Chat] allowCall=true callTag=false`——模型只是嘴上说「我再打一次」，从不输出 `[[CALL]]`，这才是「没有第二通」的真正原因；`callTag` 这行诊断日志保留着，以后看它就能区分「模型没写标记」和「前端没接住」。
+
+## 2026.11.12 白屏第二次（黑屏后白屏）
+
+### 排查
+- 用户反馈又白屏，和 11.11 同样「先黑屏后白屏」。
+- 从香港服务器（国内可访问 Vercel）实测线上：`index.html` 200、JS 725KB 200、CSS 81KB 200、`sw.js` 已是 v4，ErrorBoundary 文案也在包里。**服务器端完全正常**。
+- 本地 `vite build` 通过、Edge headless 渲染登录页正常。→ 代码没崩。
+- 结论：和 11.11 一致，是**手机端到 Vercel 的加载失败 / SW 缓存状态不一致**，不是后端或构建问题。国内直连 Vercel 不稳定，这是根因层面的隐患。
+
+### 本次加固（已 push，Vercel 已部署）
+- `public/sw.js` v4 → **v5**：`fetch` 的 `.catch()` 之前直接 `caches.match()`，未命中时返回 `undefined` → `respondWith` 抛 `TypeError: Load failed`，整页白屏。现在：先查缓存；导航请求再退 `/index.html` 或 `/`；都没有则返回 503 离线提示页；其它资源返回 503。
+- `index.html`：`<body>` 内联米色背景（CSS 没加载时不再纯白）；内联 `showBootError()`，`window.addEventListener('error', …, true)` 捕获资源加载失败，12 秒超时兜底；显示错误文字 + 「重新加载」按钮；加 `<noscript>`。
+- `src/main.jsx`：`ErrorBoundary` 提到根级，包住 `BrowserRouter > AuthProvider > App`，这样 `AuthProvider`/`App` 自身崩溃也不会白屏（原先只包了 `Routes`）。
+- **踩坑**：第一次改 `index.html` 时误删了 `<script type="module" src="/src/main.jsx">`，Vercel 部署后 HTML 没有 JS 包（真的白屏了）。已恢复并重新部署。以后改 `index.html` 必须检查这行还在。
+
+### 待办
+- 治本：前端迁到香港服务器（`124-156-142-6.sslip.io`，Caddy 静态托管 dist + `/api/*` 反代 bayapi），彻底不再依赖被墙的 Vercel。需要用户重新把网址加到主屏幕。
