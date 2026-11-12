@@ -1548,3 +1548,12 @@
 - Vercel 版继续保留（自动部署），作为备用入口。
 - 以后前端更新：`npx vite build` → `scp -r dist/. ubuntu@124.156.142.6:/srv/bay/`（不再 push 即生效）。
 - 待办：按用户手机实测速度决定是否再优化（图片压 WebP / 字体本地化）。
+
+## 2026.11.12 晚 前端迁移回退（用户决定）
+
+- 用户在新地址看到首页被拉长（卡片之间空一大块）。排查：Safari（iOS 18.7）实测 innerHeight 714 / screen 896，底部工具栏占 182；视觉异常与托管位置无关。尝试过 100vh、`--app-h` 实测高度、input 16px、关 HTTP/3，均未让用户端恢复正常。
+- 用户明确要求「不迁了，回到以前」。
+- 已回退：`src/App.jsx`、`src/index.css` 恢复 `7ec328a` 原版（撤掉 React.lazy 拆包与高度实验）；`index.html` 去掉 `--app-h` 脚本。**保留**：sw v5 网络失败兜底、`showBootError` + 「重新加载」按钮、根级 ErrorBoundary。
+- Caddy 已恢复 `/etc/caddy/Caddyfile.bak.20261112`（全部反代 `127.0.0.1:3001`），新地址不再提供前端；`/srv/bay` 静态文件保留但未使用。
+- Vercel 已部署回退版（23:44，入口 JS 725KB，fallback 提示在）。
+- 结论：前端继续用 Vercel（claude-bay-two.vercel.app），主屏幕图标打开即原版布局；Safari 浏览器直接打开时会因底部工具栏占高度显长，属浏览器行为。
