@@ -25,9 +25,17 @@
 }
 
 html, body, #root {
-  height: 100dvh;
+  /* 100vh 兜底：不支持 dvh 的 WebView（微信 / 部分旧 Safari）会让整条声明失效，
+     高度变成 auto，整页被内容撑长。用 @supports 覆盖，构建器不会把两条合并掉。 */
+  height: 100vh;
   width: 100%;
   overflow-x: hidden;
+}
+
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
 }
 
 body {
