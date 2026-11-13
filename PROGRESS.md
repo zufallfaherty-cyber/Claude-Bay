@@ -1727,3 +1727,10 @@
 - 为什么没测出来：验证时只跑了 `breath()` 无 query（surface 路径），没跑 `breath(query=...)`。
 - 修复 + 验证：补齐三个 import，重建容器，实测 SURFACE / SEARCH / IMPORTANCE 三条路径全部正常输出并带日期。
 - 教训：改完必须把「无 query」和「带 query」两条路径都跑一遍。
+
+**⑥ 「一条记忆都没有」的真正原因**
+- 现象：修完 import 后仍然空。
+- 根因：bayapi 每次把用户最近两句话当检索词（`slice(-300)`），日常口语长句（「现在呢现在呢 我好像修好了 真的嘛」）一个关键词都对不上记忆正文，`search` 返回空 → 整个记忆区不注入。这不是回归，是把「检索」当唯一通道后就必然出现的空窗。
+- 修复：`surface_search` 无匹配时回退到 `surface_default(3 条)`，永远不给空。
+- 可观测性：bayapi 注入处加日志 `[Chat] injected memories: N 条 / M 字`，以后一眼能看出是「没注入」还是「注入了但模型没说」。
+- 实测：`/api/chat` 返回前日志显示 `injected memories: 8 条 / 2900 字`（改前为 0）。

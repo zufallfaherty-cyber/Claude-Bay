@@ -2131,7 +2131,10 @@ app.post('/api/chat', async (req, res) => {
           })
           .join('\n')
         if (memoriesText) {
+          console.log(`[Chat] injected memories: ${Math.min(active.length, 8)} 条 / ${memoriesText.length} 字`)
           enrichedPrompt += `\n\n[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`
+        } else {
+          console.log('[Chat] injected memories: 0 条（breath 没有返回可用内容）')
         }
       }
     }
