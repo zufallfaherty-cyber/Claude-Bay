@@ -1251,6 +1251,82 @@ app.get('/api/memories', async (_req, res) => {
   }
 })
 
+// ── 记忆库全量列表：直接读记忆桶文件（bayapi 挂载 ubuntu_buckets:/app/buckets:ro） ──
+const MEMORY_BUCKETS_DIR = process.env.MEMORY_BUCKETS_DIR || '/app/buckets/dynamic'
+
+function parseMemoryBucket(raw, filePath) {
+  const m = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+  if (!m) return null
+  const fm = m[1]
+  const body = (m[2] || '').trim()
+  if (!body) return null
+  const field = (k) => {
+    const r = fm.match(new RegExp(`^${k}:\\s*(.*)$`, 'm'))
+    return r ? r[1].replace(/^['"]|['"]$/g, '').trim() : ''
+  }
+  const tags = []
+  const tagIdx = fm.indexOf('\ntags:')
+  if (tagIdx !== -1) {
+    const lines = fm.slice(tagIdx + 1).split('\n').slice(1)
+    for (const line of lines) {
+      if (line.startsWith('- ')) tags.push(line.slice(2).trim())
+      else if (line.trim() && !line.startsWith(' ')) break
+    }
+  }
+  const bodyText = body.split('\n').map((l) => l.trim()).filter(Boolean).join('\n')
+  return {
+    id: field('id') || path.basename(filePath, '.md'),
+    name: field('name') || path.basename(filePath, '.md'),
+    content: bodyText,
+    snippet: bodyText.replace(/\n/g, ' ').slice(0, 220),
+    created: field('created') || field('last_active') || null,
+    importance: parseInt(field('importance'), 10) || 5,
+    tags,
+    pinned: field('pinned') === 'true',
+    resolved: field('resolved') === 'true',
+  }
+}
+
+async function walkMemoryFiles(dir) {
+  const out = []
+  let entries
+  try {
+    entries = await fsp.readdir(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const e of entries) {
+    const full = path.join(dir, e.name)
+    if (e.isDirectory()) out.push(...await walkMemoryFiles(full))
+    else if (e.name.endsWith('.md')) out.push(full)
+  }
+  return out
+}
+
+app.get('/api/memories/all', async (req, res) => {
+  try {
+    const files = await walkMemoryFiles(MEMORY_BUCKETS_DIR)
+    const buckets = []
+    for (const f of files) {
+      try {
+        const raw = await fsp.readFile(f, 'utf8')
+        const b = parseMemoryBucket(raw, f)
+        if (b) buckets.push(b)
+      } catch {}
+    }
+    buckets.sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))
+    const limit = Math.min(parseInt(req.query.limit, 10) || 500, 2000)
+    const offset = parseInt(req.query.offset, 10) || 0
+    res.json({
+      total: buckets.length,
+      buckets: buckets.slice(offset, offset + limit),
+    })
+  } catch (err) {
+    console.error('Memories all error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Auto-update portrait when new personal info about 小湾 is learned ──
 async function autoUpdatePortrait(content) {
   if (!supabaseAdmin) return

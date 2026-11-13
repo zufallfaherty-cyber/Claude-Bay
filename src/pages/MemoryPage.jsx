@@ -7,6 +7,11 @@ const fadeUp = {
   animate: { opacity: 1, y: 0 },
 }
 
+// 桶名常带「2026-11-13 09-33-54 」前缀，卡片下方已有日期，去掉避免重复
+function cleanName(name) {
+  return String(name || '').replace(/^\d{4}-\d{2}-\d{2}\s+\d{2}-\d{2}-\d{2}\s+/, '').trim()
+}
+
 function moodEmoji(valence, arousal) {
   if (valence == null || arousal == null) return null
   // DS never gives negative valence; use low-V + high-A as negative signal
@@ -24,12 +29,19 @@ export default function MemoryPage() {
   const navigate = useNavigate()
   const [memories, setMemories] = useState(null)
   const [error, setError] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
+  const [visibleCount, setVisibleCount] = useState(60)
 
   useEffect(() => {
-    fetch('https://124-156-142-6.sslip.io/api/memories')
+    const base = 'https://124-156-142-6.sslip.io'
+    // 优先拉全量（直接读记忆桶文件）；老接口只有浮现的 50 条，作为兜底
+    fetch(`${base}/api/memories/all?limit=2000`)
       .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
       .then((data) => setMemories(data.buckets || []))
-      .catch((err) => setError(err.message))
+      .catch(() => fetch(`${base}/api/memories`)
+        .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
+        .then((data) => setMemories(data.buckets || []))
+        .catch((err) => setError(err.message)))
   }, [])
 
   const isLoading = memories === null
@@ -84,14 +96,17 @@ export default function MemoryPage() {
             <p className="text-[10px] tracking-[0.25em] text-warm-gray/60 uppercase mb-3 px-1">
               {memories.length} 条记忆
             </p>
-            {memories.map((m, i) => (
+            {memories.slice(0, visibleCount).map((m, i) => {
+              const expanded = expandedId === (m.id || i)
+              return (
               <motion.div
                 key={m.id || i}
                 variants={fadeUp}
                 initial="initial"
                 animate="animate"
-                transition={{ delay: i * 0.04 }}
-                className="glass rounded-2xl p-5 border border-white/30 hover:shadow-md transition-shadow"
+                transition={{ delay: Math.min(i, 12) * 0.03 }}
+                onClick={() => setExpandedId(expanded ? null : (m.id || i))}
+                className="glass rounded-2xl p-5 border border-white/30 hover:shadow-md transition-shadow cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -101,7 +116,7 @@ export default function MemoryPage() {
                     <div className="min-w-0">
                       <h3 className="text-[14px] font-semibold text-warm-dark truncate">
                         {m.pinned && <span className="text-sage-deep mr-1">📌</span>}
-                        {m.name || '记忆片段'}
+                        {cleanName(m.name) || '记忆片段'}
                       </h3>
                       {m.tags && m.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -112,22 +127,38 @@ export default function MemoryPage() {
                       )}
                     </div>
                   </div>
-                  {m.resolved && (
-                    <span className="text-[8px] px-1.5 py-0.5 bg-mint/30 rounded text-warm-gray/50 flex-shrink-0">已释怀</span>
-                  )}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {m.importance >= 8 && (
+                      <span className="text-[8px] px-1.5 py-0.5 bg-amber-100/70 rounded text-amber-700/70">重要 {m.importance}</span>
+                    )}
+                    {m.resolved && (
+                      <span className="text-[8px] px-1.5 py-0.5 bg-mint/30 rounded text-warm-gray/50">已释怀</span>
+                    )}
+                  </div>
                 </div>
 
-                {m.snippet && (
-                  <p className="text-[13px] text-warm-gray leading-relaxed line-clamp-3">{m.snippet}</p>
+                {m.content ? (
+                  <p className={`text-[13px] text-warm-gray leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-3'}`}>{m.content}</p>
+                ) : m.snippet && (
+                  <p className={`text-[13px] text-warm-gray leading-relaxed ${expanded ? '' : 'line-clamp-3'}`}>{m.snippet}</p>
                 )}
 
                 {m.created && (
                   <p className="text-[10px] text-warm-gray/40 mt-3">
-                    {new Date(m.created).toLocaleDateString('zh-CN', { year: 'numeric', month: 'short', day: 'numeric' })}
+                    {String(m.created).slice(0, 10).replace(/-/g, '/')}
+                    {!expanded && m.content && m.content.length > 120 && <span className="ml-2 text-warm-gray/30">点击展开</span>}
                   </p>
                 )}
               </motion.div>
-            ))}
+            )})}
+            {memories.length > visibleCount && (
+              <button
+                onClick={() => setVisibleCount((n) => n + 60)}
+                className="w-full py-3 rounded-2xl glass border border-white/30 text-[13px] text-warm-gray hover:bg-mint/30 transition-colors"
+              >
+                再看 60 条（还有 {memories.length - visibleCount} 条）
+              </button>
+            )}
           </div>
         )}
       </div>
