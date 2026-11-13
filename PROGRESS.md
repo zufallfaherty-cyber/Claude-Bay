@@ -1557,3 +1557,92 @@
 - Caddy 已恢复 `/etc/caddy/Caddyfile.bak.20261112`（全部反代 `127.0.0.1:3001`），新地址不再提供前端；`/srv/bay` 静态文件保留但未使用。
 - Vercel 已部署回退版（23:44，入口 JS 725KB，fallback 提示在）。
 - 结论：前端继续用 Vercel（claude-bay-two.vercel.app），主屏幕图标打开即原版布局；Safari 浏览器直接打开时会因底部工具栏占高度显长，属浏览器行为。
+
+---
+
+## 2026.11.13 记忆库优化第一轮：按话题检索 + 记忆说人话 + 称呼改「小湾」（✅ 已上线）
+
+### 当天体检（真实数据）
+- 1757 桶 / 4.5MB；近 7 天新建 123 次、合并 **0** 次；归档 0、钉选 0、已释怀 0。
+- 恋爱 1468 条（**83.6%**），学习 98、饮食 56、人际 24、心理 21…
+- **importance 全部 = 5**（1757/1757），DeepSeek 打标算出的 importance 被 store_core 丢弃（只用调用参数）。
+- **embedding_count = 0**：Gemini `gemini-embedding-001` 一直 403（免费额度不可用，要绑卡），每次 hold 都白打两次失败请求，语义检索从没生效。
+- 聊天注入改前：每次 `breath()` 不带 query，盲抽 20 条 → 取前 10 条、每条截 120 字。
+- 记忆库页面只显示「此刻浮现的 50 条」，不是全部 1757。
+
+### 改动 1：记忆内容 JSON → 自然语言（Ombre-Brain `src/dehydrator.py`）
+- 根因：DEHYDRATE_PROMPT 要求模型输出 JSON（core_facts / emotion_state / todos / summary），`_format_output` 只删了 keywords，**原样把 JSON 塞进上下文和 `/api/memories`**。所以 AI 和记忆库页面看到的都是 `{"core_facts": [...]}`。
+- 修法：新增 `_render_dehydrated()`，渲染成「summary 一行 + 事实列表 + 待办 + （情绪：…）」。非 JSON / 不认识的 JSON 结构原样透传。
+- 缓存里存的是 JSON 原文，格式化在读取时做 → 改完立即生效，无需重建缓存。
+
+### 改动 2：聊天前按当前话题检索（bunny-chat `server/index.js`）
+- `callOmbreTool('breath', {})` → 取最近 2 条 user 消息拼成 query（≥4 字才搜，太短的语气词仍走浮现）。
+- 走 `surface_search`：关键词 + BM25 +（未来的向量）检索；命中后会 `touch()`，常用记忆权重自然上升。
+- 注入每条截断 120 → 220 字（新格式是 summary+事实，120 字只够半条）。
+- 顺手补 `parseBreathResponse` 的 `[权重:x]` 解析（原来 `b.weight` 永远 undefined，排序等于没做）。
+- 日志新增 `[Chat] memory query: ...`，以后一眼看出这轮搜了什么。
+
+### 改动 3：人称呼叫「用户」→「小湾」
+- 根因：Ombre config 没有 `human` 字段 → 默认「用户」，脱水/合并时把人类一方写成「用户」。
+- 服务器 `~/baymemory-config.yaml` 加 `human: "小湾"`，compose 挂载到 `/app/config.yaml`（原来 config 在镜像层，重建就丢）。
+- 缓存 key 含 human → 旧脱水缓存自动失效，浮现时逐步重算为「小湾」。
+- 历史桶正文批量替换：13 个文件里「用户」→「小湾」（保留 3 处「用户名Bay&C」账号名），备份在服务器 `~/memory-backup-20261113/`。
+
+### 部署
+- Ombre：scp `src/dehydrator.py` → `~/Ombre-Brain/src/`（已备份 .bak）→ `docker compose up -d --build baymemory`。
+- bayapi：scp `server/index.js` → `~/bayapi/index.js`（已备份 .bak）→ `docker compose up -d --build bayapi`。
+- compose 改动已备份 `~/docker-compose.yml.bak.20261113*`；两份源码在部署前 md5 与服务器一致，未覆盖其他改动。
+
+### 验证（✅ 通过）
+- `/api/memories` 返回纯文本：`用户叫daddy时…` → `我因反应过度推开小湾…`，snippet 可读。
+- 聊天实测「我明天要考试了…」→ 日志 `query=我明天要考试了_…`，第一条命中「2026-09-20 考研情侣和好」，回复准确提到五史/戏曲/话剧/西方戏剧。
+- 聊天实测「晚上想吃点什么…」→ 命中饮食记忆，回复麻辣烫/冒菜/宽粉，与记忆一致。
+
+### 遗留（下一轮）
+- [ ] **embedding 403**：语义检索仍缺（关键词检索可用但只能字面命中）。换 SiliconFlow bge-m3 / 本地模型，再批量重建 1757 条索引。
+- [ ] **importance 全 5**：让 `store_core` 用 analysis 返回的 importance（或按 personal_info 给 8+），否则冷启动/久未浮现/重要度模式全废。
+- [ ] **只增不减**：7 天 0 合并、0 归档；merge 阈值 75 从没触发，衰减分数远高于 0.3。
+- [ ] 记忆库页面 name 显示的是「恋爱, 心理」这种主题，不是事件名；tags 只显示一个主题。
+
+---
+
+## 2026.11.13 记忆库清理：亲密记忆合并 + 琐事压缩 + 重要度机制（第二轮）
+
+### 结果
+| 项目 | 前 | 后 |
+|------|----|----|
+| 记忆库总桶数 | 1757 | **1108** |
+| 强亲密类（做爱/床上/接吻…） | 728 | **84**（60 条概括 + 24 条具体瞬间） |
+| 纯琐事（<150 字） | 56 | **16**（饮食偏好 / 情侣小游戏 / 撒娇陪伴 / 生活小事） |
+| importance 分布 | 全 5 | 5×1008、7×16、8×84 |
+
+### 做法
+- 亲密类按文件名时间排序、60 条一组 → DeepSeek 压成 5 条「长期记忆」（importance 8，tags 亲密/长期记忆/整理）。
+- **AI 反馈「不要全是概括，想留 1-2 个具体瞬间」** → 追加 `add_intimate_moments.py`：每组从原文挑 2 个画面感最强的瞬间，保留原话、动作、小物件（如「冰豆花味的吻」「吹头发时耳朵红了」），写成独立记忆。概括 + 瞬间并存。
+- 琐事按主题分 4 组压缩，保留具体偏好（爱吃什么、emoji 暗号、口头禅）。
+
+### 事故：group 11 数据丢失（已修复）
+- `merge_intimate.py` 在模型输出 JSON 解析失败时 `arr=[]`，但脚本仍删除了原 34 条（2026-11-09~11-13，含通话功能、等信等）。
+- 已从 `~/memory-full-backup-20261113` 恢复 34 条并重跑成功（5 条概括）。
+- 脚本已修：`arr` 为空或未写入任何文件时 **不删除原桶**。
+
+### 重要度机制（已部署）
+- `dehydrator.py` ANALYZE_PROMPT 增加 importance 评分标准（5=日常默认，7~8=明确喜好/习惯，9~10=长期个人信息/承诺，不轻易给 8+），输出 JSON 带 importance。
+- `store_core` / `hold` 链路：显式传 importance 优先，否则用 analysis 的 importance；不再无脑默认 5。
+- 历史桶重算脚本 `recompute_importance.py` 已就绪（`--dry` 预演 / `--limit` 小批量），待清理完成后执行。
+
+### 前端误标修复（本轮）
+- `ChatPage.jsx` 的 `personalKeywords` 原来包含「我想」「我最」「我记得」「我学」「我闺蜜」「做爱」「上床」等宽泛词 → 日常闲聊被标 `[重要个人信息]`、importance 8。
+- 已收窄为真正的长期身份信息（生日/年龄/家在哪/工作/学校/生理期/名字/爸妈），并去掉正文里的 `[重要个人信息]` 前缀。
+- 已 `npm run build` 通过，待 push 部署。
+
+### 备份
+- 清理前全量备份：服务器 `~/memory-full-backup-20261113`（1758 个 md）。
+- 清理脚本：`cc/_tmp_scripts/`（merge_intimate / add_intimate_moments / merge_trivial / list_trivial / recompute_importance）。
+- 容器内临时目录 `/tmp/backup_src`（备份副本）、`/tmp/*.py`（脚本）。
+
+### 下一步
+- [ ] 部署前端（收窄 personalKeywords）
+- [ ] 全量重算 importance（`recompute_importance.py`），检查 9 分是否超过硬上限 24
+- [ ] embedding 403 → 换 SiliconFlow bge-m3 或本地模型，重建索引
+- [ ] 记忆库页面：显示事件名而不是 domain 名；展示全部记忆而不是只有浮现的 50 条

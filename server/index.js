@@ -595,6 +595,7 @@ function parseBreathResponse(text) {
     const content = lines.join('\n').trim()
     const pinned = block.includes('[核心准则]')
     const resolved = block.includes('[已释怀]')
+    const wm = block.match(/\[权重:([\d.]+)\]/)
     // 记忆桶日期时间：`记忆桶: 2026-11-03 09-00-00`（UTC）→ 北京时间 `2026-11-03 17:00`
     let date = ''
     const dm = block.match(/记忆桶:\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/)
@@ -602,7 +603,7 @@ function parseBreathResponse(text) {
       const bj = bucketTimeToBeijing(`${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}-${dm[5]}-${dm[6]}`)
       date = bj ? bj.date : `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
     }
-    buckets.push({ id, content, pinned, resolved, date })
+    buckets.push({ id, content, pinned, resolved, date, weight: wm ? parseFloat(wm[1]) : 0 })
   }
   return buckets
 }
@@ -1315,10 +1316,15 @@ app.post('/api/remember', async (req, res) => {
   if (!content?.trim()) return res.json({ stored: false, reason: 'empty' })
 
   try {
-    const result = await callOmbreTool('hold', {
+    // 重要度：个人信息（生日/家人/喜好/亲密偏好）直接给 8；
+    // 普通对话不指定，交给记忆引擎按内容自动打分（5=日常，7~8=明确喜好/习惯）。
+    const tagStr = String(tags || '')
+    const holdArgs = {
       content: content.trim(),
       tags: tags || 'conversation',
-    })
+    }
+    if (tagStr.includes('personal_info')) holdArgs.importance = 8
+    const result = await callOmbreTool('hold', holdArgs)
     // callOmbreTool returns error string on failure, not throw
     if (!result || result.includes('"error"')) {
       return res.json({ stored: false, error: result || 'no response from Ombre-Brain' })
@@ -2005,7 +2011,18 @@ app.post('/api/chat', async (req, res) => {
   // Fetch memories from Ombre-Brain and inject into system prompt
   let enrichedPrompt = systemPrompt || ''
   try {
-    const breathRaw = await callOmbreTool('breath', {})
+    // 用她刚说的话（含最近两轮）当检索词，让记忆库按话题找，而不是盲抽 20 条。
+    // 太短的语气词（"嗯""在吗"）不拿去搜，避免捞回一堆不相关记忆。
+    const recentUserText = (messages || [])
+      .filter(m => m.role === 'user' && typeof m.content === 'string')
+      .slice(-2)
+      .map(m => m.content.trim())
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+    const memoryQuery = recentUserText.length >= 4 ? recentUserText.slice(-300) : ''
+    console.log(`[Chat] memory query: ${memoryQuery ? memoryQuery.slice(0, 60) : '(none → surfacing)'}`)
+    const breathRaw = await callOmbreTool('breath', memoryQuery ? { query: memoryQuery } : {})
     if (breathRaw) {
       const buckets = parseBreathResponse(breathRaw)
       if (buckets.length > 0) {
@@ -2020,7 +2037,7 @@ app.post('/api/chat', async (req, res) => {
           .map(b => {
             const prefix = b.pinned ? '🔒' : ''
             const when = b.date ? `[${b.date}] ` : ''
-            return `${prefix}- ${when}${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 120)}`
+            return `${prefix}- ${when}${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 220)}`
           })
           .join('\n')
         if (memoriesText) {

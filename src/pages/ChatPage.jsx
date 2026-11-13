@@ -745,18 +745,15 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     setStreaming(false)
 
     // Feed to Ombre-Brain memory
-    // Personal info keywords — anything Claude must remember about her
+    // Personal info keywords — 只匹配「长期身份信息」。
+    // 偏好/琐事（我想、我喜欢、我闺蜜…）交给 Ombre-Brain 的 importance 判断，
+    // 否则日常闲聊会被误标成 [重要个人信息] 并给到 8 分。
     const personalKeywords = [
       '生日', '我今年', '我年龄', '我属', '我星座',
-      '我喜欢', '我讨厌', '我害怕', '我最', '我不喜欢',
-      '我家在', '我住在', '我工作', '我公司', '我学校', '我学',
-      '我想', '我记得', '我小时候', '我以前', '我告诉',
-      '我爸', '我妈', '我妈妈', '我爸爸', '我哥', '我姐', '我弟', '我妹',
-      '我朋友', '我闺蜜',
+      '我家在', '我住在', '我工作', '我公司', '我学校',
       '我生理期', '我例假', '我经期',
-      '我名字', '叫我',
-      // 亲密 / 成人偏好
-      '做爱', '上床', '爱爱', '口交', '想要我', '要我',
+      '我名字', '我叫',
+      '我爸', '我妈', '我妈妈', '我爸爸',
     ]
     const isPersonal = personalKeywords.some(k => text.includes(k))
     const roundCount = messagesRef.current.filter(m => m.role === 'user').length
@@ -768,7 +765,8 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
       let memoryText
       if (isPersonal) {
         // Personal info: full Claude response, no truncation, marked important
-        memoryText = `[重要个人信息]\n小湾: ${text}\nClaude: ${content}`
+        // 不再往正文塞 [重要个人信息] 前缀——重要度通过 personal_info 标签传给记忆引擎
+        memoryText = `小湾: ${text}\nClaude: ${content}`
       } else {
         // Periodic: last ~3 rounds so Ombre-Brain has context to judge importance
         const recentMsgs = messagesRef.current.slice(-8)
