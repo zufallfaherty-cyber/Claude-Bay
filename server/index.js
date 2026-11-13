@@ -596,12 +596,19 @@ function parseBreathResponse(text) {
     const pinned = block.includes('[核心准则]')
     const resolved = block.includes('[已释怀]')
     const wm = block.match(/\[权重:([\d.]+)\]/)
-    // 记忆桶日期时间：`记忆桶: 2026-11-03 09-00-00`（UTC）→ 北京时间 `2026-11-03 17:00`
+    // 记忆引擎在 [bucket_id:...] 前面输出了 `[YYYY-MM-DD HH:MM]`（北京时间），
+    // 取上一次分隔后到本 id 之间最后一个日期标签。
     let date = ''
-    const dm = block.match(/记忆桶:\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/)
-    if (dm) {
-      const bj = bucketTimeToBeijing(`${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}-${dm[5]}-${dm[6]}`)
-      date = bj ? bj.date : `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
+    const headMatch = (sections[i - 1] || '').match(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s*$/)
+    if (headMatch) {
+      date = headMatch[1]
+    } else {
+      // 老格式兜底：正文里自带「记忆桶: 2026-11-03 09-00-00」（UTC）
+      const dm = block.match(/记忆桶:\s*(\d{4})-(\d{2})-(\d{2})\s+(\d{2})-(\d{2})-(\d{2})/)
+      if (dm) {
+        const bj = bucketTimeToBeijing(`${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}-${dm[5]}-${dm[6]}`)
+        date = bj ? bj.date : `${dm[1]}-${dm[2]}-${dm[3]} ${dm[4]}:${dm[5]}`
+      }
     }
     buckets.push({ id, content, pinned, resolved, date, weight: wm ? parseFloat(wm[1]) : 0 })
   }
@@ -1201,6 +1208,8 @@ app.get('/api/memories', async (_req, res) => {
         const topicMatch = block.match(/\[主题:([^\]]+)\]/)
         const emotionMatch = block.match(/\[情感:V([\d.]+)\/A([\d.]+)\]/)
         const dateMatch = block.match(/记忆桶:\s*(\d{4}-\d{2}-\d{2}\s*\d{2}-\d{2}-\d{2})/)
+        // 记忆引擎在 [bucket_id:...] 前的 `[YYYY-MM-DD HH:MM]`（北京时间）
+        const headMatch = (sections[i - 1] || '').match(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s*$/)
 
         // Extract actual content (skip metadata header line)
         const lines = block.split('\n')
@@ -1235,7 +1244,7 @@ app.get('/api/memories', async (_req, res) => {
           pinned,
           resolved,
           tags,
-          created: bjDate ? bjDate.iso : null,
+          created: headMatch ? headMatch[1] : (bjDate ? bjDate.iso : null),
           score: weightMatch ? parseFloat(weightMatch[1]) * 10 : 50,
         })
       }
@@ -2108,12 +2117,17 @@ app.post('/api/chat', async (req, res) => {
           if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
           return (b.weight || 0) - (a.weight || 0)
         })
+        const MEMORY_CHARS = 600
         const memoriesText = active
-          .slice(0, 10)
+          .slice(0, 8)
           .map(b => {
             const prefix = b.pinned ? '🔒' : ''
             const when = b.date ? `[${b.date}] ` : ''
-            return `${prefix}- ${when}${(b.content || '').replace(/---[\s\S]*?---/, '').trim().slice(0, 220)}`
+            // 记忆引擎已在正文前带 [YYYY-MM-DD HH:MM]；这里不再硬切，
+            // 超长才截断并补省略号（原来切 220 字会停在半句）
+            const body = (b.content || '').trim()
+            const text = body.length > MEMORY_CHARS ? body.slice(0, MEMORY_CHARS) + '…' : body
+            return `${prefix}- ${when}${text}`
           })
           .join('\n')
         if (memoriesText) {

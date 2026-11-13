@@ -1695,3 +1695,23 @@
   - **去掉了 `docker restart baymemory`**：删桶文件是磁盘操作，引擎每次检索都重新 `os.walk` 扫描，只有进程内改动才需要重载 BM25；不重启则绝不黑屏（用户担心使用中打开前端黑屏）。
   - 判过就写 `screened: <日期>` 进 frontmatter，下周不再重复判 → 每周只花在新记忆上。已用真实桶测试：写入幂等、正文完整。
 - 每天 04:15 的 `check_daily.sh` 压缩任务已停用（cron 行删除）。
+
+### 前端 AI 反馈三连修（2026-11-13）
+
+**① 记忆看不到日期**
+- 根因：记忆引擎输出 `[权重:x] [bucket_id:..] 摘要`，**没有日期**；bayapi 里解析「记忆桶: YYYY-MM-DD」的代码是历史格式，新桶根本没有这一行 → 注入给 AI 的记忆全是没头没尾的一句话。
+- 修复：`utils.py` 新增 `bucket_time_label()`，把 created（服务器记 UTC）转北京时间；surface / search / importance / feel 的所有输出前统一加 `[YYYY-MM-DD HH:MM]`。
+- bayapi `parseBreathResponse` 改为从 `[bucket_id:]` 前的日期标签取值；`/api/memories` 的 `created` 同步修正。
+- 已实测：UTC 13:00 → 北京 21:00，`/api/memories` 的 created 正确。
+
+**② 半句截断**
+- 根因：`/api/chat` 注入记忆时 `.slice(0, 220)`，硬切、无省略号。
+- 修复：每条 600 字符，超长才截断并补 `…`；同时去掉会误删正文的 `replace(/---[\s\S]*?---/, '')`；条数 10 → 8（总 token 基本持平）。
+
+**③ 同一件事存两遍**
+- 根因：前端每 3 轮把「最近 8 条消息」整存一次，窗口重叠；去重靠 embedding，embedding 403 后 `check_duplicate_for` 直接 return，等于从未生效。
+- 修复（不依赖 embedding）：`_common.py` 新增 `_find_recent_overlap()`——**1 小时内 + 句子重合度 ≥ 0.35** 就当同一件事，直接合并。
+- 合并文本改为去重拼接 `_merge_overlapping_text()`：新内容包含旧内容时只用新内容；否则按行去重追加，不再整段重复。
+- 已实测：同一内容两次 `hold` → 第二次返回「合并→同一桶 id」；不同话题重合度 0.0 不会误合。测试桶已彻底删除。
+
+部署：`docker compose up -d --build baymemory / bayapi`，两个服务均正常。
