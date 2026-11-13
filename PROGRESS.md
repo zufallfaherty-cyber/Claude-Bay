@@ -1720,3 +1720,10 @@
 - 查证：记忆正文里其实一条都不含「记忆桶:」（`grep` = 0），时间戳来自 `dehydrator._format_output()` 用桶名拼的 header（桶名本身带 UTC 时间前缀）。
 - 修复：header 里剥掉桶名的 `YYYY-MM-DD HH-MM-SS ` 前缀，只保留标题；日期统一由外层 `[北京时间]` 标签提供。
 - 实测输出：`[2026-11-01 21:00] [bucket_id:..] 📌 记忆桶: 密室跑团惊魂 [主题:..]`
+
+**⑤ 事故：改漏 import 导致带关键词检索全空（已修复）**
+- 现象：用户发两句话，AI 说「一条记忆都没浮上来」。
+- 根因：`bucket_time_label` 只加进了 `surface.py` 的 import，`search.py` / `importance.py` / `feel.py` 漏了 → 用户一发消息就走检索（search）路径，直接 `NameError`，被 bayapi 静默吞掉。
+- 为什么没测出来：验证时只跑了 `breath()` 无 query（surface 路径），没跑 `breath(query=...)`。
+- 修复 + 验证：补齐三个 import，重建容器，实测 SURFACE / SEARCH / IMPORTANCE 三条路径全部正常输出并带日期。
+- 教训：改完必须把「无 query」和「带 query」两条路径都跑一遍。
