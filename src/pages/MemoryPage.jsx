@@ -12,6 +12,13 @@ function cleanName(name) {
   return String(name || '').replace(/^\d{4}-\d{2}-\d{2}\s+\d{2}-\d{2}-\d{2}\s+/, '').trim()
 }
 
+// 内部管理用的标签，不展示（合并脚本靠它们避免重复压缩）
+const INTERNAL_TAGS = new Set(['长期记忆', '整理', '具体瞬间', '日记', '瞬间'])
+
+function visibleTags(tags) {
+  return (tags || []).filter((t) => !INTERNAL_TAGS.has(t))
+}
+
 function moodEmoji(valence, arousal) {
   if (valence == null || arousal == null) return null
   // DS never gives negative valence; use low-V + high-A as negative signal
@@ -118,9 +125,9 @@ export default function MemoryPage() {
                         {m.pinned && <span className="text-sage-deep mr-1">📌</span>}
                         {cleanName(m.name) || '记忆片段'}
                       </h3>
-                      {m.tags && m.tags.length > 0 && (
+                      {visibleTags(m.tags).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {m.tags.map((t) => (
+                          {visibleTags(m.tags).map((t) => (
                             <span key={t} className="text-[9px] px-2 py-0.5 bg-mint/50 rounded-full text-warm-gray/70">{t}</span>
                           ))}
                         </div>
