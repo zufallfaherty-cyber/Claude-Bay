@@ -145,6 +145,17 @@
   - 中间的 `PROGRESS-archive.md` 临时备份已删
 - 新增/固化工作约定：前端 AI 伴侣是男性、用「他」；思考链用中文；先讨论方案再动手（工作日志整理除外）。
 
+### 追加（同日 19:00）拒绝接通不应占用冷却（✅ 已上线）
+- **现象**：他主动打来，小湾点挂断/拒绝接通，之后 8 小时内他不会再打。
+- **根因**：8 小时冷却在「模型输出 `[[CALL]]` 的那一刻」就通过 `lastCallInviteAt = Date.now()` 记上了，挂断/未接路径完全没有撤销动作。`server/index.js` 里 `/api/call/missed` 的旧注释本来就写着「未接来电不占用 8 小时冷却，否则她一次没接就被禁打 8 小时，不合理」，但新流程（ChatPage 卡片 → CallPage）没接上这段逻辑。
+- **另一个发现**：前端从未传过 `allowCall`，所以代码里的「未接再打一次」机制一直没生效。
+- **修复**：
+  - `server/index.js`：新增 `lastCallInviteBefore` + `markCallInvite()`，两处发出邀请的地方改调它（非流式 `runToolLoop` 分支 + 流式分支）。
+  - 新增 `POST /api/call/decline`：把 `lastCallInviteAt` 回滚到 `lastCallInviteBefore`，并打印日志。
+  - `src/pages/CallPage.jsx`：未接通就离开（`report()`，覆盖返回、直接关页）时调用 `/api/call/decline`；已接通聊完仍走 `/api/call/end`，冷却保持 8 小时。
+- **边界**：回滚而不是清零，避免把之前真实的冷却也一并解开；`allowCall` 分支不调用 `markCallInvite`，拒绝时回滚无害。
+- **验证**：部署后 `GET /api/call/cooldown` 返回 `{"canCall":true,...}`；前端已 push Vercel。
+
 ---
 
 
