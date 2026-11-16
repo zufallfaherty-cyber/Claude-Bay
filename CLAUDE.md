@@ -5,9 +5,9 @@
 
 ## 架构
 ```
-前端 (React PWA)          后端 (Express)           记忆引擎 (Ombre-Brain)
-Vercel                    Zeabur bayapi            Zeabur baymemory
-claude-bay-two.vercel.app  bayapi.zeabur.app        baymemory.zeabur.app
+前端 (React PWA)        后端 (Express, Docker)      记忆引擎 (Ombre-Brain, Docker)
+Vercel                  腾讯云香港 124.156.142.6    同机容器 baymemory:8000
+claude-bay-two.vercel.app   Caddy 反代 → 124-156-142-6.sslip.io
 ```
 
 ## 数据流
@@ -61,16 +61,24 @@ Nudge: cron-job.org → /api/nudge → 判断是否发消息 → Pushover/Supaba
 ## 线上地址
 | 服务 | URL |
 |------|-----|
-| 前端 | https://claude-bay-two.vercel.app |
-| 后端 | https://bayapi.zeabur.app |
-| 记忆 | https://baymemory.zeabur.app |
-| API 中转 | https://api.jiushi.xin/v1 |
-| 模型 | [按量]claude-opus-4-6 |
+| 前端 | https://claude-bay-two.vercel.app （用户决定继续留 Vercel） |
+| 后端 | https://124-156-142-6.sslip.io （腾讯云香港，Docker） |
+| 记忆 | 同机容器 `baymemory:8000`（内网），Caddy 反代 |
+| 服务器 | `ssh ubuntu@124.156.142.6`，`~/docker-compose.yml` |
 
 ## 部署
 - 前端: `git push` → Vercel 自动部署
-- 后端: `git push` → Zeabur 自动部署 (bayapi)
-- 记忆: cd Ombre-Brain → git push → Zeabur 手动 Redeploy
+- 后端: scp / ssh 到服务器 `~/bayapi`，`docker compose up -d --build bayapi`（不走 Zeabur，Zeabur 已停运）
+- 记忆: `~/Ombre-Brain`，同机 compose 重建
+
+## 工作约定（用户明确要求）
+1. **前端 AI 伴侣是男性，用「他」**；用户是小湾（女性，用「她」）。
+2. **思考链（可见推理）用中文写**。
+3. **先讨论方案，再动手**：改代码/架构/花钱先讲清方案和取舍，等用户拍板。工作日志整理除外，自己维护。
+
+## 文档读取规则（省 token）
+- `PROGRESS.md` = 速读版（工作约定 + 当前状态 + 待办 + 最近改动 + 日期索引），~8KB，**开工先读这个**。
+- `PROGRESS-DETAIL.md` = 完整历史（~160KB）。**永远不要整读**，用 `grep -n 关键词 PROGRESS-DETAIL.md` 定位后只读那几十行。
 
 ## Supabase
 - 项目: `dfiztbhylghncyangdlm`

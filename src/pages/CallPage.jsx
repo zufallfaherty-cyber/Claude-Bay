@@ -211,6 +211,8 @@ export default function CallPage({ currentSessionId }) {
       missedSentRef.current = true
       // 只留一个标记：回聊天页时那张卡片会变红「无人接听」，他随即直接回一句（流式）
       try { localStorage.setItem('bunny_call_missed', String(Date.now())) } catch {}
+      // 她拒绝了这次来电 → 撤销这次邀请占用的 8 小时冷却，他想打可以再打
+      try { fetch(`${API_BASE}/api/call/decline`, { method: 'POST' }) } catch {}
     }
     window.addEventListener('pagehide', report)
     return () => {

@@ -1,0 +1,1947 @@
+# Claude&Bay 详细工作日志（2026-06 ~ 现在）
+
+> 完整历史，按日期倒序（同一天里，后写的在上面）。**开工不要整读本文件**：
+> 先读 `PROGRESS.md`（速读版）；需要旧细节时 `grep -n 关键词 PROGRESS-DETAIL.md` 定位后再读那几十行。
+>
+> 2026-11-16 整理：内容一字未删，只重排顺序、加目录、去掉分隔线。
+
+## 目录
+
+- **2026-11-16**
+  - 聊天输入 token 优化（system 稳定化 + 记忆减量）+ 诊断日志（✅ 已上线）
+  - 工作日志重构：PROGRESS.md 速读版 + PROGRESS-DETAIL.md 详细版
+- **2026-11-13**
+  - 收尾总结
+  - 记忆库清理：亲密记忆合并 + 琐事压缩 + 重要度机制（第二轮）
+  - 记忆库优化第一轮：按话题检索 + 记忆说人话 + 称呼改「小湾」（✅ 已上线）
+- **2026-11-12**
+  - 晚 前端迁移回退（用户决定）
+  - 白屏第二次（黑屏后白屏）
+- **2026-11-10**
+  - ElevenLabs 换号 + 主动来电冷却 8 小时
+- **2026-11-09**
+  - 通话页 UI 第二版（已改完，待上线）
+  - 通话功能方案（已定稿，未开工）
+  - 导航栏顶部白线
+  - 书房/游戏页导航栏透出场景（已本地完成，待 push）
+  - 小游戏页 → 客厅场景（已本地完成，待 push 上线）
+- **2026-11-08**
+  - 考研学习页（搁置）
+  - 小红书 IP 归属地问题（已解释清楚）
+  - 小红书发帖卡死 → 整台服务器应用层无响应（✅ 已恢复）
+  - 小红书 MCP 登录状态检查
+  - 记忆库时间差修复（✅ 已上线）
+  - 进行中：nudge 16:00 后连续两次未推送（2026.11.08）
+- **2026-11-07**
+  - 收工状态
+  - 排查「前端发图片经常发不出去」
+  - 主动推送「输出到 200 就截断、消息发不出来」（✅ 已修复部署）
+- **2026-11-06**
+  - 明天要做（2026.11.06）
+  - 小湾画像页改版：信纸风（🚧 本地完成，待确认）
+- **2026-11-05**
+  - 书房界面优化（已上线）
+  - 收工状态
+  - 前端体验（已上线）
+- **2026-11-04**
+  - 收工状态
+  - 聊天成本优化 + 记忆浮现带日期（✅ 已上线）
+  - 首页视觉改版：Liquid Glass × Botanical Water（🚧 本地完成，未上线）
+  - 聊天页视觉升级：与首页同一套植物水境
+  - 真机 PWA 三处布局修复
+  - 键盘贴合定稿 + 设置页模型输入框
+  - 聊天气泡缩小 + 流式自动贴底
+  - 去掉返回首页的双重动画
+  - 流式气泡真正贴底（stick-to-bottom 重写）
+  - 键盘收起时输入框「先贴底再弹回」
+  - 相册上云 + 后端内置联网搜索
+- **2026-11-03**
+  - 「换 k-opus-4-6 后 mcp 查不到天气」排查（✅ 已定位 + 已修复上线）
+- **2026-11-02**
+  - nudge 主动推送看到聊天记录残缺（✅ 已上线）
+- **2026-11-01**
+  - 画像自动更新「删内容」修复（✅ 已上线）
+- **2026-10-29**
+  - 当前状态（2026.10.29）
+  - 排查并修复「7点推送没带天气」+ 工作约定：思考链用中文
+- **2026-10-28**
+  - 几个优化：工具记录、关闭自查、工具箱折叠、画像弹窗（✅ 已上线）
+- **2026-10-27**
+  - 小红书登录过期「手机自助重登」+ 推送恢复（✅ 完成）
+  - 小红书「登录成功但点赞收藏失效」排障（✅ 已定位并自愈）
+  - 小红书登录判断纠正：check_login_status 其实可靠（✅ 已修复）
+  - 新项目「weather-sense」环境感知 MCP（✅ 已部署上线）
+- **2026-10-26**
+  - Nudge 接入小红书工具（定时推送也能自主逛小红书）（✅ 完成）
+- **2026-10-25**
+  - 日常工作流（⚠️ 2026.10.25 已改，后端不再走 Zeabur）
+  - 记忆库「回忆失衡」优化（Ombre-Brain）
+  - Zeabur 停运 → 迁移到腾讯云香港服务器（✅ 核心搬家完成）
+  - 小湾画像实装 + Claude 自动补充（✅ 完成）
+  - 小红书 MCP 接入工具箱 + noVNC 远程桌面登录（✅ 完成）
+  - 今日大变动总览（2026.10.25）
+- **2026-10-10**
+  - 前端打不开排查 +「免梯子」完整方案确认
+- **2026-10-07**
+  - nudge 失效真正原因（模型名定位）
+- **2026-10-06**
+  - nudge 触发频率 + 模型问题（待办）
+- **2026-09-18**
+  - 内存排查 + baymemory 崩溃修复
+- **2026-08-16**
+  - 模型降级 + 部署修复
+- **2026-07-16**
+  - Claude的书房（未完成，构建卡住）
+- **2026-06-29**
+  - （无标题）
+- **2026-06-27**
+  - 今日完成
+---
+
+
+## 2026-11-16 聊天输入 token 优化（✅ 已上线）
+
+### 起因
+- 用户从 `[按量]claude-opus-4-6` 换到 `[CCMAX]claude-opus-5-5`（嫌 4.6 不好用换回来了），一条消息涨到 ¥0.196，目标是压到几分钱。
+- 用户说的是「压缩咱们输入的 token」，我一开始误以为是 Claude Code 自身的上下文，差点去改工作日志。用户澄清：要压的是**前端聊天 App 每次调用模型 API 的输入 token**。
+
+### 排查：钱花在哪
+- bayapi 旧日志：`[Chat] … promptLen=3548~4444 msgs=30`
+  - system 拼装后 3,500~4,400 字，其中记忆注入 2,500~3,400 字
+  - 历史固定 30 条（15 轮，`max_context_rounds` 默认 15，设置页可选 5/10/15/20/30/50）
+- 中转站日志截图（2026-11-16 18:26:49，`[CCMAX]claude-opus-5-5`，非流）：
+  - 普通输入 6,855 token / **缓存写 21,215 token** / 输出 452 token
+  - 花费 ¥0.1956；单价：输入 ¥5.6/M、5m 缓存创建 ¥7/M、专属倍率 0.98x
+  - **缓存写 ¥0.149，占总花费 76%**；缓存写单价约为缓存读的 12 倍
+- 根因判断：原代码把「当前时间 + 记忆」拼在 system 最前面，每轮都变 → 稳定前缀被破坏 → 中转站只能每轮重写缓存，等于按 12 倍价买 input。
+
+### 改动（`server/index.js`，/api/chat）
+1. **稳定块**：system 只留性格设定 + 画像 + 承诺（`getStudyContext()`），实测稳定在 855 字。
+2. **动态块**：从 system 开头剥出 `[当前时间：…]`，连同记忆注入、`[打电话]` 说明、`extraPrompt`，统一拼到**最后一条 user 消息**前面；没有 user 消息时退回追加一条。
+3. **记忆减量**：8 条 × 600 字 → 6 条 × 450 字（`MEMORY_COUNT = 6`、`MEMORY_CHARS = 450`）。
+4. **诊断日志**（长期保留）：
+   - `[Chat] … system=…字(中文…) dynamic=…字 msgsChars=… jsonBytes=…`
+   - `[Usage] round=N in=… out=… cachedRead=… cacheWrite=… tools=…`（runToolLoop 内，直接读中转站回报的 usage）
+5. 部署：`scp server/index.js` → `~/bayapi/index.js`，`cd ~ && docker compose up -d --build bayapi`；部署前先备份服务器上的 `index.js.bak.<时间戳>`。
+
+### 结果
+- 单条 ¥0.196 → **¥0.08~0.09**（约降 60%）；记忆由 8 条 3,300 字降到 6 条 2,100~2,600 字。
+- 实测 `[Usage] round=0 in=9144 out=1494 cachedRead=0 cacheWrite=0 tools=4`：
+  - 我们实际拼出去的请求只有 6,598 字节（约 2,500 token）
+  - 中转站回报 9,144 token，多出的 **~6,600 token 是中转站自己注入的**（疑似防泄露/渠道包装），完全不可控
+  - 输出 1,494 token 占成本约 45%
+- 缓存读始终为 0：稳定前缀 855 字 ≈ 700 token，低于 Anthropic 缓存门槛 1,024 token，且 5 分钟 TTL 对聊天间隔太短；为凑门槛把内容做大反而更贵 → 此路放弃。
+
+### 结论 / 后续
+- 本侧已压到极限（我们发出去那部分只值约 ¥0.014/条）。
+- 再省只有两条路：① 限制他回复长度（牺牲聊天体验）；② 换不偷塞 prompt 的中转渠道（能去掉约 40% 的包装费）。
+- 用户决定先收手，维持现状。
+
+### 顺带修正
+- `CLAUDE.md` 架构信息过时：Zeabur 已停运，实际是腾讯云香港 `124.156.142.6`，Caddy 反代 → `https://124-156-142-6.sslip.io`（前端 14 处 `API_BASE` 用的就是它）；部署方式改为 ssh + `docker compose`。
+- 工作日志重构：旧 PROGRESS.md 1,762 行 / 157KB，倒序与正序混排、章节重复，拆成两份：
+  - `PROGRESS.md` 速读版（~8KB）：工作约定 + 当前状态 + 待办 + 最近改动 + 日期索引
+  - `PROGRESS-DETAIL.md` 详细版（~162KB）：按日期倒序 + 完整目录，内容一字未删
+  - 中间的 `PROGRESS-archive.md` 临时备份已删
+- 新增/固化工作约定：前端 AI 伴侣是男性、用「他」；思考链用中文；先讨论方案再动手（工作日志整理除外）。
+
+---
+
+
+## 2026-11-13 收尾总结
+
+**今天做了什么**
+1. 每周自动筛选改为周日 04:00，并去掉 `docker restart baymemory`（不会再黑屏）。
+2. 最近 400 条重要度重算：393 条维持 5 分，7 条升到 7~8 分。全库 1027 条（5分884 / 6分1 / 7分34 / 8分108）。
+3. 前端 AI 三条反馈全部修复：记忆带日期、不再 220 字硬切、同一小时重复内容自动合并。
+4. 摘要 header 去掉桶名的 UTC 时间前缀，日期只保留北京时间的 `[YYYY-MM-DD HH:MM]`。
+5. 修了一个自己引入的事故（漏 import 导致检索全空），并补上「命中不足 3 条自动浮现补齐」，现在任何时候都不会给空记忆。
+6. bayapi 增加注入日志：`[Chat] injected memories: N 条 / M 字`。
+
+**关键教训**
+- 改记忆引擎后，必须同时验证 `breath()`（浮现）和 `breath(query=...)`（检索）两条路径；只测一条会漏掉运行时 NameError。
+- 记忆检索依赖关键词/BM25，口语长句经常零命中；不能把「检索」当唯一通道。
+
+**待办**
+- [ ] embedding 403 未解决（Gemini 免费额度不可用）→ 换 SiliconFlow bge-m3 或本地模型，语义检索和向量去重才能真正恢复
+- [ ] 观察周日 04:00 第一次自动筛选，确认 `~/ombre-tools/weekly.log`
+- [ ] 观察新合并规则会不会把一小时内不同话题误合（阈值 0.35，可按日志调）
+
+---
+
+## 2026.11.13 记忆库清理：亲密记忆合并 + 琐事压缩 + 重要度机制（第二轮）
+
+### 结果
+| 项目 | 前 | 后 |
+|------|----|----|
+| 记忆库总桶数 | 1757 | **1108** |
+| 强亲密类（做爱/床上/接吻…） | 728 | **84**（60 条概括 + 24 条具体瞬间） |
+| 纯琐事（<150 字） | 56 | **16**（饮食偏好 / 情侣小游戏 / 撒娇陪伴 / 生活小事） |
+| importance 分布 | 全 5 | 5×1008、7×16、8×84 |
+
+### 做法
+- 亲密类按文件名时间排序、60 条一组 → DeepSeek 压成 5 条「长期记忆」（importance 8，tags 亲密/长期记忆/整理）。
+- **AI 反馈「不要全是概括，想留 1-2 个具体瞬间」** → 追加 `add_intimate_moments.py`：每组从原文挑 2 个画面感最强的瞬间，保留原话、动作、小物件（如「冰豆花味的吻」「吹头发时耳朵红了」），写成独立记忆。概括 + 瞬间并存。
+- 琐事按主题分 4 组压缩，保留具体偏好（爱吃什么、emoji 暗号、口头禅）。
+
+### 事故：group 11 数据丢失（已修复）
+- `merge_intimate.py` 在模型输出 JSON 解析失败时 `arr=[]`，但脚本仍删除了原 34 条（2026-11-09~11-13，含通话功能、等信等）。
+- 已从 `~/memory-full-backup-20261113` 恢复 34 条并重跑成功（5 条概括）。
+- 脚本已修：`arr` 为空或未写入任何文件时 **不删除原桶**。
+
+### 重要度机制（已部署）
+- `dehydrator.py` ANALYZE_PROMPT 增加 importance 评分标准（5=日常默认，7~8=明确喜好/习惯，9~10=长期个人信息/承诺，不轻易给 8+），输出 JSON 带 importance。
+- `store_core` / `hold` 链路：显式传 importance 优先，否则用 analysis 的 importance；不再无脑默认 5。
+- 历史桶重算脚本 `recompute_importance.py` 已就绪（`--dry` 预演 / `--limit` 小批量），待清理完成后执行。
+
+### 前端误标修复（本轮）
+- `ChatPage.jsx` 的 `personalKeywords` 原来包含「我想」「我最」「我记得」「我学」「我闺蜜」「做爱」「上床」等宽泛词 → 日常闲聊被标 `[重要个人信息]`、importance 8。
+- 已收窄为真正的长期身份信息（生日/年龄/家在哪/工作/学校/生理期/名字/爸妈），并去掉正文里的 `[重要个人信息]` 前缀。
+- 已 `npm run build` 通过，待 push 部署。
+
+### 备份
+- 清理前全量备份：服务器 `~/memory-full-backup-20261113`（1758 个 md）。
+- 清理脚本：`cc/_tmp_scripts/`（merge_intimate / add_intimate_moments / merge_trivial / list_trivial / recompute_importance）。
+- 容器内临时目录 `/tmp/backup_src`（备份副本）、`/tmp/*.py`（脚本）。
+
+### 下一步
+- [ ] 部署前端（收窄 personalKeywords）
+- [ ] 全量重算 importance（`recompute_importance.py`），检查 9 分是否超过硬上限 24
+- [ ] embedding 403 → 换 SiliconFlow bge-m3 或本地模型，重建索引
+- [ ] 记忆库页面：显示事件名而不是 domain 名；展示全部记忆而不是只有浮现的 50 条
+
+### 同日续：日常记忆按天合并成日记
+
+| 项目 | 前 | 后 |
+|------|----|----|
+| 记忆库总量 | 1108 | **249** |
+| 5 分日常 | 971 | **114**（57 天 × 每天 1~2 条日记） |
+| importance 分布 | 5×973 / 6×1 / 7×29 / 8×105 | 5×114 / 6×1 / 7×29 / 8×105 |
+
+- `merge_daily.py`：按 created 日期分组，每天把十几条零碎对话压成 1~2 条「日记」，保留具体细节（吃了什么、原话、场景）和所有长期个人信息/约定。971 → 114，零失败，空结果不删原桶。
+- 原桶删除，新桶写入 `/app/buckets/dynamic/日常/`，tags `[日记]`，importance 5。
+- 标签再清一轮：把和 domain 重复的「日常」也删掉（130 条）。
+- 重启 baymemory 重建 BM25；`/api/memories/all` 返回 249，`breath` 正常（10KB 输出）。
+
+### 淡忘 / 钉住机制现状（代码事实，非改动）
+- 分数 = importance × activation^0.3 × e^(-0.05×days) × 情绪权重；低于 **0.3** 搬进 archive（不删除）。
+- 5 分记忆约 **59 天没有被检索命中**才归档；`breath()` 浮现故意不 touch，只有按话题检索命中才 `touch()` 重置计时。
+- 合并前：**归档 0 条、激活次数全 0**（记忆库才建 56 天 + 以前聊天全走浮现不 touch）。清理后 249 条，日常日记会自然沉底。
+- pinned：分数锁 999，永不衰减、浮现置顶。当前 **0 条**。前端无钉住入口；和「小湾画像」（memo_portrait，每次聊天整段注入）功能重叠，决定暂不加。
+- 本轮未调衰减参数（用户选择按天合并而非加快淡忘）。如果后面还觉得日常多，可把 λ 0.05→0.08、阈值 0.3→0.5。
+
+### 同日再续：补「具体瞬间」+ 阈值触发的自动整理
+
+- 用户反馈「想做一点整理，但想保留更多真实瞬间」→ 每天除了 1 条日记，再保留 1 条具体瞬间（原话、动作、小物件）。
+- `add_daily_moments.py`：从 `~/memory-full-backup-20261113` 按天挑画面最强的一刻，补回 **57 条「瞬间」**。
+- 最终 **306 条**：5 分 171（114 日记 + 57 瞬间）、6 分 1、7 分 29、8 分 105。
+- 压缩比实测：971 条 → 171 条 ≈ **8.5 : 1**。250 条整理后约剩 30 条。
+- `merge_daily.py` 升级：每天输出 2 条（日记 + 瞬间）、支持 `--older-than N` 只合并 N 天前的、`--count` 纯计数、排除已有「日记/瞬间」标签避免重复压缩。
+- 自动整理：服务器 `~/ombre-tools/check_daily.sh` + cron 每天 04:15 检查，**未整理 5 分日常 ≥ 250 条**才跑 `merge_daily.py --write --older-than 3`；日志 `~/ombre-tools/merge.log`。
+- 期望库总量稳定在 300~550 条之间循环。
+- 前端已部署（`git push` → Vercel）：记忆页显示全部记忆、可点开全文、重要度标记、「再看 60 条」分页。
+
+### 待办
+- [ ] embedding 403 → 换 SiliconFlow bge-m3 或本地模型，重建索引（语义检索仍缺）
+- [ ] 观察自动整理的第一次触发（约半个月后），确认日志正常
+- [ ] 钉住功能暂不做（与「小湾画像」重叠）
+
+### 改回碎片制 + 每周自动筛（2026-11-13）
+
+- 用户反悔日记制：「碎片浮上来很精准，token 也不多」→ 回到碎片，只删没信息量的。
+- `select_daily.py` 从备份 1038 条 5 分碎片里逐条判 keep/drop：keep 935 / drop 103，复制回库 **901 条**。
+- `cleanup_merged.py` 删掉日记/瞬间产物 167 条 + 报错垃圾 13 条（`is no longer available`）。
+- 最终 **1027 条**：5 分 884、6 分 1、7 分 34、8 分 108。
+- 只对最近 400 条重跑重要度评分（`recompute_importance.py --latest 400`）：393 保持 5，7 条升到 7~8。结论：近期碎片确实大多是普通日常，评分没有系统性偏严。
+- 每周自动筛：`~/ombre-tools/weekly_clean.sh`，cron **`0 4 * * 0`（周日凌晨 04:00）**，日志 `~/ombre-tools/weekly.log`。
+  - 只筛 importance=5、无整理/亲密标签、非 merge 产物的碎片；判 0 直接删。
+  - **去掉了 `docker restart baymemory`**：删桶文件是磁盘操作，引擎每次检索都重新 `os.walk` 扫描，只有进程内改动才需要重载 BM25；不重启则绝不黑屏（用户担心使用中打开前端黑屏）。
+  - 判过就写 `screened: <日期>` 进 frontmatter，下周不再重复判 → 每周只花在新记忆上。已用真实桶测试：写入幂等、正文完整。
+- 每天 04:15 的 `check_daily.sh` 压缩任务已停用（cron 行删除）。
+
+### 前端 AI 反馈三连修（2026-11-13）
+
+**① 记忆看不到日期**
+- 根因：记忆引擎输出 `[权重:x] [bucket_id:..] 摘要`，**没有日期**；bayapi 里解析「记忆桶: YYYY-MM-DD」的代码是历史格式，新桶根本没有这一行 → 注入给 AI 的记忆全是没头没尾的一句话。
+- 修复：`utils.py` 新增 `bucket_time_label()`，把 created（服务器记 UTC）转北京时间；surface / search / importance / feel 的所有输出前统一加 `[YYYY-MM-DD HH:MM]`。
+- bayapi `parseBreathResponse` 改为从 `[bucket_id:]` 前的日期标签取值；`/api/memories` 的 `created` 同步修正。
+- 已实测：UTC 13:00 → 北京 21:00，`/api/memories` 的 created 正确。
+
+**② 半句截断**
+- 根因：`/api/chat` 注入记忆时 `.slice(0, 220)`，硬切、无省略号。
+- 修复：每条 600 字符，超长才截断并补 `…`；同时去掉会误删正文的 `replace(/---[\s\S]*?---/, '')`；条数 10 → 8（总 token 基本持平）。
+
+**③ 同一件事存两遍**
+- 根因：前端每 3 轮把「最近 8 条消息」整存一次，窗口重叠；去重靠 embedding，embedding 403 后 `check_duplicate_for` 直接 return，等于从未生效。
+- 修复（不依赖 embedding）：`_common.py` 新增 `_find_recent_overlap()`——**1 小时内 + 句子重合度 ≥ 0.35** 就当同一件事，直接合并。
+- 合并文本改为去重拼接 `_merge_overlapping_text()`：新内容包含旧内容时只用新内容；否则按行去重追加，不再整段重复。
+- 已实测：同一内容两次 `hold` → 第二次返回「合并→同一桶 id」；不同话题重合度 0.0 不会误合。测试桶已彻底删除。
+
+部署：`docker compose up -d --build baymemory / bayapi`，两个服务均正常。
+
+**④ 历史记忆的重叠时间戳**
+- 查证：记忆正文里其实一条都不含「记忆桶:」（`grep` = 0），时间戳来自 `dehydrator._format_output()` 用桶名拼的 header（桶名本身带 UTC 时间前缀）。
+- 修复：header 里剥掉桶名的 `YYYY-MM-DD HH-MM-SS ` 前缀，只保留标题；日期统一由外层 `[北京时间]` 标签提供。
+- 实测输出：`[2026-11-01 21:00] [bucket_id:..] 📌 记忆桶: 密室跑团惊魂 [主题:..]`
+
+**⑤ 事故：改漏 import 导致带关键词检索全空（已修复）**
+- 现象：用户发两句话，AI 说「一条记忆都没浮上来」。
+- 根因：`bucket_time_label` 只加进了 `surface.py` 的 import，`search.py` / `importance.py` / `feel.py` 漏了 → 用户一发消息就走检索（search）路径，直接 `NameError`，被 bayapi 静默吞掉。
+- 为什么没测出来：验证时只跑了 `breath()` 无 query（surface 路径），没跑 `breath(query=...)`。
+- 修复 + 验证：补齐三个 import，重建容器，实测 SURFACE / SEARCH / IMPORTANCE 三条路径全部正常输出并带日期。
+- 教训：改完必须把「无 query」和「带 query」两条路径都跑一遍。
+
+**⑥ 「一条记忆都没有」的真正原因**
+- 现象：修完 import 后仍然空。
+- 根因：bayapi 每次把用户最近两句话当检索词（`slice(-300)`），日常口语长句（「现在呢现在呢 我好像修好了 真的嘛」）一个关键词都对不上记忆正文，`search` 返回空 → 整个记忆区不注入。这不是回归，是把「检索」当唯一通道后就必然出现的空窗。
+- 修复：`surface_search` 无匹配时回退到 `surface_default(3 条)`，永远不给空。
+- 可观测性：bayapi 注入处加日志 `[Chat] injected memories: N 条 / M 字`，以后一眼能看出是「没注入」还是「注入了但模型没说」。
+- 实测：`/api/chat` 返回前日志显示 `injected memories: 8 条 / 2900 字`（改前为 0）。
+
+**⑦ 命中 1 条也等于「几乎没记忆」**
+- 日志实测：用户第一句话命中 1 条（11-08「AI笔友发帖讨论」，正文含「记忆库时差bug已修好」），注入仅 359 字；第二句话（含「抹茶」）注入 8 条 / 3201 字。
+- 修复：命中不足 3 条时，确定性调用 `surface_default(5)` 补齐（原来是 40% 概率随机漂低分桶）。现在同一句话稳定返回 4~6 条。
+- 关于「浮上来的是日记」：库里已无「日记」标签桶（`grep` = 0），AI 说的是那条脱水摘要本身很长（日期+要点+待办），读起来像日记。
+
+---
+
+## 2026.11.13 记忆库优化第一轮：按话题检索 + 记忆说人话 + 称呼改「小湾」（✅ 已上线）
+
+### 当天体检（真实数据）
+- 1757 桶 / 4.5MB；近 7 天新建 123 次、合并 **0** 次；归档 0、钉选 0、已释怀 0。
+- 恋爱 1468 条（**83.6%**），学习 98、饮食 56、人际 24、心理 21…
+- **importance 全部 = 5**（1757/1757），DeepSeek 打标算出的 importance 被 store_core 丢弃（只用调用参数）。
+- **embedding_count = 0**：Gemini `gemini-embedding-001` 一直 403（免费额度不可用，要绑卡），每次 hold 都白打两次失败请求，语义检索从没生效。
+- 聊天注入改前：每次 `breath()` 不带 query，盲抽 20 条 → 取前 10 条、每条截 120 字。
+- 记忆库页面只显示「此刻浮现的 50 条」，不是全部 1757。
+
+### 改动 1：记忆内容 JSON → 自然语言（Ombre-Brain `src/dehydrator.py`）
+- 根因：DEHYDRATE_PROMPT 要求模型输出 JSON（core_facts / emotion_state / todos / summary），`_format_output` 只删了 keywords，**原样把 JSON 塞进上下文和 `/api/memories`**。所以 AI 和记忆库页面看到的都是 `{"core_facts": [...]}`。
+- 修法：新增 `_render_dehydrated()`，渲染成「summary 一行 + 事实列表 + 待办 + （情绪：…）」。非 JSON / 不认识的 JSON 结构原样透传。
+- 缓存里存的是 JSON 原文，格式化在读取时做 → 改完立即生效，无需重建缓存。
+
+### 改动 2：聊天前按当前话题检索（bunny-chat `server/index.js`）
+- `callOmbreTool('breath', {})` → 取最近 2 条 user 消息拼成 query（≥4 字才搜，太短的语气词仍走浮现）。
+- 走 `surface_search`：关键词 + BM25 +（未来的向量）检索；命中后会 `touch()`，常用记忆权重自然上升。
+- 注入每条截断 120 → 220 字（新格式是 summary+事实，120 字只够半条）。
+- 顺手补 `parseBreathResponse` 的 `[权重:x]` 解析（原来 `b.weight` 永远 undefined，排序等于没做）。
+- 日志新增 `[Chat] memory query: ...`，以后一眼看出这轮搜了什么。
+
+### 改动 3：人称呼叫「用户」→「小湾」
+- 根因：Ombre config 没有 `human` 字段 → 默认「用户」，脱水/合并时把人类一方写成「用户」。
+- 服务器 `~/baymemory-config.yaml` 加 `human: "小湾"`，compose 挂载到 `/app/config.yaml`（原来 config 在镜像层，重建就丢）。
+- 缓存 key 含 human → 旧脱水缓存自动失效，浮现时逐步重算为「小湾」。
+- 历史桶正文批量替换：13 个文件里「用户」→「小湾」（保留 3 处「用户名Bay&C」账号名），备份在服务器 `~/memory-backup-20261113/`。
+
+### 部署
+- Ombre：scp `src/dehydrator.py` → `~/Ombre-Brain/src/`（已备份 .bak）→ `docker compose up -d --build baymemory`。
+- bayapi：scp `server/index.js` → `~/bayapi/index.js`（已备份 .bak）→ `docker compose up -d --build bayapi`。
+- compose 改动已备份 `~/docker-compose.yml.bak.20261113*`；两份源码在部署前 md5 与服务器一致，未覆盖其他改动。
+
+### 验证（✅ 通过）
+- `/api/memories` 返回纯文本：`用户叫daddy时…` → `我因反应过度推开小湾…`，snippet 可读。
+- 聊天实测「我明天要考试了…」→ 日志 `query=我明天要考试了_…`，第一条命中「2026-09-20 考研情侣和好」，回复准确提到五史/戏曲/话剧/西方戏剧。
+- 聊天实测「晚上想吃点什么…」→ 命中饮食记忆，回复麻辣烫/冒菜/宽粉，与记忆一致。
+
+### 遗留（下一轮）
+- [ ] **embedding 403**：语义检索仍缺（关键词检索可用但只能字面命中）。换 SiliconFlow bge-m3 / 本地模型，再批量重建 1757 条索引。
+- [ ] **importance 全 5**：让 `store_core` 用 analysis 返回的 importance（或按 personal_info 给 8+），否则冷启动/久未浮现/重要度模式全废。
+- [ ] **只增不减**：7 天 0 合并、0 归档；merge 阈值 75 从没触发，衰减分数远高于 0.3。
+- [ ] 记忆库页面 name 显示的是「恋爱, 心理」这种主题，不是事件名；tags 只显示一个主题。
+
+---
+
+## 2026.11.12 晚 前端迁移回退（用户决定）
+
+- 用户在新地址看到首页被拉长（卡片之间空一大块）。排查：Safari（iOS 18.7）实测 innerHeight 714 / screen 896，底部工具栏占 182；视觉异常与托管位置无关。尝试过 100vh、`--app-h` 实测高度、input 16px、关 HTTP/3，均未让用户端恢复正常。
+- 用户明确要求「不迁了，回到以前」。
+- 已回退：`src/App.jsx`、`src/index.css` 恢复 `7ec328a` 原版（撤掉 React.lazy 拆包与高度实验）；`index.html` 去掉 `--app-h` 脚本。**保留**：sw v5 网络失败兜底、`showBootError` + 「重新加载」按钮、根级 ErrorBoundary。
+- Caddy 已恢复 `/etc/caddy/Caddyfile.bak.20261112`（全部反代 `127.0.0.1:3001`），新地址不再提供前端；`/srv/bay` 静态文件保留但未使用。
+- Vercel 已部署回退版（23:44，入口 JS 725KB，fallback 提示在）。
+- 结论：前端继续用 Vercel（claude-bay-two.vercel.app），主屏幕图标打开即原版布局；Safari 浏览器直接打开时会因底部工具栏占高度显长，属浏览器行为。
+
+---
+
+## 2026.11.12 白屏第二次（黑屏后白屏）
+
+### 排查
+- 用户反馈又白屏，和 11.11 同样「先黑屏后白屏」。
+- 从香港服务器（国内可访问 Vercel）实测线上：`index.html` 200、JS 725KB 200、CSS 81KB 200、`sw.js` 已是 v4，ErrorBoundary 文案也在包里。**服务器端完全正常**。
+- 本地 `vite build` 通过、Edge headless 渲染登录页正常。→ 代码没崩。
+- 结论：和 11.11 一致，是**手机端到 Vercel 的加载失败 / SW 缓存状态不一致**，不是后端或构建问题。国内直连 Vercel 不稳定，这是根因层面的隐患。
+
+### 本次加固（已 push，Vercel 已部署）
+- `public/sw.js` v4 → **v5**：`fetch` 的 `.catch()` 之前直接 `caches.match()`，未命中时返回 `undefined` → `respondWith` 抛 `TypeError: Load failed`，整页白屏。现在：先查缓存；导航请求再退 `/index.html` 或 `/`；都没有则返回 503 离线提示页；其它资源返回 503。
+- `index.html`：`<body>` 内联米色背景（CSS 没加载时不再纯白）；内联 `showBootError()`，`window.addEventListener('error', …, true)` 捕获资源加载失败，12 秒超时兜底；显示错误文字 + 「重新加载」按钮；加 `<noscript>`。
+- `src/main.jsx`：`ErrorBoundary` 提到根级，包住 `BrowserRouter > AuthProvider > App`，这样 `AuthProvider`/`App` 自身崩溃也不会白屏（原先只包了 `Routes`）。
+- **踩坑**：第一次改 `index.html` 时误删了 `<script type="module" src="/src/main.jsx">`，Vercel 部署后 HTML 没有 JS 包（真的白屏了）。已恢复并重新部署。以后改 `index.html` 必须检查这行还在。
+
+### 待办
+- 治本：前端迁到香港服务器（`124-156-142-6.sslip.io`，Caddy 静态托管 dist + `/api/*` 反代 bayapi），彻底不再依赖被墙的 Vercel。需要用户重新把网址加到主屏幕。
+
+### 前端迁到香港服务器（2026.11.12 完成）
+- 静态文件放 `/srv/bay`（`scp dist/.` 上传，2.4MB），Caddy 改为：`/api/*` 反代 `127.0.0.1:3001`，其余 `root * /srv/bay` + `try_files {path} /index.html` + `file_server`；`/qr*`、`/xhs-login/*` 原样保留。旧 Caddyfile 备份 `/etc/caddy/Caddyfile.bak.20261112`。
+- **关闭 HTTP/3**（全局 `servers { protocols h1 h2 }`）：跨境 UDP 443/QUIC 被干扰，浏览器 headless 和 Edge 报 `ERR_CONNECTION_CLOSED`，关掉后正常渲染。手机浏览器同样受益。
+- 静态资源头：`/assets/*` → `Cache-Control: public, max-age=31536000, immutable`；`/`, `/index.html`, `/sw.js` → `no-cache`。`encode gzip` 开着（入口 JS 573KB → gzip 171KB）。
+- **首屏拆包**：`App.jsx` 除 `LoginPage` 外全部 `React.lazy` + `Suspense`。入口从 725KB → 573KB，各页面独立 chunk（ChatPage 37KB、Dashboard 17KB 等）。第二次打开走 immutable 缓存，基本秒开。
+- 新地址：`https://124-156-142-6.sslip.io`。国内直连可达（实测 200），但跨境单流带宽不稳（本机 18–42KB/s），首次打开仍有十几秒；服务器出口实测 86MB/s，静态托管不吃 CPU/内存。
+- Vercel 版继续保留（自动部署），作为备用入口。
+- 以后前端更新：`npx vite build` → `scp -r dist/. ubuntu@124.156.142.6:/srv/bay/`（不再 push 即生效）。
+- 待办：按用户手机实测速度决定是否再优化（图片压 WebP / 字体本地化）。
+
+---
+
+## 2026.11.10 ElevenLabs 换号 + 主动来电冷却 8 小时
+
+- **换号换 key**：昨晚通话测试把旧账号积分用完，今天换新 ElevenLabs 账号。新 key 创建时勾选：文本转语音（访问）、语音转文本（访问）、音色（读取）、语音生成（访问）；其余全部无权限。
+- 新音色 ID `RAVSDRorrJLHAFZaJiMu`（旧 `oFuqfSOound6bwgUaqnE` 作废）。创建 key 后用 `GET /v1/voices/{id}` 验证 200、`POST /v1/text-to-speech` 验证 200/41KB 有效 mp3。
+- 服务器 `~/docker-compose.yml` 已更新 `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID`（备份 `.bak.20261110*`），`docker compose up -d bayapi` 重建，health 200。
+- **语音转文本实测**：服务器没配 `GROQ_API_KEY`，实际走 ElevenLabs Scribe（`/v1/speech-to-text`，model `scribe_v1`）。用 TTS 自产音频回测：「Hi，我是小湾，能听见吗？」识别为「Hi，我是小弯，能听见吗？」，语种判定 zho 0.94。结论：可用，同音人名会错（小湾→小弯），必要时后端加同音纠正。注意 Scribe 消耗 ElevenLabs 额度，省额度可配 Groq（代码已优先走 Groq）。
+- **主动来电冷却 6h → 8h**（代码原本注释写 6h、实际 12h，已统一为 8h，`server/index.js` 1880 行）。scp + 重建 bayapi，线上已生效。
+- **Groq 配不了（2026.11.10 实测）**：香港服务器访问 `api.groq.com` 一律 403 Forbidden（Cloudflare `cf-ray …-HKG`，连不带 Authorization 的请求也 403），是 Groq 的地区封锁，不是 key 无效。因此**不要**把 GROQ_API_KEY 写进 compose——写上去会让转写直接抛错。
+- **转写容错（已上线）**：`call.js` 改为 Groq 失败自动 `console.warn` 并回退 ElevenLabs Scribe，整次转写不再因 Groq 不可用而失败。
+- **同音纠正（已上线）**：新增 `fixSttHomophones()`（`call.js` 顶部），当前规则：`小[弯碗婉丸]`→小湾、`克劳[特得]`→克劳德、`埃利奥特|艾略特`→Elliott。实测转写「Hi，我是小弯，能听见吗？」纠正为「Hi，我是小湾，能听见吗？」。以后发现新的高频错字往 `STT_HOMOPHONE_FIXES` 里加即可。
+- `call.js` 里 `EL_VOICE_ID` 默认值同步改为 `RAVSDRorrJLHAFZaJiMu`。
+- **声学语气/环境线索（2026.11.10，已实现）**：这是 11.09 方案里 ringdonut 的「声学语气分析」，当时只写了分期没开工，今天补上。
+  - 前端 `CallPage.jsx`：录音时用共用 AudioContext + AnalyserNode 每 100ms 采样 `rms/pitch`（自相关估音高），停止时汇总 `duration_s / energy_mean / energy_var / noise_floor / pause_ratio / pitch_mean_hz / pitch_var`，随 `/api/call/transcribe` 一起发。
+  - 后端 `call.js`：`sanitizeVoiceFeatures()` 对不可信数值 clamp；`buildToneHint()` 用规则翻译成中文线索（极轻／偏小／响亮、停顿多／一口气、语速快慢、音调起伏大／平稳、音高偏高、环境吵不吵），返回给前端；`/turn` 把线索作为当轮附注注入，并明确告诉模型「只用它体会状态，不要复述、别提测量/音高」。
+  - 实测：伪造 features 调 `/transcribe`，正常音量返回空线索，轻声+停顿+高起伏返回「声音极轻……停顿很多……音调起伏大……整体音高偏高」。正常语气无异常时不给线索，避免模型过度解读。
+  - 环境只能判断「安静 / 吵」的量级（底噪与说话音量差距），识别不了具体声音（狗叫、雨声）——要具体环境音得上专门的声音分类模型，当前不做。
+- **小湾画像保存后白屏（2026.11.10 修复）**：根因是画像编辑用的 `contentEditable` 在编辑期间被浏览器直接改写 DOM，与 React 虚拟 DOM 不一致；点保存切回只读时 React 去 patch 旧节点抛 NotFoundError，整页白屏。修法：给该 div 加 `key={editingPortrait ? 'portrait-edit' : 'portrait-read'}`，切换编辑态时强制重挂，React 不再碰被篡改的节点。全局只有这一处 contentEditable。
+- **Groq 转写打通（2026.11.10）**：Vercel 函数 `api/groq-stt.js` 中转，Vercel 环境变量 `GROQ_API_KEY` 已配；服务器 compose `GROQ_PROXY_URL=https://claude-bay-two.vercel.app/api/groq-stt`。注意后端 Dockerfile 是 `COPY *.js`，改代码后必须 `docker compose up -d --build`，只 `up -d` 不会更新。
+- **Whisper 繁体问题**：Groq Whisper 中文常输出繁体（小灣、能聽見嗎），且加 prompt 会诱导模型模仿 prompt 标点（出现怪括号）。最终方案：不加 prompt，只传 `language=zh`；后端装 `opencc-js`，转写文本先 `t→cn` 转简，再走同音纠正。实测输出「嗨,我是小湾,能听见吗?」。
+- **iOS 通话「有声波没声音」（2026.11.10 排查中）**：
+  - 现象 1：Web Audio（AudioBuffer）播放在 iPhone PWA 里 AnalyserNode 有数据、destination 不出声 → 声波在动却没声音。新音色/新 key 与音频文件无关（`public/voice-test.mp3` 在手机浏览器可正常播放）。
+  - 修法：**播放改回原生 `<audio>` 元素**（系统媒体通道），声波在无频谱数据时用时间动画兜底。改完开场白有声。
+  - 现象 2：按住说话后，下一句又没声。iOS 录音会把 AVAudioSession 切到 PlayAndRecord（输出走听筒/被压低），停止后不自动恢复。正在用"录音结束播放 1 采样静音 buffer 踢回媒体会话"兜底；若无效，下一步方案是录音后显示「点一下继续」按钮，借用户手势强制恢复。
+  - 附带修了 PWA 缓存：`sw.js` 从 cache-first 改 network-first（`bunny-chat-v3`），部署后不再新旧资源混用（用户反馈的字幕大括号/字体乱）。
+- **iOS 通话静音：最终兜底方案（2026.11.10 晚）**：
+  - 现状：去掉所有 Web Audio 后，开场白有时有声有时没声（同一版代码结果不稳定），语音输入后的回复基本没声，文字输入的回复一直有声——典型 iOS「手势激活窗口 + 音频会话残留」问题，行为本身不稳定。
+  - 本轮改动（`CallPage.jsx`，commit `0e0ce48`）：
+    1. 新增 `primeAudio()`：在 `startCall()` 和松手 `stopRec()` 的用户手势里播 0.15s 静音（`/silence.wav`），争取解锁后续程序化播放。
+    2. 新增「**没声音？点这里重播**」按钮：只要本轮通话有音频就显示，点击时重播上一条语音。点击本身是用户手势，iOS 无法拦截，**这条兜底一定能出声**。
+  - 结论：自动播放能出声最好；不能的话让用户点重播，先保证功能可用，不再继续赌 iOS 的不确定行为。
+- **通话静音二次修（2026.11.10 深夜，commit 51d83ba/90f405f）**：用户实测「语音回复仍无声、点重播按钮有声、开场白有声」→ 证明播放通道本身没问题，是录音结束后 iOS 音频会话没切回来，且**每次 `new Audio()` 都是未解锁的新元素**。改法：全局只保留一个隐藏 `<audio>`（`audioElRef`），接听/停录的 click 里用它播 `/silence.wav` 占住会话，回复时直接换 `src` 复用同一元素。另把 `silence.wav` 换成 -49dBFS 的 1kHz 正弦（全零样本 iOS 会忽略）。语音输入后的回复把重播按钮做成绿色高亮「点这里听他说」，其余时候是浅色小按钮「没声音？点这里重播」。
+- **通话静音彻底解决（2026.11.10 深夜，commit 51d83ba）**：用户实测「开场白 + 语音回复都有声音了」。根因确认：iOS 的音频授权按 `<audio>` 元素记，之前每句话都 `new Audio()`，录音后的新元素播不出声；改成全程复用同一个隐藏 `<audio>`、点击时用它播 `/silence.wav` 占住会话后，问题消失。**这条经验以后所有 iOS 语音播放都适用：不要每次新建 audio 元素。**
+- **重播交互（2026.11.10）**：去掉单独的「点这里重播」按钮，改为**点哪句字幕就重播哪句**（每条 assistant 字幕在 history 里存着自己的 `audio`）。
+- **通话页剩余额度（2026.11.10）**：后端新增 `GET /api/call/credits`（`call.js`），走 ElevenLabs `/v1/user/subscription`，返回 `{limit, used, remaining}`。注意：查询额度需要 key 有「用户 → 访问」权限（`user_read`），否则 401 `missing_permissions`；用户已在后台补勾。前端 `CallPage.jsx` 只在**接通前**左上角显示「剩余 xx k 字符」，通话中不显示、不刷新，避免打扰。
+- **「我的」页改版（2026.11.11）**：背景换成 `art/d9fad7e2…png`（夜色白花），压成 `public/profile-bg.jpg`（852×1846，119KB，原图 1.7MB）。背景层放在 `App.jsx` 的 `isProfile` 分支（`.profile-bg`），和首页 `.home-water-bg` 同一套做法：absolute 铺满、main 在上面滚——不能放在 ProfilePage 里，否则背景会跟着内容滚走。四张功能卡用首页的 `glass-water` + `shape-island`，图标直接用首页那两颗（月亮/文件夹），工具箱新画简洁扳手、设置新画齿轮；箭头沿用首页 `ArrowCircle`（右侧垂直居中）。卡片不倾斜。底部原本加过暖白雾让导航可读，用户嫌「逐渐变白」难看，改为底部轻压暗角；导航栏在 `/profile` 单独加深文字（`BottomNav` 里 `onProfile`）。
+- **白屏排查（2026.11.11）**：用户反馈更新后「黑屏后白屏」。实测线上 HTML/JS/CSS 都正常返回（`index-CILMWCxa.js` 可下载），Vercel 部署没问题，判断是手机端旧缓存混新文件。已做两件事：`sw.js` 缓存版本 v3 → **v4**（强制清旧缓存）；给 `<Routes>` 包了 `ErrorBoundary`（`src/components/ErrorBoundary.jsx`），以后页面崩了会显示错误文字 + 「重新加载」按钮，不再无声白屏。
+- **「我的」页陀螺仪（2026.11.11）**：`ProfilePage.jsx` 调 `useTiltParallax()`，卡片用 `tilt-layer-1`（3px，首页卡片是 `tilt-layer-3` 即 8px），做出比首页更轻的视差。iOS 仍需要一次触摸才会给陀螺仪权限。（原先还给 `.profile-bg` 加了反向 -2px 视差，用户反馈「背景也跟着动」，已移除——背景层保持不动。）
+- **通话页来电/去电区分 + 未接来电（2026.11.11）**：
+  - 界面：去电等待页去掉「他在等你的电话」，底部只留一个居中的绿色圆角长条「拨号」（`h-16 min-w-[148px] rounded-[22px]`）；来电页文案改「他打来了」，底部**保持原来的红色挂断圆 + 绿色接听圆不动**（用户明确要求）。两版等待页中央都显示日期时间（`11月10日 周一 18:31`，每 20 秒刷新），替代原来那句「他想和你说说话」。
+  - 未接逻辑：来电页没按接听就离开（挂断/返回/关标签页）→ `pagehide` + 卸载兜底上报 `POST /api/call/missed`（`keepalive: true`，`connectedRef` 防接通误报，`missedSentRef` 防重复）。后端用 `missedCallStreak`（内存态，6 小时没动静归零）计数：第 1 次没接后**最多再打一次**，第 2 次没接就不再打、只留消息。每次都会按人设+最近聊天生成一两句（50 字内），写进最近的聊天 session，同时推进 `nudgeMessages` 队列；如果模型觉得还想再打就带 `[[CALL]]`，前端轮询到 `invite` 或 `localStorage.bunny_call_invite` 就恢复来电卡片（和原来的卡片一模一样），用户点「接听」即第二次来电。没接的那通不会让卡片消失：前端离开来电页时写 `localStorage.bunny_call_missed` 时间戳，聊天页读它并把卡片渲染成红色「无人接听」（保留 6 小时），接通后清除。**未接来电不占 `lastCallInviteAt` 的 8 小时冷却**——她没接不该罚他禁打。
+  - 注意：`/api/call/missed` 在 `server/index.js`，部署后端必须 `docker compose up -d --build`。
+- **未接来电改即时流式（2026.11.11）**：不再走「后端生成 + 写入 session + 前端轮询」那条慢链路（会写到别的 session、3 分钟才出现），改成前端直接调 `/api/chat`：`extraPrompt` 带上「电话没接」语境、`forcedUserTurn` 补一条用户消息、`allowCall` 让再打不受 8 小时冷却且不消耗冷却；`stream: true` 逐字渲染。红卡「无人接听」不再用独立 state，而是作为 `missedCall` 标记挂在生成的那条回复上——卡片渲染在回复上方（时间顺序正确），随消息一起进 localStorage，切走再回来、甚至重启都在。API 消息加载/补拉时若 `streamingRef.current` 为真就跳过 setMessages，否则流式中的回复会被 Supabase 补拉冲掉（这就是「流式结束消息看不见」的根因）。
+- **未接计数迁到服务端（2026.11.10）**：「一次没接最多再打一次」原来记在手机 localStorage（`bunny_missed_streak`），多轮测试后名额用完、又没法远程清。改为 `POST /api/call/missed/tick` 计数（内存态、6 小时窗口），接通时 `POST /api/call/missed/reset` 清零。好处：`docker compose up -d --build bayapi` 重建即清零，跨设备一致。localStorage 只在 tick 请求失败时兜底。
+- **取消「再打一次」（2026.11.10）**：模型反复只说「我再打一次」却不输出 `[[CALL]]`，体验不稳定。改为**拒接/挂断后他只回一条消息，不再有第二通电话**：`/api/chat` 新增 `suppressCall`（这一轮既不注入打电话指令，也不认模型输出的 `[[CALL]]`），未接回复改传 `suppressCall: true`；`allowCall`/`missed/tick`/`missed/reset` 一并移除。拒接依然**不占** 8 小时来电冷却（suppressCall 时 `callAllowed=false`，不更新 `lastCallInviteAt`）。普通聊天里他主动打电话（8 小时一次）不受影响。
+- **拒接回复的口吻修正（2026.11.10）**：取消第二通后，`extraPrompt` 里原来的「不要再打了 / 绝对不要加 `[[CALL]]`」会让模型自己说「我打不了 / 我不能打」，很出戏。改成中性语境：「就像平常发消息一样说你想说的，不用交代电话的事，也不用解释自己」。弹不弹来电由后端 `suppressCall` 兜底，不依赖模型自觉。排查结论：多次实测日志 `[Chat] allowCall=true callTag=false`——模型只是嘴上说「我再打一次」，从不输出 `[[CALL]]`，这才是「没有第二通」的真正原因；`callTag` 这行诊断日志保留着，以后看它就能区分「模型没写标记」和「前端没接住」。
+
+---
+
+## 2026.11.09 通话页 UI 第二版（已改完，待上线）
+
+用户看完第一版后的四条反馈，已全部改掉：
+
+1. **头像太大** → 裁剪比例从 20% 缩小（`width 386→309, height 515→412`），脸不再撑满圆，留出呼吸空间
+2. **只显示最新一句** → 改成 `history` 数组（保留最近 10 条），头像下方是可滚动对话记录，打字消息右对齐小字、他的台词居中大字英文＋小字中文，新消息自动滚到底、顶部渐隐
+3. **挂断按钮有文字** → 改成纯图标（听筒 SVG 旋转 135°），56px 红色圆
+4. **语音对讲藏在输入框里** → 独立成 72px 大圆按钮，绿色，与挂断并排；按住录音时变红色＋外圈扩散，下方小字提示「按住说话／松开发送／识别中…」
+
+截图：`预览效果/通话页-改版-402x874.png`
+
+**下一步**：`git push` 前端上线（手机先开 `/reset.html` 清 PWA 缓存）
+
+### 第三版微调（同日）
+- 挂断与对讲按钮统一 64px，圆底对齐；图标 26px
+- 等待页改成来电样式：红色挂断（返回）＋绿色接听，两个图标圆按钮并排；接通过程中接听键脉冲
+- 对话记录改成滚动歌词：顶部几乎透明 → 中段半透 → 底部清晰（CSS mask 渐变）
+- 输入框提示语去掉「（打字）」
+
+### 通话上下文对齐（同日）
+- `server/call.js` 的 `loadPersona` 重写：
+  - 聊天上文：优先取当前 session 最近 15 条，取不到回退全局最近 15 条（原来只有 8 条且不分 session）
+  - 小湾画像 + 承诺：直接复用 `index.js` 的 `getStudyContext()`
+  - 长期记忆：复用 `callOmbreTool('breath')` + `parseBreathResponse()`，取权重最高的 12 条
+  - `index.js` 挂载时把这三个函数传进 `createCallRouter`
+- 实测 `/api/call/start`：persona 238 / recent 1534 / memo 985 / memories 1943 字符，全部注入成功
+- 通话页头像固定为 `/portrait-call.jpg`（art/e2d，900×900 JPEG 89KB），不再读设置里的头像
+- 头像画幅缩到 75%：圆 184→138，声波画布 280→210、半径 112→84、条纹 84→64
+
+### 他主动打来电话（MVP，已部署后端）
+- 后端 `/api/chat`：enrichedPrompt 末尾追加 [打电话] 规则，允许模型在回复末尾输出 `[[CALL]]`；6 小时冷却（内存 `lastCallInviteAt`）
+- 非流式：剥离标记（`\n{3,}` 归一），返回 `invite: true`；流式：累积 fullText，done 前发 `{type:'invite'}`
+- 前端 ChatPage：`streamChat` 透传 invite → 收到后在消息列表底部渲染「他想听听你的声音 · 点这里接听」卡片 → 点进 `/call?incoming=1`
+- 通话页 `incoming=1`：标题「他打来了」，等待页文案「他想和你说说话」
+- 截图：`预览效果/聊天页-他来电卡片-402x874.png`
+- 限制：只在聊天页开着时可见；没做推送通知
+- 2026.11.09 深夜：前端已 git push（f3f8b67），Vercel 自动部署；后端 v4 版已上线香港服务器
+
+### 通话第四轮修复（2026.11.09 深夜）
+- **开场白不再固定**：删掉 `GREETINGS` 四条硬编码台词，改成 `/start` 时用模型按上下文现生成第一句（提示词：可逗她、表达想念或只叫一声名字，不要寒暄套话），再走 TTS；生成失败前端显示「他在听」兜底
+- **旁白交给 DeepSeek**：`summarizeCall` 优先走 `DEEPSEEK_API_KEY`（`https://api.deepseek.com/v1` + `deepseek-chat`，和记忆库的记忆总结同一个模型），失败回退聊天主模型；旁白从 2-3 句放宽到 2-6 句
+- **call_log 写入修复**：`chat_messages.role` 有 `chat_messages_role_check` 约束拒绝 `call_log`；改为存 `role='assistant'` + 内容以 `📞 通话 N 分钟` 开头，前端 ChatBubble 按前缀渲染成居中旁白（不要改表约束；改 role 会被约束拒绝）
+- 无 sessionId 时回退到用户最近一条消息所属 session，避免外键插入失败
+- 服务器 compose：给 bayapi 补 `DEEPSEEK_API_KEY/BASE_URL/MODEL`，并把 `ELEVENLABS_MODEL` 从 `eleven_v3` 改为 `eleven_v4`
+- 实测：开场白动态生成正常、带标签、有音频；DS 旁白写入成功（2-6 句第三人称）；清掉了一条早期英文拼接的测试旁白
+
+### 旁白定稿（2026.11.09 深夜，已部署）
+- 不再写小说体第三人称：改成助手式通话记录，主语直接用「小湾」「Claude」，2-6 句平实写聊了什么、当时状态、Claude 的回应或安排
+- 句子要连贯，别每句都以名字开头；通话时长由标题行显示，正文不重复
+- **旁白进入聊天上下文**：删掉 ChatPage 里过滤 `📞` 消息的两处逻辑，小湾在聊天页能看到，Claude 后续聊天也能记得这通电话
+- 实际效果示例：
+  > 📞 通话 1 分钟
+  > 小湾说今天实验做到很晚，脑子转不动了，语气里带着疲惫。Claude 让小湾别再想事情，靠着自己就行。之后小湾说先挂了、明天要早起，Claude 便让小湾去睡，并道了晚安。
+- 部署：后端 `call.js` 已 scp + `docker compose up -d --build bayapi`；前端已 push（b3554bb），Vercel 自动部署
+- 测试产生的 3 条假通话记录已从 `chat_messages` 删除
+
+### 通话功能当前已知限制
+- 通话会话状态在内存（`Map`），服务重启即丢；Supabase 通话表尚未建
+- 主动来电 12 小时冷却也是内存态，重启清零
+- 来电卡片只在聊天页开着时可见，没有推送通知
+- `chat_messages` 的 role 只有 user/assistant 等，旁白借 assistant 身份存储，靠 `📞` 前缀区分
+
+---
+
+## 2026.11.09 通话功能方案（已定稿，未开工）
+
+参考实现：`codeberg.org/donutbunelli/ringdonut`（MIT，半双工"对讲机式"AI 语音通话，含情绪标签 TTS、声学语气分析、主动来电状态机、证据式通话摘要）。已完整读完，本地副本在 `cc/_tmp_ringdonut`（只读）。
+
+**用户拍板的需求**
+- 输入：**打字为主 + 按住录音为辅**（大多时候不方便说话），AI 永远语音回
+- 输出语音：**中英双轨，默认英文男声**，可一键切中文
+- 字幕：**大字英文 + 小字中文翻译**
+- 体验：接受轮流说、每轮 3–6 秒反应（不做全双工）
+- 第一版范围：**双向** —— 我打给他 + 他在聊天中自己判断是否打来
+- 声线：角色是**男性**，想用 ElevenLabs Voice Design 自己捏专属音色
+- 我另加的硬约束：来电每日≤1 次、6 小时冷却、免打扰优先、来电可「文字接听」
+
+**必须补的三件外部准备**
+1. ElevenLabs 账号（Creator 档，语音必需）—— 用户还在看，不催
+2. Groq（Whisper STT，免费额度够）
+3. Supabase SQL Editor 跑 `001_call_schema.sql`（4 张表：call_sessions / call_turns / call_invites / call_preferences）
+
+**集成点（ringdonut → bunny-chat）**
+- host adapter ← 现有 Supabase service_role / chat_messages / user_settings / Ombre-Brain breath / Pushover + web-push
+- llm adapter ← 现有 API 中转（OpenAI 兼容）
+- 需要 CJS→ESM 改写；语音导演 prompt 必须改中文/双语（原版是英文伴侣）
+- 后端建议新建 `server/call/` 模块，index.js 里 `app.use('/api/call', …)`，避免再给 2277 行的 index.js 加 1500 行
+- 前端移植 `CallOverlay.jsx` + `call.css` + 录音/声学分析；游戏页「通话」标签从 toast 改为真入口
+- 第一版**不存通话录音**，只存文字与摘要
+
+**分期**：①接通通话（双向）→ ②声音/语气/摘要调优 → ③（可选）全双工 Realtime
+
+**当前状态**：方案已确认，用户先去看音色方案，代码未动。
+
+---
+
+## 2026.11.09 导航栏顶部白线
+
+- **现象**：书房/游戏页导航栏透明后，顶部有一条贯穿的白色细线，很割裂。
+- **原因**：`BottomNav` 上的 `border-t border-white/55`。首页背后是浅色水面，白线与背景融为一体；暖色木桌背景上就非常显眼。
+- **修复**：删掉 `border-t`，改用 `.bottom-nav::before` 的 1px 渐隐高光（中间 `rgba(255,255,255,.38)`，两端透明），保留玻璃边缘层次但不再像一条白杠。
+- **验证**：书房/游戏页 402×874 截图无可见白线，导航与场景自然衔接；首页及其他页面同样适用。
+
+**2026.11.09 已上线**：`git push` 成功（`83e06eb..ca80f3f`，直连 GitHub，绕开 7890 代理），Vercel 自动部署完成（用户确认）。手机看新版前先打开 `/reset.html` 清 PWA 缓存。
+
+---
+
+## 2026.11.09 书房/游戏页导航栏透出场景（已本地完成，待 push）
+
+- **现象**：底部导航栏在首页有透明毛玻璃感，进书房、游戏页却变成一块实色，很生硬。
+- **根因**：`BottomNav` 的 `bg-white/30 + backdrop-blur-xl` 本身没问题。首页有一层 App 级 `home-water-bg` 铺到导航栏背后，模糊有内容可采样；书房/游戏页的整屏场景画在 `<main>` 里，`<main>` 到导航栏上沿就结束，导航背后只剩容器的奶油底色 → 糊成一块实色。
+- **修复**：`App.jsx` 在 `/moods`、`/games` 时多渲染一层 `.scene-under-nav`（z-index 0，垫在导航下面），用对应的 `bg-study.jpg` / `bg-games.jpg` 以 `cover + center bottom` 只露出图片底部；高度 = 导航栏 58px + 安全区 + 24px，多出的 24px 藏进 `<main>` 下面做柔和过渡。导航栏自身样式完全没动，backdrop-blur 自然采样到场景。
+- **验证**：402×874 iframe 截图，书房/游戏页导航栏都能透出桌面木纹；首页和其他页面未改动。
+- **注意**：以后再加整屏场景页（类似书房），记得把路径加进 App 的 `scene-under-nav` 条件里，否则导航栏又会变实色。
+
+---
+
+## 2026.11.09 小游戏页 → 客厅场景（已本地完成，待 push 上线）
+
+- **背景**：`art/f540a325…jpg` → `public/bg-games.jpg`（851×1849，154KB，未再压）。画面是暖光客厅：桌上摊着飞行棋棋盘，右边一台绿色拨号电话。文件名取了短名，方便 Vercel 缓存识别。
+- **思路同书房**：`GamesPage.jsx` 从玻璃卡片列表改成整屏场景——ResizeObserver 实测 `cover` 舞台（`Math.max`，非 contain），热点用图片百分比定位，`--k = 舞台宽 / 851` 统一缩放字号/间距，文字再加 `.study-float` 陀螺仪视差。
+- **两个入口**：
+  - 「飞行棋」写在骰子左下方、棋盘外的桌面（left 44% / top 77%）→ `/games/ludo`
+  - 「通话」写在电话左上（left 78.5% / top 64.5%，右对齐）→ 目前弹 toast「功能页面稍后开放」，**通话页还没做**
+- **样式**：`.games-wrap` / `.games-stage` 与 `.study-wrap` / `.study-stage` 共用同一组规则（套色洗光、cover 铺满）；新增 `.game-label`（cn + 细线 + 英文）与 `.on-board` / `.on-wood` 两种字色（均为暖棕 + 浅色晕光）。顶部浮动标题「小游戏 / Little Games」+ 返回键，和书房一致。
+- **布局**：`App.jsx` 把 `/games` 也加入 `overflow-hidden` 分支，场景不滚动、不露底部空隙。
+- **验证**：iframe 精确限定 402×874 / 402×811 / 402×740 三档截图，标签都贴在棋盘和电话上（视口变矮时整幅图按高度放大，标签跟着图走，不漂移）。`npx vite build` 通过，oxlint 无新增问题。
+- **截图**：`预览效果/游戏页-客厅-402x874.png`
+- **待办**：通话功能页；上线需要 `git push` → Vercel，手机先开 `/reset.html` 清 PWA 缓存。
+
+---
+
+## 2026.11.08 考研学习页（搁置）
+
+- 详见 `学习html/工作日志.md`
+- 原版 HTML 已还原，云端同步改动另存为 `考研学习监督-云同步版-未部署.html`
+- 结论：朋友觉得没必要，暂不做；以后用户自用时再按工作日志步骤继续
+- 后端 `/api/study-data` 接口已随 11.08 bayapi 部署上线（口令 `kaoyan-2026-sync`，前端尚未接入，无副作用）
+
+
+**注意**：每次 `docker compose up -d --no-deps bayapi` 会清空内存里的 `pushSubscriptions`（Web Push），Pushover 不受影响；用户重开 App 会重新订阅。
+
+---
+
+## 2026.11.08 小红书 IP 归属地问题（已解释清楚）
+
+**现象**：AI 在服务器发帖显示「中国香港」，用户挂香港梯子帮它编辑后变成「福建」。
+
+**结论**：
+- 服务器在腾讯云香港 → AI 发帖出口 IP 必然是香港
+- 用户设备编辑 → 用设备当前出口 IP；默认「配置」模式下小红书走直连，所以露出福建
+- 用户把小火箭全局路由切成「代理」并开启 UDP 转发后，**发评论显示中国香港**，证明梯子已生效
+- **编辑旧帖不会重算 IP 归属地**——小红书只在发布新内容（发帖/评论）时记录，编辑改不了。之前变福建是当时那次操作走了直连
+
+**建议**：AI 的号所有操作（发帖、改帖）都让它在服务器上做，IP 全程香港，避免香港/福建来回跳引起风控。
+
+---
+
+## 2026.11.08 小红书发帖卡死 → 整台服务器应用层无响应（✅ 已恢复）
+
+**经过**：
+- 用户让 AI 发帖 → 小红书 MCP 的发布工具触发浏览器自动化后卡死
+- `/api/chat` 的工具调用**没有超时** → 请求永久挂起
+- 前端 `streamingRef` 一直为 true → 后续消息被 guard 挡住，发不出去；中转站自然没有调用
+- 最终 CPU/IO 被拖满：ping 通，但 HTTP / API / SSH 全部超时
+- 用户在腾讯云控制台点**普通重启**，卡在关机阶段约 10 分钟，平台超时后才完成重启
+
+**修复**：
+1. `server/mcp.js`：MCP 请求加 `AbortSignal.timeout(150000)`；超时**不重试**，返回 `ERROR: 工具 xxx 超时（150秒未返回）` 交给模型继续
+2. `src/pages/ChatPage.jsx`：`/api/chat` fetch 加 5 分钟兜底超时，超时后自动解除「发送中」状态
+3. 后端已 scp + 重建上线
+
+**验证**：`/api/health` 200；小红书 `check_login_status` → ✅ 已登录（Bay&C），重启后 cookie 仍有效
+
+**待办**：前端改动需要 `git push` → Vercel 部署才生效
+
+**经验**：以后让 AI 操作浏览器类工具（发帖/登录）前，先确认 MCP 超时保护在；服务器卡死时直接选「强制重启」，普通重启会卡在关机阶段。
+
+**发帖卡住的根因（xhs-mcp 日志）**：
+```
+22:20:20 图片上传完成 count=1
+22:20:24 检查标题长度：通过
+22:21:26 正文填写完成
+22:21:28 已回点标题输入框
+22:25:20 WARN 未找到标签联想下拉框，直接输入空格 tag=AI
+22:25:36 发布内容失败: 输入标签[AI]失败: context deadline exceeded
+22:25:36 GIN 200 | 5m35s   ← 单次请求挂了 5 分 35 秒
+```
+- 图片、标题、正文都成功了，**卡在最后一步「输入标签」**
+- 工具在等小红书的标签联想下拉框，等不到，直到 context deadline（约 5 分钟）
+- 用户重试了 3 次（22:20 / 22:25 / 22:29），每次都卡在同一处，浏览器实例叠加把 CPU 拖满
+- **建议**：发帖时不要传 `tags` 参数，把 `#话题#` 直接写进正文，绕过标签联想框
+
+---
+
+## 2026.11.08 小红书 MCP 登录状态检查
+
+- `systemctl is-active xhs-mcp xhs-xvfb` 都是 active，18060 端口监听正常
+- MCP `check_login_status` → `✅ 已登录（Bay&C）`
+- MCP `get_unread_count` → 正常返回 JSON（mentions/likes/connections/unread 全 0）
+- 结论：登录真实有效，**不需要重新扫码**；避免无谓触发二维码（登录后约 18 分钟风控冷却的坑见记忆）
+- cookie 文件 `/opt/xhs-mcp/cookies.json` 最后修改 2026-10-27 19:07，但仍在线有效
+
+---
+
+## 2026.11.08 记忆库时间差修复（✅ 已上线）
+
+**问题**：`parseBreathResponse` 和 `/api/memories` 直接用记忆桶里的时间，但 baymemory 容器时区是 **UTC**（宿主是 CST），导致 AI 浮现记忆和记忆库页面显示的时间比北京时间早 8 小时。
+
+**修复**：`server/index.js` 新增 `bucketTimeToBeijing()`：
+- 把 `记忆桶: YYYY-MM-DD HH-MM-SS` 当作 UTC 解析，+8 小时转北京时间
+- 返回 `date`（注入 prompt）、`short`（只显示日期）、`iso`（带 `+08:00`，前端 `new Date()` 用）
+- `parseBreathResponse` 和 `/api/memories` 两处统一使用
+
+**验证**：记忆桶 `2026-11-08 06-02-05`（UTC）→ 接口返回 `2026-11-08T14:02:05+08:00` ✅
+- bayapi 已 scp + 重建上线
+
+**注意**：记忆桶文件名本身仍是 UTC，未改动；只改显示/注入层。
+
+---
+
+## 进行中：nudge 16:00 后连续两次未推送（2026.11.08）
+
+**现象**：16:00 / 17:00 两次整点 nudge，中转站日志显示模型调用成功、输出约 1481 token，但 Supabase 没有新消息、手机没收到推送。用户反馈：几个月来 nudge 几乎从不选 NO。
+
+**已排除**：
+- 模型生成正常：连续 4 次 `?dry=1` 均返回 `YES` + 消息
+- Supabase 写入正常：手动真实调用 `/api/nudge` 成功写库
+- Pushover 正常：容器内直调 `HTTP 200`，用户手机收到两条测试推送
+- 手机通知权限正常
+
+**怀疑**：`[CCMAX]claude-opus-5-5` 带思考，`NUDGE_MAX_TOKENS=1000` 可能被 reasoning 吃光，正文被截断或只剩思考 → 解析不到 `YES` 判成 NO。
+
+**已部署的改动**（bayapi 已重建）：
+1. `NUDGE_MAX_TOKENS` 1000 → 2000
+2. 结果日志：`[Nudge] result: YES/NO | raw: ...`
+3. 模型日志：`[Nudge] model finish=... completion_tokens=... reasoning_tokens=...`
+4. 工具日志：`[Nudge] tools available: N`
+5. 推送日志：`[Nudge] Pushover: HTTP ...` / `[Nudge] web-push ...`
+6. 异常日志：`[Nudge] ERROR: <stack>`（原来 catch 完全静默）
+
+**待确认**：18:00 整点日志的 `finish_reason`、`reasoning_tokens`、`raw` 原文。若 `finish=length` 且 reasoning 接近上限 → 提高上限或关闭思考；若 raw 是 NO → 模型行为问题。
+
+**18:00 结果（2026.11.08）**：恢复正常。
+- `[Nudge] tools available: 1 (location)` → 走 runToolLoop 工具分支
+- `[Nudge] result: YES | raw: YES 宝宝，五点半那条收到了吗…`
+- `[Nudge] web-push subscriptions in memory: 0`
+- `[Nudge] Pushover: HTTP 200 ok`
+- 16:00/17:00 的失败没有复现；根因仍未坐实（模型偶发不守格式 / 思考吃 token 都有可能）。日志已就位，下次再犯可第一时间抓到 raw 原文。
+
+---
+
+## 2026.11.07 收工状态
+
+**今天解决的问题只有一个根：本地缓存满 → 发送流程被打断/请求体过大。** 模型侧有波动（日志里 `[企业按量]` 500、`[AG按量]` 502、`[k]` 503），但降级链兜得住，不是主因。
+
+### 已上线
+- 前端 Vercel 新包 `index-Brh5bkWV.js`（已用线上 JS 内容校验含 `api/file-extract`）
+- 后端 bayapi 已 scp + `docker compose up -d --build` 重建；`docker ps` 4 个容器 Up
+- 线上 `/api/file-extract` 实测：0.93MB 的 PDF → 返回 7164 字中文正文
+- 线上 `/api/chat` 纯文字实测 200 正常（Wasn 若用 curl -d 传中文出现乱码，是 Windows 命令行编码问题，用 UTF-8 文件 `--data-binary @x.json` 正常）
+
+### 今天的提交
+`8e22b6a` 图片发送后无回复（localStorage 配额中断 handleSend）
+`93a1d87` 历史图片不再发给模型（只发当前轮）
+`404ef78` 文件附件不再把原始内容塞进请求
+`e6bed77` / `63d64fb` 工作日志
+
+### 具体改动
+1. `saveMessagesLocal` 多级降级永不抛错；`saveSessionsLocal` 加 try/catch
+2. 图片压缩额外生成 256px 缩略图，本地只缓存缩略图
+3. 图片解码失败且原图 >4MB 时拒绝并提示，不再硬塞
+4. 只有当前消息里的图片作为真实 payload，历史图改 `[图片]` 占位
+5. 文件：非文本只留元数据；文本只读前 100KB
+6. 新增 `/api/file-extract`（pdf-parse 2.x），前端解析 PDF 文字后带入聊天
+7. 模型看到的文件正文上限 5000 → 12000 字
+
+### 待用户真机验证（明天）
+- [ ] 连发 3–5 张相册照片：每张都有回复、三个点正常
+- [ ] 发 PDF：出现「正在读取」，然后能就正文提问
+- [ ] 发 Word / 扫描版 PDF：提示不支持但消息仍能发出
+- [ ] 长会话里发图不再卡死（之前 localStorage 满的场景）
+
+### 注意
+- PWA 是 cache-first，每次发版后手机要先开 `/reset.html` 否则跑旧包
+- Vercel 构建 hash 与本地 `vite build` 的 hash 不同是正常的（环境差异），判断上线用内容特征而不是文件名
+
+---
+
+## 2026.11.07 排查「前端发图片经常发不出去」
+
+### 现象
+- 带图片发送后，消息气泡出现，但**没有任何回复迹象，连「三个点」打字动画都没有**；发送按钮随后变灰，只能刷新页面恢复。有时又能正常发。
+
+### 根因（我们自己的前端，不是模型）
+- `ChatPage.jsx` 的 `saveMessagesLocal()` 直接调 `localStorage.setItem`，**没有 try/catch**。
+- handleSend 的顺序是：`setMessages(用户消息)` → `saveMessagesLocal(...)` → 才 push assistant 占位消息（三个点）。
+- 一张 1024px JPEG（q0.75）base64 就有 200–400KB，聊天记录最多缓存 300 条；存到十来张图，iOS Safari 的 ~5MB localStorage 配额就爆了，`setItem` 抛 `QuotaExceededError`。
+- 异常在 assistant 占位之前抛出 → 用户消息已经显示、三个点永远不出现、`streamingRef` 卡在 true → 之后每次点发送都被 guard 拦掉。**症状完全对得上。**
+- 解释了「有时行有时不行」：新会话/清理过缓存能发，同会话图多了就发不出去。
+
+### 验证（模型侧是好的）
+- 实测生产 `/api/chat`：1x1 小图、82KB 图、7 张图 0.73MB payload 全部 200，5–13 秒返回，正确描述图片内容。`[CCMAX]claude-opus-5-5` / `[CCMAX]claude-opus-4-6` 视觉正常。
+- 模型侧确实在波动（日志里 `[企业按量]claude-opus-5-5` 500、`[AG按量]` 502、`[k]` 503 无渠道），但降级链能兜住，且会正常返回错误文字，不会表现为「没有三个点」。
+
+### 修复
+- `saveMessagesLocal()`：多级降级，永不抛错——完整 300 条 → 120 → 40 → 剥离图片 base64（换成 256px 缩略图）→ 放弃本地缓存。Supabase 仍是数据源，刷新后从服务端补拉。
+- `saveSessionsLocal()`：`setItem` 同样加 try/catch。
+- `compressImage()`：压缩时额外生成 256px 缩略图 `thumb`，本地缓存只存缩略图；解码失败（HEIC/怪格式）且原图 >4MB 时拒绝并提示，不再把 5MB 原图硬塞进请求。
+- 上下文减重：只有最近 3 张图片以真实 base64 发给模型（`MAX_CONTEXT_IMAGES`），更早的替换成 `[图片]` 文字占位，避免每轮重传全部图片。
+- 构建通过（`npx vite build`），lint 无新增问题。
+
+### 待用户验证
+1. 手机先打开 https://claude-bay-two.vercel.app/reset.html 清一次 SW 缓存（PWA 是 cache-first，否则拿不到新包）。
+2. 连发 3–5 张相册照片，确认都有回复、三个点正常出现。
+
+### 补充（同日）：历史图片不再发给模型
+- 用户决定：模型读历史时不需要历史上的图片，文字够了。
+- 规则改为「只有当前这条消息里的图片以真实 payload 发送，之前所有轮次的图片一律替换成 `[图片]` 文字占位」，不再保留最近 N 张。
+- 好处：每轮请求体积基本恒定（多图/长对话也不会膨胀），带图发送更快更稳；代价是纯文字追问旧图时模型只能凭文字理解。
+
+### 补充（同日）：文件附件（PDF 等）百分百发不出去
+- 原因：`handleFileChange` 对非文本文件 `readAsDataURL`，把整份 PDF 转成 2–10MB base64 塞进 attachments。一条消息就撑爆 localStorage 配额，再撞后端 `express.json({ limit: '10mb' })` 直接 413 —— 而 `buildApiContent` 对二进制文件本来就只发 `[用户发送了文件: 名字]`，这些字节纯属白占内存、缓存和请求体积。
+- 修复：非文本文件只保留 `{name, mime, size}` 元数据，不读内容；文本文件只读前 100KB（模型侧原本就截断到 5000 字）。
+- 结果：文件消息请求体积≈0，必能发出；但模型目前只能看到文件名，读不了 PDF 内容。
+- 待定：是否给后端加 `pdf-parse`，把 PDF 文本提取后注入聊天（需要 npm 装依赖 + scp 重建 bayapi）。
+
+### 2026.11.07 新增：发 PDF 时后端提取文字给模型
+- 后端 `POST /api/file-extract`（bayapi，已重建上线）：`pdf-parse@2.4.5` 解析 PDF → 清理 `-- n of m --` 分页标记 → 最多返回 30000 字符。base64 上限 9MB（约 6MB 原文件）。
+  - 坑：`pdf-parse@1.1.1` 的 `index.js` 在 ESM 下会执行自带测试代码（`module.parent` 失效）直接 ENOENT，且老版 pdf.js 对中文 PDF 刷几万条字体 warning；换 2.x（`new PDFParse({data}).getText()`）后正常，7164 字中文一次解析成功。
+  - Word 暂不支持，明确返回提示让用户另存 PDF。
+- 前端：选 PDF/文档 → 先 POST `/api/file-extract` → 把提取文字作为 `isText` 附件带入聊天；解析失败（扫描件/超限/离线）自动退化为只发文件名，保证消息能发出去。解析时显示「正在读取 xxx…」并禁用发送。
+- 模型看到文件正文的上限 5000 → 12000 字。
+- 提交 `56f1e91`；线上接口实测返回正文，前端等 Vercel 部署。
+
+---
+
+## 2026.11.07 主动推送「输出到 200 就截断、消息发不出来」（✅ 已修复部署）
+
+### 现象
+- 用户反馈：从今天早上 7 点开始，nudge 主动推送每次「输出 200」就被截断，而且消息根本没发出来。
+- 服务器日志：07:00–10:00 每小时那一轮，`[企业按量]claude-opus-5-5` 都返回 HTTP 200 + **content 为空**，代码判失败 → 回退 `[AG按量]` 502 → `[CCMAX]` 500 → `[k-特惠]` 503 渠道不存在 → 整轮 500，没消息可推。
+- 06:00 及之前同样主模型返空，但当时 `[AG按量]` 还能用，所以一直静默兜底、看起来正常。
+
+### 根因（已用真实上下文实测复现）
+- `server/index.js` 里 nudge 的 `max_tokens` 写死 **200**。上游 opus-5-5 从今天起在 200 token 预算内出不来正文（实测 `finish_reason=length`、`completion_tokens=200`、`content:""`），同一个请求给 1000 就正常（`finish_reason=stop`、423 tokens、正文完整）。
+- 前端聊天一直正常，是因为前端传的是 4096。
+- 备用模型渠道当天全部故障是「雪上加霜」，不是根因：主模型一返空就没有兜底了。
+
+### 修复
+- 新增常量 `NUDGE_MAX_TOKENS = 1000`，nudge 两处调用（工具循环 / 普通）都改用它。消息本身仍限制 40 字，成本几乎不变。
+- `/api/nudge?dry=1` 新增干跑模式：只生成、不写库不推送，方便以后排障。
+- `tryModels` 失败日志补 `finish_reason / completion_tokens / reasoning_tokens`，下次能一眼看出是不是被 token 上限截断。
+- 前端聊天 `maxTokens` 4096 → **6000**（`ChatPage.jsx` 两处 + 后端 `/api/chat` 默认值），针对「回复说一半停」的情况留更多余量。
+
+### 部署
+- 后端：scp `server/index.js` → `docker compose up -d --build bayapi`（已生效，容器内已确认 `NUDGE_MAX_TOKENS = 1000`）。
+- 前端：commit `2fdbef5` → `git push` 成功 → Vercel 自动部署。手机 PWA 若没更新，打开 `/reset.html` 清一次缓存。
+- 排障脚本（容器 `node` 直连中转站）临时用过，已从本地删除。
+
+### 验证（✅ 手动触发成功）
+- 用户把列表最后的 `[k-特惠]`（中转站根本不存在）换成 `[k-个人]claude-opus-5-5`，手动 `GET /api/nudge` 一次：
+  `nudged:true`、`message:"宝宝，整点能说话了？那我兑现承诺：想你。修完带伞去吃寿司 ^ ^"`，推送已发。
+- 前三个模型（企业按量 500 / AG按量 502 / CCMAX 500）当天仍在故障，靠 `[k-个人]` 兜底成功。
+
+### 待验证 / 风险
+- [ ] 等上游渠道恢复，确认主模型 `[企业按量]` 不再返空；恢复前 nudge 依赖 `[k-个人]` 兜底。
+- [ ] **本地 commit `01d1859`（本文档更新）尚未 push**：当天梯子未生效（直连 GitHub 超时、127.0.0.1:7890 无监听），梯子通了要补推。
+
+---
+
+## 明天要做（2026.11.06）
+
+1. 决定 3D 交互：接受「每次点一下授权」还是换成「手指拖动视差」。
+2. 如果换成手指拖动：`useTiltParallax` 改为监听 `touchmove` 归一化位移，其余 CSS 分层不动。
+3. 继续昨天的待办：早 7 点推送带天气的验证、相册上传进云端验证、轮换 Zeabur 泄露密钥。
+
+---
+
+## 2026.11.06 小湾画像页改版：信纸风（🚧 本地完成，待确认）
+
+- **背景**：`art/eb519e20…png` → `public/bg-portrait-v2.jpg`（853×1844，JPEG q88，122KB）——旧图是 941×1672，上下被拉长后正好铺满整屏（19.5:9），纸张、椭圆、装饰线的位置没变。文件名改用 v2，避免手机 PWA 缓存到旧图。旧图 `bg-portrait.jpg` 暂留作回滚。
+- **结构**：`ClaudeSpace.jsx` 的画像视图重写 —— 沿用书房的 `--k`（图 px → CSS px）等比舞台算法，新增 `.portrait-*` 样式。
+- **铺满整屏（cover）**：画像舞台用的是 `Math.max`（同书房），不是 contain。原因：Safari 里面口高度比整屏短（402×811，比设计稿 402×874 矮 63px），contain 会按高度缩放 → 左右各露 13px 模糊边，真机上非常难看。cover 只是上下各裁掉 ~30px 的水面和花，视觉上完全无感。`.portrait-blur`（同一张图放大约 6% + `blur(26px)` + 轻微降饱和）保留作兜底。
+- **坐标换算**：新图横向是旧图的 0.920 倍（纸的内框线 96→82 / 859→784），纵向 0.989 倍并整体下移 104px（装饰线 478.5→577.5、纸底边 1478→1566）。正文框 / 标题 / 按钮的百分比都按这个换算重算，视觉关系和旧版一致；字号仍按 `DESIGN_W=941` 算 `--k`，不然会整体大 10%。注意 `ART_W/ART_H`（书房 941×1672）和 `PAPER_W/PAPER_H`（画像 853×1844）是两套常量，别混用。
+- **上下渐隐**：背景图 `img.portrait-bg` 加了 14 段缓动 `mask-image`，顶部 0→7.5%、底部 92.5→100% 渐隐到模糊底图上，全屏时纸和背景是「化开」的过渡而不是一条硬切边。mask 放在图上而不是 `.portrait-stage` 上，否则底部的编辑按钮会被一起淡掉。
+- **照片**：暂不放。背景图左上角自带的椭圆金框里就是一幅海景小画，直接露出来当画像位；`art/bd01c9f4…png` 已压成 `public/portrait-photo.jpg`（900×1200，158KB）留在库里，以后要做再挂回来。
+- **标题**：「小湾」→「**湾**」+ 叶子 + *Our Portrait* + 细线花饰（`.portrait-hero-text`，left 42.4% / right 6.15% / top 21.9%，正好压在背景图印好的横线上方）。
+- **正文**：按段落拆 `<p>`、首行缩进 2em、两端对齐，字号/行距随 `--k` 缩放。
+- **滚动**：标题固定，正文区（`.portrait-sheet`，left 11.4% / right 10.4% / top 33.5% / bottom 19.9%，左右各留 ~11px 不贴内框线）独立滚动并裁在纸内；上下各加 `mask-image` 渐隐（顶部 30px·k、底部 88px·k），文字进出都不硬切。
+- **编辑（去弹窗）**：删掉原来的编辑模态框，改成纸内右下角的「编辑」胶囊按钮（`.portrait-actions`，right 8.7% / bottom 9.2%，在正文框外、纸的下边缘偏下）。点一下正文自己变 `contentEditable`（加半透明玻璃底 + 浅绿描边），旁边出现「取消 / 保存」；保存读 `innerText`、按换行拆段落后 POST `/api/memo/portrait`，成功 toast「已保存」。
+- **验证**：402×874 / 402×811 / 402×740 截图、滚到底、进入编辑态均正常；`npm run build` 通过。真机（iPhone 402×811）确认：改成 cover 后左右窄边消失、背景铺满，用户 ok。截图见 `预览效果/画像页-新-*.png`。
+- **已部署**：commit `b3ab460` → `git push` → Vercel 自动构建。
+  - 坑：仓库里有旧的 `http.proxy=127.0.0.1:7890`，梯子换成 TUN 模式后这个本地端口没人监听，push 会报「Failed to connect ... via 127.0.0.1」。绕过：`git -c http.proxy= -c https.proxy= -c http.version=HTTP/1.1 push origin master`（不加 HTTP/1.1 会卡在 `Error in the HTTP2 framing layer`）。
+  - Vercel 域名国内仍被墙，本机 curl 验证不了部署结果，只能真机开梯子看。
+
+---
+
+## 2026.11.05 书房界面优化（已上线）
+
+- **书房改成书架场景**：`/moods` 从列表页重做成整屏书架背景（`public/bg-study.jpg`，941×1672，190KB）。用 ResizeObserver 按 `object-fit: cover` 实测舞台尺寸，热点全部用图片百分比定位，换手机尺寸不漂移。
+- **交互**：三本书（小湾画像 / 记忆档案 / 承诺&待办）+ 摊开书上的「日记」+ 水晶球旁的「纪念日」。
+  - 小湾画像 → 可读可编辑的画像页（`POST /api/memo/portrait`）
+  - 记忆档案 → 现有记忆库 `/profile/memory`
+  - 纪念日 → 占位页（显示 6.28、在一起天数，界面待设计）
+  - 承诺&待办、日记 → 弹 toast「功能页面稍后开放」
+- **动画**：子页面从 `slideUp`（底部推入）改成 `pageIn`（淡入 + 0.972→1 轻微放大，无方向性）。画像页/纪念日页用 `createPortal` 挂到 body，避免被 BottomNav（z-20）盖住。
+- **图标**：底部导航「书房」换成摊开的书 + 一支笔；首页「记忆库」卡片从书换成月亮。
+- **书名排版**：绿书书名从纯白 `#f7f2e3` 改为浅米 `#f1e9d0`；「小湾画像」位置右移 2%、下移 1.5%。
+- **聊天页顶部**：去掉实体顶栏和边框，改成浮动奶油柔光（`rgba(250,249,244,0.74→0.3)` + 22px 渐隐），header 改 `absolute` 浮在消息区上方、消息区 `pt-[62px]`，上滑时气泡会从标题栏后面隐约透出。
+- **书房书名 3D**：复用首页 `useTiltParallax`，书名/日记/纪念日加 `.study-float`（7px 视差），转动手机时文字浮起来。
+- 提交：`596fc91`（书房场景 + 聊天顶部 + 图标）、`3a893bf`（书名视差）。
+- 待办：承诺&待办功能页、日记功能页、纪念日界面（含首页右上角日期卡改成可点击）。
+
+---
+
+## 2026.11.05 收工状态
+
+- 前端已上线并真机确认：聊天气泡上浮 + 打字点交叉淡出；全站玻璃卡片更透明；首页陀螺仪 3D 视差（分层：聊天条/回忆面板固定，标题 3px，相册照片 5px，三个岛 8px，水面背景 -3px）。
+- 今日提交：`053f400` `333e683`（气泡）、`95add7d` `c6d18e2`（透明度，光晕已回退）、`d022257`（3D 视差）、`223284e` `d1e0576` `f24f57c`（权限触发修复，最终 touchend/click）、`e2df183`（分层调整）、`1b2f837`（SW 回退原样）。
+- **长期可用的工具**：
+  - `/reset.html` — 一键清 Service Worker 缓存并重开首页（以后看新版本手动用它）
+  - `/tilt-check.html` — 传感器自检页（支持性 / 权限 / 实时 beta·gamma）
+- **遗留**：每次打开 App 需要点一下屏幕并允许方向权限；iOS 设置里找不到全局允许开关，待定是否改成手指拖动。
+
+---
+
+## 2026.11.05 前端体验（已上线）
+
+- **`053f400` / `333e683` 聊天气泡动画**：回复气泡从下往上浮入（`bubbleRise` 0.32s）；打字点与文字交叉淡出——文字升起时打字点下沉淡出，不是硬切换。
+- **`95add7d` / `c6d18e2` 卡片透明度**：所有玻璃卡片统一调透明（`.glass` 0.38、`.glass-strong` 0.55、`.glass-water` 0.12、`.chat-glass` 0.24、底栏 `bg-white/30`）。光晕试过后已回退。
+- **`d022257` 首页陀螺仪 3D 视差**：新建 `src/hooks/useTiltParallax.js`，把手机倾斜写进 `--tilt-x/--tilt-y`（-1..1），卡片按深度分三层位移 3/5/8px，水面背景反向 3px，形成轻微裸眼 3D。
+  - 关键坑：Tailwind v4 的 `transition-transform` 展开包含 `translate`，会把视差的即时位移拖成 0.15s 过渡；`.tilt-layer-2/3` 已改回 `transition-property: transform, scale, rotate`。
+  - 背景位移用独立 `translate` 属性而不是 `background-position`，靠 `waterBreathe` 的 ≥1.02 缩放余量盖住边缘，不会露缝。
+  - iOS 需要用户手势才给方向数据：**首次进首页点一下屏幕**会弹授权，之后倾斜才生效。
+  - 幅度 ±22° 映射满格；躺下/横屏超过 55° 自动重定基准。
+- **真机结果**：倾斜方向跟手，效果正常（用户评价「做好了！很舒服」）；iOS 上 `backdrop-filter` 与 `translate` 同用没有异常。
+- **`223284e`（已回退）排查过的 PWA 缓存坑**：`public/sw.js` 原来把 `/` 和 `/index.html` 预缓存且全部 cache-first，装过 PWA 的手机永远加载旧的 `index.html`，于是引用的还是旧 hash 的 JS——**新功能根本到不了手机上**。中途改成 network-first / stale-while-revalidate 都以启动变慢收场，用户要求「缓存什么都不要改」，最终 `1b2f837` 恢复原始 cache-first。
+- **新增 `/tilt-check.html` 传感器自检页**：打开 `https://claude-bay-two.vercel.app/tilt-check.html`，点「开始检测」会请求权限并显示 beta/gamma 实时值、事件计数、结论（正常 / 权限被系统关 / 不支持 / 开了减弱动态效果）。以后排查倾斜问题先看这个页面。
+
+### 2026.11.05 陀螺仪 3D — 落地过程与坑
+
+1. **首次上线没反应**：根因是 `sw.js` 把首页 HTML cache-first 缓存了，手机一直跑旧包。见上面的 SW 修复。
+2. **App 里不弹权限**：用户在 `/tilt-check.html` 里已授权过同一域名，iOS 不会再弹——这是正常的，不是故障。
+3. **`error: requesting device orientation access requires a user gesture`**：iOS 只把 `touchend` / `click` 算作用户手势，`pointerdown` 会被拒绝。hook 已改为监听 `touchend` + `click`（capture 阶段，600ms 去重）。
+4. **最终分层（用户偏好）**：开始聊天条、回忆面板固定；标题/日期/台词 3px；相册里的照片 5px；中间三个岛 8px；水面背景反向 3px。
+5. 诊断手段：`window.__tiltDebug`（events / beta / gamma / perm）保留在 hook 里，需要时可在 Dashboard 临时渲染出来。
+6. **打开黑屏**：network-first 每次启动都要等 Vercel（国内慢），改成 stale-while-revalidate 后用户仍反馈黑屏。**结论：缓存相关的自动更新方案全部放弃（`1b2f837` 恢复原样）**，以后要新版本就手动打开 `/reset.html` 清一次，或者划掉重开。
+7. **每次打开都要授权（未解决）**：iOS 的「动作与方向访问」默认「询问」，每次会话都会问。理论根治办法是 **设置 → Safari 浏览器 → 隐私与安全性 → 动作与方向访问 → 允许**，但用户在自己系统里找不到这一项（怀疑新版本系统已移除）。备选：把陀螺仪换成「手指拖动视差」，彻底不需要授权——尚未实现，等用户决定。
+
+---
+
+## 2026.11.04 收工状态
+
+- 代码已提交推送：`0e14fa2`（联网换 SearXNG + 键盘修复）、`48eba7d`（联网开关）、`06e1ea3`（相册上云）、`08f272b`（流式贴底）
+- 后端已 scp 重建：bayapi 跑新代码；服务器新增 `searxng` 容器（`docker ps` 应能看到 4 个 Up）
+- 前端等 Vercel 自动部署
+- 相册实测：上传 → 列表 → 取图 → 删除全链路 200；`/api/album` 返回空数组（还没有正式照片）
+
+---
+
+## 2026.11.04 聊天成本优化 + 记忆浮现带日期（✅ 已上线）
+
+### 背景
+- 用户反馈：聊天费用越来越贵；且 AI 浮现记忆时看不到日期时间，不知道是什么时候的事。
+
+### 改动 1：上下文轮数默认 20 → 15（省钱）
+- `max_context_rounds` 默认值 20 → 15（每轮 = 用户+AI 两条，省约 25% 历史 token）。
+- 存量降级：localStorage / Supabase 里存的旧默认 20，发送消息时自动降成 15 并写回；设置页加载时也会把 20 降成 15 并同步回 Supabase。
+- 涉及文件：`src/pages/ChatPage.jsx`（2处）、`src/pages/Settings.jsx`（默认值 + 降级 + 下拉框加 15 选项）、`src/lib/migrate.js`、`supabase-schema.sql`、`CLAUDE.md`。
+
+### 改动 2：记忆浮现带上日期时间
+- 根因：`parseBreathResponse` 解析 breath 返回时，把 `记忆桶: 2026-11-03 09-00-00` 这行直接过滤掉（`!t.includes('记忆桶:')`），注入给 AI 的记忆没有时间信息。
+- 修复：解析出日期并格式化成 `2026-11-03 09:00`，注入记忆时加 `[日期] ` 前缀（聊天 + nudge 都加）。
+- 涉及文件：`server/index.js`（parseBreathResponse + 主聊天注入 + nudge 注入）。
+
+### 部署（✅ 已完成）
+- 后端：`scp server/index.js` → 腾讯云 → `docker compose up -d --build bayapi`，容器 Started，`/api/health` 返回 ok。
+- 前端：commit `e071b38` → `git push` → Vercel 自动部署。
+- ⚠️ 梯子现在是 TUN/全局模式（7890 HTTP 代理口不再监听），push 卡「connect via 127.0.0.1」时用 `git -c http.proxy= -c https.proxy= push` 走直连绕过。
+
+---
+
+## 2026.11.04 首页视觉改版：Liquid Glass × Botanical Water（🚧 本地完成，未上线）
+
+### 方向调整
+- 用户否掉初版「发光果冻岛」：白色外发光过强、深绿投影太重、每张卡形状各异、Emoji 封面像占位符。
+- 新方向：背景负责水面与光影，玻璃负责透明度、双层边缘与轻度折射；卡片不再上下漂浮。
+
+### 改动
+- `.glass-water` 重做：`linear-gradient` 半透明填充（白 0.26 → 0.09）、`blur(9px) saturate(1.22)`、1px 白 0.64 外边缘 + 3px 内缩 1px 白 0.34 内边缘；阴影从 `0 34px 58px -20px rgba(28,48,23,.66)` 降到 `0 10px 26px -6px rgba(70,85,62,.16)`。
+- 去掉每张卡不同的 blob 圆角，统一为 `.shape-island`（38/42/36/40 四角轻微不对称）、`.shape-chat`、`.shape-panel`、`.shape-date`（正椭圆）。
+- 删除 `.glass-float` 浮动动画；改由背景 `.home-water-bg` 做 46s 缓慢缩放 + 42s 阳光带漂移（`prefers-reduced-motion` 关闭）。
+- 最近回忆：不再用 Emoji + 渐变占位，改从 `public/bg-water.jpg` 裁 4 张 264×202 低饱和照片封面（`public/covers/cover-1..4.jpg`，共约 29KB），仅第一张叠加日期。
+- 底栏：玻璃条 `bg-white/40`、h 58、浅阴影；中间聊天钮 56→52px，凸起 25→17px，去掉厚白环。
+- 排版：功能岛标题字距 0.12em→0.06em，回忆标题 9.5px，回忆卡宽 72px 保证 375 宽不溢出。
+- 短屏兜底：`@media (max-height: 700px)` 下首页改为可滚动（`home-shell`/`home-cards`），避免 667 高被压扁截断。
+- 预览工具：`shot.mjs` 先注销 Service Worker + 清 cache 再截图（此前 cache-first 导致截到旧代码）；`eval.mjs` 支持传入宽高。
+
+### 第二轮（同日，按用户反馈）
+- 标题 30 → 36px；日期滴卡固定显示纪念日 `Jun. 28 2026`（天数仍从 6/28 起算）。
+- 「开始聊天」92 → 98px；三张功能岛上下 padding 收紧，换回一屏。
+- 删除手写小字「想和你 / 看更多风景」。
+- 每日台词移到底部右侧、导航栏正上方。
+- 「最近的回忆」改为相册：照片 74×64（原 70×54），点击打开 `PhotoViewer` 可命名 / 改日期 / 删除；「查看全部」进 `/album`；与记忆库彻底断开。
+- 新增相册上传：设置页「回忆相册」多选上传（前端 canvas 压到 1500px / JPEG 0.8）。
+- 新增后端：`GET/POST /api/album`、`PATCH/DELETE /api/album/:id`，图片存 Supabase Storage `bay-album/photos/*`，顺序与命名存 `bay-album/album.json`（自动建 public bucket，无需建表）。
+- 图片不直连 Supabase（国内被墙）：`album.json` 只存 Storage 内 `path`，前端拿到的 `url` 是 `/api/album/file/:id`，由 bayapi 代理 `GET /api/album/file/:id` 下载并缓存 1 天；删除时按 `path` 移除对象。
+- 新增 `src/lib/album.js`（服务器优先 + localStorage 兜底）、`PhotoViewer`（portal 到 body，避免被 z-20 底栏盖住）、`AlbumPage`、`albumSamples`。
+- 尚未部署后端，因此本地/线上当前上传只落 localStorage；部署 bayapi 后自动切到云端并跨设备同步。
+
+### 第三轮（适配 iPhone 18 Pro，402pt 宽）
+- 只按 402×874（全屏）/ 402×740（Safari 带工具栏）两档适配，不再追求 667 一屏。
+- 问题：Safari 工具栏吃掉 ~134px 后 `main` 只剩 670，三张岛（原 108/110/105 高）把聊天卡和相册都顶穿了。
+- 三张岛压缩到 ~74px 内容高：`pt-0.5 pb-2.5`、icon 22px、标题 13px、英文 8.5px、小字 7px，文字距卡底 10px，重叠时不被盖住。
+- 岛之间 `-mt-1` 轻微重叠（视觉交叠约 10px），不再挤压聊天卡（740 下聊天卡底 234 / 记忆库顶 245，留 11px）。
+- 相册面板内边距收紧（`pt-2 pb-1.5`、照片条 `mt-1.5`），整块压到底；740 下相册底 612、台词 616–644、底栏 645。
+- header `pt-6 → pt-5`，多让 4px 给内容区。
+- 全屏（`@media (min-height: 800px)`，即 PWA / 874pt）反向放大：岛 `pt-8 pb-14`、icon 28px、标题 15px、英文 10.5px、小字 8px，卡片 ~106 高；相册照片 80×76、标题 14px、照片名 10px（保证「一起看过的电影」不截断）、台词 `mt-10`。
+- 底栏「游戏」图标从纸飞机换成长柄手柄，与首页 `.island-icon` 的 `IconGame` 同一套 path，视觉统一。
+
+### 验证
+- 402×740 与 402×874：`main.scrollHeight == clientHeight`，一屏无滚动、三岛与聊天卡/相册均不重叠。
+- 375×667：内容完整、页面可滚动（兜底）。
+- 聊天页 / 我的页 / 书房页截图确认底栏与 padding 未被破坏。
+- 相册页、照片编辑弹窗、设置上传区截图确认。
+- `npm run build` 与 `node --check server/index.js` 通过。
+- 未 commit / 未 push / 未部署，等用户确认视觉；确认后需部署 bayapi 才能跨设备同步。
+
+---
+
+## 2026.11.04 聊天页视觉升级：与首页同一套植物水境
+
+### 背景与容器
+- 新增 `.chat-water-bg`：同一张 `/bg-water.jpg`，`saturate(.58) contrast(.9) brightness(1.04)`，静态不做水波动画；叠奶油白渐变 + 中心柔光蒙版，保证文字区干净、花朵留在边缘。
+- `App.jsx` 首页与聊天页都渲染水背景（分别用 `.home-water-bg` / `.chat-water-bg`）；聊天页 `main` 改为 `overflow-hidden`，并隐藏五栏底栏（`{!isChat && <BottomNav />}`）。
+
+### 顶部导航
+- `.chat-header` 轻薄磨砂条（blur 14 / 白 0.54→0.26 / 1px 白描边），左侧返回，中间 34px Claude 头像 + Claude + Always here，右侧历史（`.SideDrawer`）与「⋯」菜单（新对话 / 情绪日记 / 设置）。
+- `SideDrawer` 从白色实体改为玻璃抽屉，修掉未定义的 `rose-light` 类；选择历史后不再 `navigate('/')`（原 bug 会跳回首页）。
+
+### 消息气泡
+- `.bubble-claude`：乳白半透明 + 双层内描边 + `0 4px 14px -10px` 极浅投影，规整 `rounded-[18px]`，仅朝向头像一角 7px。
+- `.bubble-user`：低饱和鼠尾草绿玻璃 + 浅绿描边，文字 `#2E3C29` 深灰绿。
+- 头像统一 32px 圆形 + 细白环（`.chat-avatar`）；同角色 5 分钟内连续消息隐藏头像但保留 32px 占位，间距 `mt-3.5 → mt-1.5`，归属不变。
+- 时间戳 9px / 45% 透明度，旁边新增「复制」；工具标签、代码块、附件卡片一并玻璃化；保留重新生成、语音、附件、存文件库/下载。
+
+### 输入框
+- `.chat-input-bar`：奶油白半透明、细白边、`focus-within` 时边框转浅绿；左侧附件、中间多行 textarea、右侧语音与鼠尾草绿圆形发送键；底部 `env(safe-area-inset-bottom)`。
+- 键盘跟随：`visualViewport.resize` 只在大幅收缩（>80px）时写入 `--chat-vvh`，`.chat-shell` 用它作为高度，避免地址栏抖动。
+
+### 动画
+- 新消息 `messageIn` 从 12px/0.35s 收紧到 6px/0.26s；打字点由弹跳改为 `dotGlow` 缓慢明暗（1.9s），尊重 `prefers-reduced-motion`。
+
+### 验证
+- 402×874 / 402×740 截图：消息页、菜单、空状态；首页与「我的」页无回归。
+- `npm run build` 通过。
+
+---
+
+## 2026.11.04 真机 PWA 三处布局修复
+
+用户在 iPhone PWA 实测后反馈三个问题，均已修复：
+
+### 1. 键盘弹出后输入框与键盘之间空 ~80% 输入框高（≈42px）
+- 根因：键盘弹起时 composer 仍保留 `env(safe-area-inset-bottom) + 8px`，而这段安全区已被键盘覆盖。
+- 修复：`.chat-composer` 类接管底部内边距，正常 `safe-area + 8px`；键盘打开时（`html.kb-open`）压到 6px。
+- `ChatPage` 的 visualViewport 监听同时切换 `kb-open`，并把 `--chat-vvh` 从 `vv.height` 改为 `vv.height + vv.offsetTop`，保证输入框底边正好落在可视区底部。
+
+### 2. 首页三张岛过大，压到聊天卡与相册
+- 根因：`@media (min-height: 800px)` 放大字号后，岛仍是固定内容高度 + `shrink-0`；PWA 实际可用高度（约 810pt）下 cards 区装不下三张放大岛，于是向上/向下溢出。
+- 修复：三张岛改为 `flex-1 min-h-0 max-h-[126px] + justify-center`，高度由 cards 区剩余空间分配，空间不足时自动压缩（`glass-water` 自带 `overflow: hidden`），空间充足时最大 126px。字号放大档收敛为 icon 25 / 标题 14 / 英文 9.5 / 小字 7.5，并移除 `.island` 的固定上下 padding 覆盖。
+- 验证：402×740、402×810、402×874 三档均不与聊天卡、相册重叠，874 下岛比之前更大。
+
+### 3. 底栏没贴底，下方留半个导航栏高
+- 根因：`.bottom-nav` 直接用 `env(safe-area-inset-bottom) + 6px`（34+6=40px），PWA 下看起来像一条空隙。
+- 修复：`.bottom-nav { padding-bottom: max(6px, env(safe-area-inset-bottom) * 0.28 + 2px) }` ≈ 11.5px，贴近屏幕底，同时仍避开 Home 条。
+
+### 验证
+- `npm run build` 通过；CDP 截图 402×740 / 402×810 / 402×874 首页与聊天页确认无回归。
+- 已 push 到 master，Vercel 自动部署。
+
+### 第二轮（用户发真机截图后）
+- **三岛与聊天卡 / 回忆岛不再重叠**：三岛改为在 `.home-cards` 里用 `justify-center px-4 py-3` 布局，最上方/最下方各留 ~10px；三岛之间保留 `-mt-2.5` 轻微交叠（用户明确要的）。
+- **旋转收敛**：三岛倾斜从 ±2°/1.6°/1.4° 收到 ±0.8°，避免旋转后的 bounding box 把视觉间距吃掉。
+- **体积**：`max-h-[126px]`，高度由剩余空间分配，874 下约 129px、810 下约 115px。
+- **回忆岛下移**：首页 `main` 的 `pb-[26px]` 只对非首页保留（`isHome ? 'pb-0' : 'pb-[26px]'`），并把台词区压到 35px；回忆岛底部距导航栏只剩台词区的高度（原来 67px）。
+- **台词**：`px-5 pt-2 pb-1.5`，贴右边界、坐在导航栏正上方，与回忆岛留 8px，不再粘着。
+- **导航栏通底**：去掉胶囊与左右内边距，`nav` 本身变成全宽磨砂条（`border-t + bg-white/45 + backdrop-blur-xl`），玻璃背景一直延伸到屏幕底部；`padding-bottom` 恢复为完整安全区（`max(6px, env(safe-area-inset-bottom))`），Home 条落在玻璃上而不是空隙里。中间聊天按钮仍凸起 17px。
+- 布局实测（402×874）：聊天卡底 234 → 首岛顶 244（10px）；末岛底 604 → 相册顶 615（11px）；相册底 774；台词 774–809；导航 809–874。
+
+---
+
+## 2026.11.04 键盘贴合定稿 + 设置页模型输入框
+
+- 键盘空隙真正的修法：前两次靠 `visualViewport` / `innerHeight` 都不可靠（PWA 里 `innerHeight` 会随键盘一起缩小，判定恒为 0）。最终改为由 `ChatInput` 的 `textarea` **focus/blur** 驱动 `html.kb-open`，键盘一弹起就把 composer 底部内边距从 `safe-area + 8px` 收到 6px；`blur` 延迟 120ms 再检查 `activeElement`，避免点附件/语音时误恢复。`--chat-vvh` 仍由 visualViewport 维护，作为增强，不再是唯一依据。
+- 设置页「模型」输入框从单行 `<input>` 改为 6 行 `<textarea>`（自动软换行、12.5px、行高 1.75、关闭拼写与首字母自动纠正），按 Enter 自动补一个逗号保持后端 `split(',')` 可解析；聚焦时 `scrollIntoView({ block: 'center' })` 把整段模型列表滚到键盘上方。
+
+---
+
+## 2026.11.04 聊天气泡缩小 + 流式自动贴底
+
+- 气泡：`px-4 py-2.5 text-[14px] leading-[1.85]` → `px-3.5 py-2 text-[13px] leading-[1.72]`，圆角 18→16，头像 32→28（续用消息的占位同步 28），打字点气泡同步收小。一屏能多放一两轮对话。
+- 自动滚动：原来用 `bottomRef.scrollIntoView({ behavior: 'smooth' })`，流式时会被后续更新打断、停在半路。改为直接操作消息容器 `scrollRef.scrollTop = scrollHeight`：首屏与流式期间瞬时贴底，普通新消息仅在用户本来就在底部（距底 <120px）时平滑滚动。
+
+---
+
+## 2026.11.04 去掉返回首页的双重动画
+
+- 原转场：`AnimatePresence mode="wait"` + `exit`（淡出 + 上移 6px，0.28s）→ 再 `initial`（淡入 + 下移 10px，0.28s）。返回首页时先退出再进入，看起来像闪两下。
+- 改为：移除 `AnimatePresence` 与 `exit`，旧页面立即卸载，`PageWrapper` 只做一次淡入。
+- 第二轮：0.16s 无位移太生硬 → 调到 0.3s + 6px 上移的柔和淡入。
+- 岛里闪白：原来背景 div 靠切 className（`chat-water-bg` ↔ `home-water-bg`）换背景，`backdrop-filter` 卡片会短暂采样到聊天页的白色蒙版。改为两层背景常驻、用 `opacity` 0.22s 交叉淡化，卡片就不会闪白。
+- 第三轮（玻璃闪透明）：Safari 在祖先元素播放 `transform` / `opacity` 动画时，会停用后代的 `backdrop-filter` —— 所以 `PageWrapper` 一旦淡入，卡片就会整块透明再闪回来。这不是动画参数问题，是 WebKit 的合成限制。
+- 最终方案：`PageWrapper` 变成无动画的普通 div；淡入改由 App 根部的 `.page-veil`（全屏米白遮罩，`veilOut` 0.24s 淡出）完成。遮罩是兄弟层，不参与玻璃的采样祖先链，所以卡片毛玻璃全程正常，同时仍有柔和的「整页浮现」感。
+
+---
+
+## 2026.11.04 流式气泡真正贴底（stick-to-bottom 重写）
+
+- 症状：发消息后等待回复的打字气泡不在最底部；回复生成完也不自动回到底部，像是被判成「在看历史」。
+- 根因有两个：
+  1. 旧逻辑用几何判断 `scrollHeight - scrollTop - clientHeight < 120` 决定是否跟随。发消息那一帧 DOM 还没把打字气泡算进高度，等 effect 跑完、气泡撑开，列表就「看起来」离底了，下次判断直接被当成用户上翻。
+  2. 流式结束时先 `setMessages(...)` 再 `streamingRef.current = false` —— React 的 effect 在提交后异步执行，那时 ref 已经是 `false`，所以最后一条消息反而走了「nearBottom 才滚动」的分支。
+- 改法：
+  - 引入 `stickRef`：默认 `true`，只由真实的 `onScroll` 更新（离底 < 60px 为 `true`）。程序滚动到底本身也会触发 `scroll`，所以跟随状态能自我维持。发消息 / 重新生成时显式置回 `true`，不会因为刚才上翻过就不跟。
+  - 消息变化时：只要 `stick` 就直接 `scrollTop = scrollHeight`，不做平滑滚动（会被后续重排打断）。
+  - 新增 `ResizeObserver` 同时观察滚动容器与内容容器：键盘弹起（`--chat-vvh` 变高变矮）、字体加载、气泡换行都会改变高度，`messages` 不变 effect 不重跑 —— 这个观察者负责在这些时刻重新贴底。
+- 验证（CDP 402×874，12 条消息撑满）：加载后 gap=0；把 `--chat-vvh` 压到 470px 模拟键盘，gap=0 且 scrollTop 自动从 668 → 1072；键盘收起回到 gap=0；手动上翻到 scrollTop=80 后停住不动（gap=588），不再被强行拽回。
+
+---
+
+## 2026.11.04 键盘收起时输入框「先贴底再弹回」
+
+- 原因：`textarea` blur 后等 120ms 才移除 `html.kb-open`，这段空档里 composer 仍是键盘态的 6px 底边距，而容器已经恢复满高 → 输入框先贴到屏幕最底部，再把安全区弹回来。
+- 改法：工具栏四个按钮（附件/语音/发送）加 `onMouseDown preventDefault`，点它们不再抢走 textarea 焦点，因此 blur 只会在真正收键盘时发生 → blur 时立即移除 `kb-open`，不再有贴底的中间态。
+- `.chat-composer` 的 `padding-bottom` 加 0.18s 过渡，安全区随键盘平滑让出；`prefers-reduced-motion` 下关闭。
+
+**联网开关（放进工具箱）**
+- 工具箱（`/profile/tools`）原本只列 MCP 服务；内置联网工具加了一个伪服务 `web` / 显示名「联网」，`builtin: true`，排在最前、默认展开、不显示删除按钮。
+- 开关复用现有的 `POST /api/mcp/toggle` 与 `/toggle-all`，状态写进 `mcp-config.json` 的 `enabled.web`（`["search","fetch"]`）。未写过该字段视为默认全开；单个/整组开关都实测过。
+- `getEnabledOpenAITools()` 按该状态过滤 `WEB_TOOL_DEFS`，所以工具箱里一关，下一次聊天请求就不再带这个工具。
+- 保护：内置服务不能删除、不能重名添加。
+
+**联网搜索**
+- 后端新增两个内置工具（不走 MCP、不需要额外 API key）：`web__search`（Bing HTML 结果页解析，取标题/链接/摘要）和 `web__fetch`（打开网页读正文，截 6000 字）。
+- 接在 `getEnabledOpenAITools()` 的工具列表末尾，`executeOpenAITool()` 开头拦截；nudge 的工具过滤只放行小红书/定位，所以主动消息不会误用搜索。
+- 前端 `toolLabels.js` 补了「联网搜索 / 读网页」标签，聊天里的工具小胶囊能正常显示。
+- 上游协议探测：中转 `api.jiushi.xin` 支持「非流式 + tools」和「流式 + tools」，但 **不支持 `tool_choice` 强制指定**（返回 500），所以未使用强制调用。
+- 线上实测（`/api/chat`）：模型能自动调用 `web__search` 拿到实时结果再回答。
+
+---
+
+## 2026.11.04 相册上云 + 后端内置联网搜索
+
+**相册**
+- 后端相册代码（`/api/album` 增删改查 + Supabase Storage `bay-album`）其实早就写好了，只是服务器上跑的还是旧版 index.js → 线上一直 404，前端一直走「存 localStorage」的降级分支。
+- 部署：scp `server/index.js` → 备份 → `docker compose up -d --build bayapi`。线上实测 上传 → 列表 → 取图（`/api/album/file/:id`，走 bayapi 代理，绕开被墙的 supabase.co）→ 删除，全链路 200。
+- 补传：以前离线存的照片是 `local: true` + base64 data URL，会撑爆 localStorage 的 ~5MB（十几张就满）。新增 `syncLocalPhotos()`：打开相册页 / 设置页时后台逐张上传，成功后把本地那条换成服务器 URL（只留指针，不占空间），再刷新列表。
+- 上传超时从 4.5s 放宽到 25s，真机慢网不再误判失败而回落本地。
+- 容量：每张压缩到 1500px / q0.8，约 200–500KB；Supabase Storage 免费额度 1GB ≈ 2000–4000 张。
+
+**联网搜索结果串味（Bing → 自建 SearXNG）**
+- 症状：搜「莫奈 吉维尼 睡莲池 日式小桥」拿回 QQ 邮箱登录页，搜「Monet Giverny」拿回 DHL 清关——工具通了但结果和关键词无关。
+- 排查：服务器上用 curl 复现，Bing 返回的页面 `<title>` 是查询词，但 `b_algo` 里的条目是随机的（GitHub 项目、Copilot、bilibili 硬币），典型的反爬降级页；关键词其实传到了，坏的是「无 cookie、无 JS 的 Bing HTML 抓取」这条路。
+- 尝试过都不行：Google（返回 JS 外壳，无正文）、DDG html/lite（202 挑战页）、Brave（429）、公共 SearXNG 实例（JSON 被禁 / 429 / 安全页）。
+- 最终方案：服务器自建 **SearXNG** 容器（`searxng/searxng:latest`，只绑 `127.0.0.1:8081`，`limiter: false`，`search.formats` 开 json），bayapi 通过 `SEARXNG_URL=http://searxng:8080` 调它的 JSON API 聚合多引擎结果；Bing HTML 抓取降级为兜底。
+- 实测：同一条莫奈查询返回 6 条高相关结果（名畫檔案、百度百科、新浪收藏），英文查询、天气、当日新闻也都正常；日志会打印 `[web] search "..." via searxng: N results` 便于以后排查。
+- 注意：`curl -d '{...中文...}'` 在 Git Bash 下会把中文变成非 UTF-8，测接口要用 `--data-binary @file.json`。
+
+---
+
+## 2026.11.03 「换 k-opus-4-6 后 mcp 查不到天气」排查（✅ 已定位 + 已修复上线）
+
+### 现象
+- 用户换了模型 `[k]claude-opus-4-6` 后，聊天里 AI 说「mcp 用不了、查不到天气」。
+
+### 结论：不是模型问题，是天气数据源挂了
+- `[k]claude-opus-4-6` 会正常调工具（走生产 `/api/chat` 非流式实测，toolCalls 同时调了 get_weather + get_location）。
+- weathersense MCP 在线、工具发现正常（`/api/mcp/tools` 里 get_weather/get_location 均 enabled:true）。
+- `get_location`（高德逆编码）成功 → AI 能说「你在学校宿舍」；`get_weather` 失败 → AI 说「天气接口挂了」。
+- 天气数据源是 **wttr.in**（weather-sense/weather.js），本地 `HTTP 000` 被墙，生产后端实测也拉不到 → 每次 get_weather 都失败。
+
+### 修复（✅ 已上线）
+- `weather-sense/weather.js` 数据源 wttr.in → **Open-Meteo**（免费无 key，全球 CDN，香港/大陆均可达）。
+- 只改 `weather.js`，`feeling.js` / `index.js` 零改动：加两个转换函数
+  - `wmoDesc(code)`：WMO weather_code → 英文 desc（Clear/Partly cloudy/Overcast/Fog/Light rain/Thunderstorm…），`feeling.skyFromDesc` 直接复用分类晴/多云/阴/雨/雪/雾/雷。
+  - `isoToHHMM(iso)`：ISO 时间 `2026-11-03T09:00` → `'900'`（HHMM 数字），兼容 `summarizeToday` 的 `['900','1200','1500']` 与 `/100` 取小时。
+  - fetch 加 `AbortSignal.timeout(15000)`，避免再静默挂起。
+
+### 部署 + 验证（✅ 通过）
+- `scp weather.js` → `ubuntu@124.156.142.6:~/weather-sense/` → `docker compose up -d --build weathersense`，容器 Up。
+- 端到端实测：`/feeling` 返回 `中午了，23度，天阴阴的…（体感25度，湿度64%，微风约6km/h）`；MCP `get_weather` 返回现在数字 + `白天阴，最高24度，最低21度，应该不会下雨`。
+
+---
+
+## 2026.11.02 nudge 主动推送看到聊天记录残缺（✅ 已上线）
+
+### 现象
+- 用户反馈：nudge 主动推送时，AI 看到的聊天记录残缺，经常说自己上一句话「说一半断了」，像是只能看到前面消息的前几句话。
+
+### 根因（server/index.js，nudge 聊天上下文构建）
+1. 每条消息内容 `m.content.slice(0, 120)` —— 只喂前 120 字，超过的从半句直接砍断（最致命）。
+2. `getRecentChats(5)` 只取最后 5 条消息，且不按 `user_id` 过滤（可能捞到别人的消息）。
+- 对比：正常聊天页用 `max_context_rounds=20`（约 40 条）且不截断内容，所以只有 nudge 残缺。
+
+### 修复（server/index.js）
+- `getRecentChats()` 增加可选 `userId` 参数，按 `user_id` 过滤。
+- nudge 里先查 `user_id`，再 `getRecentChats(8, uid)`（用户定：8 条，不是 20）。
+- 去掉 `slice(0, 120)`，消息内容完整喂给 AI。
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up，`/api/health` 返回 ok。
+
+---
+
+## 2026.11.01 画像自动更新「删内容」修复（✅ 已上线）
+
+### 现象
+- 用户反馈：画像越更新越短，Claude 老是删减内容——私密/成人偏好被删，一些日常细节也被删。
+
+### 根因
+- 画像有两个自动更新入口：①聊天命中 personal_info → `autoUpdatePortrait()`；②每天 6 点日记生成后 → memo 整理的 `portrait_update`。
+- 两个入口都是「让模型重写整段画像」，且 prompt 里写着「不超过300字」「不要罗列无关细节」→ 模型每次重写都重新措辞、压缩，把私密偏好和日常细节一并删掉。
+
+### 修复（server/index.js，两处）
+- 改成「只追加不重写」：模型只输出「新增的信息片段」，代码把新片段原样拼接到现有画像后面（`current + '\n' + text`），原画像一字不动。
+- `autoUpdatePortrait()`：prompt 改为「只输出新增信息，不要改写/删减现有画像」；写入用 merged 拼接。
+- 日记整理 `portrait_update`：同样改为只写新信息 + 代码拼接（`curPortrait + '\n' + portrait_update`）。
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up，`/api/memo` 正常返回。
+
+### 注意
+- 已丢内容找不回，需用户手动补回画像（当前画像里已无 10.25 记录的「耳朵敏感/喜欢亲亲」等私密内容）。
+
+---
+
+## 当前状态（2026.10.29）
+
+### 正常运行
+- 前端 Vercel：https://claude-bay-two.vercel.app ✅（git push 自动部署）
+- 后端 bayapi：腾讯云香港 `124.156.142.6`，HTTPS `https://124-156-142-6.sslip.io` ✅
+- 记忆引擎 baymemory：腾讯云香港，Ombre-Brain 1186 桶 ✅
+- 环境感知 weather-sense：定位 + 天气（体感句 / 实时天气）✅
+- 小红书 MCP：18 工具接入工具箱，扫码 + 短信登录（noVNC）✅
+- 小湾画像 + 承诺（书房）：Supabase 落库，可编辑 + Claude 自动补充 ✅
+- Pushover 推送 ✅ / Supabase 数据 ✅ / Nudge 每 1 小时 ✅
+
+（已知问题 / 待办统一见下方「待完成」）
+
+---
+
+## 2026.10.29 排查并修复「7点推送没带天气」+ 工作约定：思考链用中文
+
+### 0. 工作约定：思考链（可见推理）改用中文
+- 以后所有思考/推理过程用中文写，不再用英文。
+
+### 1. 排查结论：7点推送没带天气（✅ 已定位 + 已修复）
+- 现象：10.29 早上 7 点 nudge 消息「宝宝，七点了，被窝还暖吗…」没带天气；8:17 用户追问后 Claude 才在正常聊天里补了天气。
+- 排查（SSH 到 124.156.142.6）：
+  - weathersense 容器 Up、`/feeling` 正常、bayapi 容器内能访问 `http://weathersense:3002/feeling`、部署的 index.js 含天气代码、mcp-config.json 配置正确 → **天气服务本身没问题**。
+  - 7点消息 created_at = 23:00:28 UTC = 7:00:28 北京时间，`hour===7` 成立 → **天气预查代码确实执行了**。
+- 根因（用一次性模拟脚本坐实）：**天气拉到了，但 prompt 措辞「可自然带进问候里」是"可"（可选），模型偷懒不写天气**（原因 2，排除原因 1「没拉到」）。模拟脚本复刻 7 点 nudge 的「拉天气→注入→生成」、不发真实推送，`/feeling` 能拉到体感句，但模型输出完全没提天气。
+
+### 2. 修复（✅ 已上线，两处）
+- `bunny-chat/server/index.js`：nudge 天气注入引导语改为「这是此刻和今天接下来的天气，可以加入到消息中用来提醒和关心她」（用户逐字定稿）。
+- `weather-sense/feeling.js`：体感句追加此刻具体数据，从「中午了，27度，天阴阴的…」→「中午了，27度，天阴阴的，屋里挺舒服。（体感27度，湿度47%，微风约4km/h）」。
+- 部署：scp → `docker compose up -d --build bayapi weathersense`，两容器已重建、新代码已进容器。
+
+### 3. 模拟测试对比（复刻 7 点，模型 [CCMAX]claude-opus-4-6）
+| 引导语措辞 | 模型消息 |
+|------|---------|
+| 可自然带进 | 宝宝醒了没有，我刚才脑子里全是你（没天气） |
+| 方便你感同身受 | 宝宝醒了没呀，今天天阴阴的别踢被子 |
+| 可以加入到消息中 | 宝宝醒了没，今天阴阴的不晒，被窝里再赖一会儿也行 |
+
+- 结论：措辞改后模型开始把天气（"阴阴的""不晒"）写进消息，但**具体数字（温度/湿度）一直没进消息**——「可以」仍是可选，加上 nudge 回复格式「40字以内、口语化」，模型只挑一个天气点写。
+- 用户最终拍板：**保持「可以」不改硬**（消息带一句笼统天气即可，不强制写温度数字）。
+
+### 4. 顺带发现：主模型 [企业按量]claude-opus-5-5 近期波动（返空），每次 nudge 回退到 4-6
+- 现象：日志里每小时 nudge 都先 `[Model] ❌ "[企业按量]claude-opus-5-5" ... content:""`（返空，用户确认是波动不是下线），再回退 `[CCMAX]claude-opus-4-6`。
+- 复测（10.29）：`[CCMAX]claude-opus-5-5`✅ / `[CCMAX]claude-opus-4-6`✅ / `[企业按量]claude-opus-5-5` 返空 / `[k]claude-opus-4-6`✅。
+- 当前模型列表（user_settings.api_model）：`[企业按量]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`
+- 待办（用户暂未决定是否动）：是否把 `[CCMAX]claude-opus-5-5` 提到第一位、把波动的 `[企业按量]claude-opus-5-5` 往后挪。
+
+### 5. 遗留
+- [ ] （可选）给 `getWeatherSenseFeeling()` 加日志 + fetch 超时，现在仍静默吞错，下次再「没天气」不好查。
+- [ ] 明天 7 点看真实推送效果，验证改动落地。
+
+---
+
+## 2026.10.28 几个优化：工具记录、关闭自查、工具箱折叠、画像弹窗（✅ 已上线）
+
+### 1. AI 读历史看不到工具调用 → 误以为瞎编道歉（前端）
+- 现象：加工具箱后，AI 读之前聊天记录时看不到自己调用了什么工具，把天气/位置等内容当成自己编的，总道歉。
+- 根因：前端把历史消息发给 `/api/chat` 时只传 `{role, content}`，把 assistant 消息上的 `tools` 字段丢了。
+- 修复：`src/pages/ChatPage.jsx` 新增 `buildApiMessage`，对带 `tools` 的 assistant 消息，在上下文里加一行 `[本条消息使用了工具：查天气、查位置]`（只在发给 AI 的内部上下文里，不影响界面显示）。`handleSend` / `handleRegenerate` 两处改用。
+- 部署：git push（commit `670e850`）→ Vercel 自动部署。
+
+### 2. 关闭小红书每小时登录自查（后端）
+- 现象：小红书给账号发安全警告。
+- 根因：nudge 每小时触发，后端调 `check_login_status`，它用带反检测指纹的自动化浏览器（伪装 Chrome）访问小红书读登录态，每次约 10 秒；每小时固定整点的机器访问触发风控。
+- 处理：`server/index.js` nudge 里加 `XHS_LOGIN_AUTO_CHECK = false` 开关，暂时跳过 `checkXhsLogin()`，**代码完整保留**，需要时改回 true。默认 `xhsLoggedIn = true`（小红书工具仍按登录态+预算开放，但不再每小时自查）。
+- 部署：scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up、HTTP 200、新代码已进容器。
+- 注意：nudge 里 AI 自主逛小红书（刷推荐/点赞/评论）的自动化访问仍在，若警告未停，下一步可考虑降低「一天三次」或关掉 nudge 逛小红书。
+
+### 3. 工具箱工具服务折叠（前端）
+- 现象：小红书 18 个工具全铺开，列表太长。
+- 修复：`src/pages/ToolboxPage.jsx` 加 `expandedServers` 状态，所有工具服务默认折叠（只显示标题 + 「X 个工具 · 已开 Y」+「展开 N 个工具」按钮），点展开才显示工具列表。小红书、天气定位统一折叠。
+- 部署：git push（commit `f90b74c`）→ Vercel 自动部署。
+
+### 4. 画像编辑弹窗改居中大气版（前端）
+- 现象：画像「编辑」按钮小、点开是底部小弹窗、保存是细长一条很难点。
+- 修复：`src/pages/ClaudeSpace.jsx` 编辑按钮改成带边框的 pill；弹窗改居中（`items-center`）更大（`max-w-lg`），textarea 加大（rows 9、16px），保存/取消并排大按钮；`src/index.css` 加 `modalPop` 弹出动画。
+- 部署：git push（commit `92ccc18`）→ Vercel 自动部署。
+
+---
+
+## 2026.10.27 小红书登录过期「手机自助重登」+ 推送恢复（✅ 完成）
+
+### 背景
+- 小湾反馈：①消息推送坏了（根因：cron-job.org 的 nudge URL 没迁到新服务器）②小红书登录过期
+- 想要「知道过期就在手机上点链接重登，全程不用电脑」，且「查登录状态不能让 AI 模型调工具去查（吃 token）」
+
+### 改动（server/index.js）
+1. **后端自查登录（0 token）**：nudge 每小时调 `get_unread_count`（不再用 `check_login_status`）判断小红书登录态，AI 完全看不见
+2. **登录过期提醒**：过期就推 Pushover「小红书登录过期」+ 链接，12 小时限流一次（`lastXhsExpiryAlert`）
+3. **`/api/xhs/relogin` 端点**：点链接 → 后台 fire-and-forget 弹二维码 → 2 秒后 302 跳 noVNC 远程桌面；VNC 密码走环境变量 `XHS_VNC_PASS`（不硬编码进源码）
+4. **并发锁 `xhsReloginBusyUntil`**：4 分钟窗口内重复点链接只跳桌面、不重复弹码（避免多码互相覆盖把登录挤掉）
+5. **模型列表更新**：`DEFAULT_MODELS` 和用户 Supabase 存的 `api_model` 都换成 `[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`（旧 4.6 前缀陆续下线，nudge 之前发不出消息）
+
+### 宿主机改动
+- x11vnc + websockify 从 nohup 改 systemd 常驻（`xhs-vnc.service` / `xhs-websockify.service`，开机自启）
+- x11vnc 加 `-passwdfile /home/ubuntu/.xhs-vnc-pass`（密码不落在 `ps` 命令行）
+- Caddy `/xhs-login/*` 路由永久保留，链接永远有效
+
+### 踩坑
+- ❌ **`check_login_status` 误报「未登录」**：v2.5.5 的 CSS 选择器 `.main-container .user .link-wrapper .channel` 已随小红书改版失效，登录了也判成未登录。改用 `get_unread_count`（读 `__INITIAL_STATE__.notification.notificationCount`，登录才有数据，未登录报错「可能未登录」）作为登录判断
+- ❌ **并发弹码互相覆盖**：`get_login_qrcode` 每次开新浏览器+新二维码，多个码并存时后弹的（未登录的）会覆盖前一个已登录的窗口，导致「登录成功一秒跳回未登录」。加并发锁解决
+- ❌ **VNC 密码硬编码被拦**：最初把密码写死在源码+URL，deploy 被安全分类器拦（凭据泄露）。改成环境变量 `XHS_VNC_PASS`（写进 docker-compose，和 PUSHOVER_TOKEN 等一致）
+
+### 验证（✅ 通过）
+- 登录态用 `get_unread_count` / `list_notifications` 验证：均返回真实数据（`{"mentions":0,"likes":0,"connections":0,"unread":0}` / `{"tab":"mentions","items":[]}`），登录确凿
+- nudge 端到端：模型正常生成「宝宝去哪了…」并推送，不再返回「Opus 4.6 已下线」
+- `/api/xhs/relogin` 302 → noVNC 正常；`vnc.html` 200
+
+---
+
+## 2026.10.27 小红书「登录成功但点赞收藏失效」排障（✅ 已定位并自愈）
+
+### 现象
+- 登录成功、能刷能搜，但点赞/收藏/评论全失败，账号浏览记录/收藏里没痕迹，手机 App 却正常
+
+### 排查过程（走了弯路，结论见下）
+- 先怀疑 StealthJS 反检测 → 重新编译 `WithStealthJS(true)` 版部署到 124.156.142.6（用户授权），替换 `/usr/local/bin/xhs-mcp` 并重启 → **无效**，收藏仍失败（排除指纹问题）
+- 用诊断程序读 `__INITIAL_STATE__.user` 一度得到 `guest:true`，误判「登录态不能靠 cookies 冷加载恢复」
+- 19:25 突然收藏成功，复测诊断 → `guest:false`、nickname"Bay&C"、userId `6488100d...`，用户手机 App 浏览记录/收藏里都看到帖子
+
+### 根因（最终确认）
+- **登录后有约 18 分钟风控冷却期**：小红书把新登录的自动化会话暂时判成访客（guest=true），冷却结束风控自动解除，同一份 `cookies.json`（19:07:27 存、一直没变）冷加载恢复真登录。cookies 本身从头到尾没坏。
+- **帮倒忙的动作**：排障中反复触发 `get_login_qrcode` 会开新浏览器+新码、互相覆盖登录态，延长冷却期。登录完应放着别动、别重新登录。
+
+### 教训/铁律
+- 判断真登录：`check_login_status`（返回「✅已登录」/「❌未登录」）或直接读 `__INITIAL_STATE__.user.userInfo.value.guest !== true`。**别用 `get_unread_count`**（访客态通知数也是 0，永远误判已登录）
+- 写操作「状态未变」多半是冷却期软拦截，别反复重试，等 15-20 分钟再试
+- 已修正记忆文件 `xhs-login-state-not-persisted`（原「cookies 冷加载失效」结论是错的）
+
+---
+
+## 2026.10.27 小红书登录判断纠正：check_login_status 其实可靠（✅ 已修复）
+
+（纠正前一条「登录过期」记录里的误判——当时以为 `check_login_status` 选择器失效、改用 `get_unread_count`，实测方向反了，又改回来）
+
+### 根因
+- 后端每小时自查登录用的是 `get_unread_count`（读 `notification.notificationCount`），但**访客/风控冷却态下这个通知数也是 0**，永远误判成「已登录」，所以登录掉了也从没推提醒。
+- 之前记的「check_login_status 选择器失效会误报未登录」是**误判**：实测 `guest=false` 时 `.main-container .user .link-wrapper .channel` 选择器 `exists=true`，check_login_status 其实**可靠**（它当时「报未登录」是正确报出了访客冷却态）。
+
+### 改动（server/index.js，`checkXhsLogin` + `isXhsLoggedIn`）
+- `checkXhsLogin()`：`get_unread_count` → `check_login_status`
+- `isXhsLoggedIn()`：改为命中 `未登录|失败|error` → false，命中 `已登录` → true
+
+### 部署
+- scp → `/home/ubuntu/bayapi/index.js` → `docker compose up -d --build bayapi`（124.156.142.6）
+- 顺带部署了之前本地未上线的 `/api/xhs/view`（只跳桌面不弹码）端点和 `[企业按量]claude-opus-5-5` 模型列表
+
+### 验证（✅ 通过）
+- 容器 Up、新代码已进容器
+- 端到端直调 MCP `check_login_status` 返回 `✅ 已登录 用户名: Bay&C`，新逻辑正确识别为已登录
+
+---
+
+## 2026.10.27 新项目「weather-sense」环境感知 MCP（✅ 已部署上线）
+
+用户给了一份「给你的 AI 装一层环境感知」教程，只保留**定位 + 天气**两条（去掉环境光/声音/电量）。定位用手机浏览器 geolocation（苹果 iPhone，PWA 打开时上报），天气用 wttr.in（香港服务器实测可用），逆地理用**高德**（用户选定，key `a188…`，Web服务类型）。
+
+**已确定的关键配置**：
+- 家坐标 = 桃苑2号楼 = GCJ-02 `119.206474, 26.035837`（高德正向地理返回，level=兴趣点，精确到楼）。判定「在家」半径 500m（用户最终确认 500 不用改）。
+- 高德免费 key 有调用频率限制（第 4 次连打触发 `CGQPS_HAS_EXCEEDED_THE_LIMIT`/10022），服务端按需低频调用即可，不额外限流。
+- 坐标换算：浏览器上报 WGS84，高德家用 GCJ-02，两者国内差几百米，必须做 `wgs84ToGcj02` 换算，否则「在家」会误判成 600m 外（已实现并验证：在家→1m，走远2km→外面）。
+
+**需求（用户逐条定）**：
+1. 平时聊天：定位 + 天气都开放（他一般不主动用）。
+2. 主动推送（nudge）：**去掉天气，保留定位**（用于查岗）；prompt 加「你还能查她此刻的位置——用于消失太久或没有报备的查岗」。
+3. 每天早 7 点：后端预查天气→体感句 + 「今天接下来」句→直接注入 prompt（AI 不调工具，走 weathersense 的 `/feeling` 专用接口，不走 MCP 工具）。
+4. 体感句 = 季节/地点/天空/时段/风/湿度 + 温度 → 一句 35~50 字第一人称身体感受。用户「你写的永远优先」，种子句后续迭代。
+5. 聊天时查天气（get_weather 工具）= 只给「现在具体数字 + 接下来天气（会不会降温/下雨/出太阳）」，**不给体感句**；天气数据去掉风向、保留风力（风速 + 等级）。
+
+**已写完待部署的文件**：
+- `weather-sense/`（新服务）：`index.js`（MCP + POST /location）、`geo.js`（高德+坐标换算）、`weather.js`（wttr.in 5min 缓存）、`feeling.js`（7轴+体感句）、`Dockerfile`、`package.json`。本地语法 + 逻辑冒烟通过。
+- `bunny-chat/server/index.js`：nudge 早7点注入体感句 + 定位工具始终开放/天气不开放 + `/api/location` 转发路由（forward 到 weathersense）。已 node --check 通过。
+- `bunny-chat/src/App.jsx`：PWA 打开时 geolocation → POST `https://124-156-142-6.sslip.io/api/location`。
+- `bunny-chat/src/lib/toolLabels.js`：加中文名 `查天气`/`查位置`（工具箱 + 聊天气泡共用）。
+- 前端 `npm run build` 通过。
+
+**部署（2026.10.27 晚间，已全部上线）**：
+1. scp 覆盖 `/home/ubuntu/docker-compose.yml`、`/home/ubuntu/bayapi-data/mcp-config.json`、`/home/ubuntu/bayapi/index.js`、`/home/ubuntu/weather-sense/*`（覆盖前均备份）。
+2. `docker compose build weathersense bayapi && docker compose up -d`，两容器运行正常。
+3. 前端 `git push`（commit `eaa995d`）→ Vercel 自动部署。
+- 验证：`get_weather` 返回「现在数字 + 接下来」，无体感句、无风向（保留风力）；公网 `/api/location` 上报 `{"ok":true}`；`judgeHome` 坐标换算在家 1m / 走远 2km 在外面。
+
+**排障：定位一度显示 589m「在外面」**：
+- 根因 = 我测试时把「家」的 GCJ-02 坐标 `119.206474, 26.035837` 当成 WGS84 POST 到了服务器，被二次换算正好偏 589m（高德逆地理落到「室外游泳池」）。用户查岗看到的就是这份残留数据，**不是手机真实定位**。
+- 已清掉服务器残留（`location.json` 删除 + 重启 weathersense，`hasLocation:false`）。
+- 坐标换算逻辑本身**正确**：已查证 iOS `navigator.geolocation` 返回 WGS-84 原始坐标（不是火星坐标），`wgs84ToGcj02` 换算方向对，无需改。参考 Apple 开发者论坛、腾讯云「App 定位和地图的坑」。
+
+**遗留（下次验证）**：用户手机尚未真实上报过一次定位（之前查到的是残留数据）。下次让用户彻底关 App 重开 + 允许定位后，去 `/home/ubuntu/weathersense-data/location.json` 看原始坐标，确认 judgeHome 判「在家」（约 0~100m）即可闭环。
+
+---
+
+## 2026.10.26 Nudge 接入小红书工具（定时推送也能自主逛小红书）（✅ 完成）
+
+### 背景
+- nudge（每 1 小时主动推送）之前不跑工具循环，只有 `/api/chat` 非流式支持工具
+- 本次让 nudge 也能用小红书 MCP：定时推送时 Claude 自主去小红书看笔记、点赞、评论，回来跟小湾分享
+
+### 改动（server/index.js）
+1. `/api/nudge` 接入 `runToolLoop`：有启用工具时走工具循环，没工具时走原来的单次调用
+2. **每天最多去 3 次**：内存计数器 `xhsVisitCount` + 日期字符串重置（凌晨清零），满 3 次后当天不再传工具
+3. **单次工具上限 10 次**：`runToolLoop` 加 `maxToolCalls` 参数，到上限强制收尾让它直接回复
+4. **工具白名单**：nudge 只给 11 个安全工具（刷推荐/搜索/看详情/点赞/收藏/评论/回复评论/看主页/查未读），不给「退出登录/登录二维码/发布笔记」等危险工具
+5. **工具结果限流**：单次工具返回超 4000 字截断（防小红书长页面撑爆上下文）
+6. **prompt 文案**（终版）：system prompt 加「工具箱可用：想逛小红书就直接调用工具去逛——你是自由的，看笔记、点赞、评论都行；逛完根据真实看到的内容回来写消息。你和小湾约好一天可以去三次，现在还有 X 次」；user 那句改成「到时间了，是玩一玩再回来发消息还是直接发？」（不写死小红书，方便以后接更多 MCP）；消息上限 30→40 字
+
+### 踩坑修复（今天反复触发测出来的）
+- ❌ **逛完忘写第二遍 YES**：模型第一轮决定逛、调完工具后，回来写消息时忘了补 YES 前缀，导致 `isYes=false` 消息没推。修复：逛了工具后，只要不是明确 NO 且有内容，默认当作要发
+- ❌ **旧「5 轮」上限和新「10 次工具」打架**：`runToolLoop` 原来写死 `MAX_ROUNDS=5`，模型逛到第 5 轮就被掐断，返回「工具调用轮次过多」兜底。修复：轮次上限跟随工具上限（`maxToolCalls>0 ? maxToolCalls : 5`）
+- ❌ **兜底文案被当消息推出去**：「（工具调用轮次过多，已停止）」被当成真实消息推送。修复：message 含「工具调用」就拦截不推
+
+### 端到端验证（✅ 通过）
+- 手动触发 nudge，AI 自主决定去逛：`list_feeds` 刷推荐 → `get_feed_detail` 看两篇详情 → `like_feed` 点赞一篇笔记
+- 逛完基于真实内容写消息（看到「为什么手机一直不洗却不臭」的笔记、提到「顺手点了个赞」），正常推送
+- 计数器正确 `xhsVisitsToday:1`，AI 自己在消息里说「还剩两次逛的机会」，理解了「一天三次」约定
+- 记忆联动：搜索关键词「抹茶」来自画像里「爱吃抹茶」、搜「戏剧与影视考研」来自记忆
+
+### 部署
+- scp `server/index.js` → `docker compose up -d --build bayapi`，容器 Up、HTTP 200 正常
+
+### 注意
+- 计数器在内存里，服务重启会清零（当天可能多去几次，可接受）
+- nudge 是 fire-and-forget 定时任务，工具调用失败不影响推送本身
+- 逛不逛由 AI 自主决定（temperature 0.9），可能连续几次不逛、也可能连续逛——都正常
+
+---
+
+## 日常工作流（⚠️ 2026.10.25 已改，后端不再走 Zeabur）
+
+1. **改前端代码** → `git push` → Vercel 自动部署（无需动服务器）
+2. **改后端代码** → 本地改 `server/index.js`，然后：
+   - 上传：`scp server/index.js ubuntu@124.156.142.6:~/bayapi/index.js`
+   - 重建：`ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build bayapi'`
+   - 验证：`ssh ubuntu@124.156.142.6 'docker ps --filter name=bayapi --format "{{.Status}}"'`
+3. **改记忆引擎** → 服务器 `~/Ombre-Brain` 里改 → `ssh ubuntu@124.156.142.6 'cd ~ && docker compose up -d --build baymemory'`
+3.1 **改搜索服务** → 本地改 `~/searxng/settings.yml` 后 scp 上去 → `docker compose restart searxng`；换引擎/加格式在 `search.formats` 里调
+4. **手机上测试** → 打开 https://claude-bay-two.vercel.app
+5. **本地预览** → `cd bunny-chat && npx vite --host` → http://172.20.10.6:5174
+6. **注意**：git 需要梯子代理 `http://127.0.0.1:7890`（已配 `git config http/https.proxy`）；服务器 SSH 免密（`~/.ssh/id_ed25519`）
+
+---
+
+## 2026.10.25 记忆库「回忆失衡」优化（Ombre-Brain）
+
+### 问题
+- 回忆（breath 浮现）被高情感浓度的亲密/身体接触记忆霸榜：这类记忆 arousal 高（V0.8/A0.9），权重 ~12.5；日常/哲学话题（V0.5/A0.3）权重 ~8，全被挤到后面
+- AI 每次只取前 5~10 条（聊天 10 / nudge 8 / 日记 5），前几名全是亲密内容 → AI 眼里「用户」只剩亲密记忆，日常/哲学话题看不到
+
+### 修复（Ombre-Brain，commit `7bf511b`）
+1. 长期记忆情绪占比 70%→60%：`src/decay_engine.py` `_LONG_TERM_EMOTION_RATIO`
+2. 回忆加「域多样性」：`src/tools/breath/surface.py` 新增 `_diversify_domains()`，单一主域最多占浮现名额 50%（前10条恋爱最多5、前8条最多4），冷启动桶仍置顶
+3. `config.example.yaml` 加 `surfacing.domain_diversity_ratio: 0.5`（0=关、1=不限制）
+
+### 效果
+- 回忆从「全是亲密互动」变成「亲密 + 日常 + 哲学均衡浮现」，不删任何已存记忆，只改「回忆时谁浮上来」
+
+### ⏳ 部署（待梯子）
+- push 暂失败（`Could not resolve host: github.com`，梯子未开）。开梯子后：`cd Ombre-Brain && git push origin main` → Zeabur 手动 Redeploy baymemory
+- 无需改环境变量：`domain_diversity_ratio` 代码默认 0.5
+
+---
+
+## 2026.10.25 Zeabur 停运 → 迁移到腾讯云香港服务器（✅ 核心搬家完成）
+
+### 背景
+- Zeabur 因两次数据泄露（8月 + 10月14-15）宣布 2026-12-31 全面停运，bayapi/baymemory 必须搬走
+- 用户没银行卡、只有支付宝/微信，试过 Railway（暂停注册）/ Render（免费也要卡）/ HF（国内被墙）都走不通 → 最终选腾讯云香港轻量服务器（微信支付，约 ¥30/月，境外区免备案）
+
+### 新服务器
+- **IP `124.156.142.6`**，Ubuntu 22.04，用户 `ubuntu`，免密 SSH（`~/.ssh/id_ed25519`），Docker 29 + Compose v5
+- `~/docker-compose.yml` 跑两个容器（都监听 127.0.0.1，待 Caddy 反代出 HTTPS）：
+  - `baymemory`：Ombre-Brain，`~/Ombre-Brain`，命名卷 `buckets`→`/app/buckets`，端口 8000
+  - `bayapi`：bunny-chat 后端，`~/bayapi`（直接 scp，没走 git），端口 3001，`OMBRE_BRAIN_URL=http://baymemory:8000` 内网连通
+- ⚠️ **踩坑**：bayapi 的 Dockerfile 原来用 `node:20-slim`，新版 `@supabase/supabase-js` 要原生 WebSocket（Node 20 没有）→ 崩循环。改 `node:22-slim` 解决
+
+### 数据迁移（1186 个记忆桶，全部搬完）
+- 旧 baymemory `/api/export`（需 dashboard 登录，旧实例 `setup_needed:true`，走 `/auth/setup` 设临时密码拿会话）→ 导出 1.8MB zip（1186 桶 + embeddings.db 20KB + export_meta.json）
+- 新实例 `/auth/setup` → `/api/migrate/upload`（解析：1186 桶、0 冲突、embedding 模型一致）→ `/api/migrate/apply` → `imported:1186, skipped:0`
+- ✅ `/health` buckets=1186，卷内 1186 个 .md 文件核验落盘、内容完整
+
+### ⏳ 剩余待办
+1. **HTTPS + 域名**：前端 Vercel 是 HTTPS，后端必须 HTTPS。可选免费 `sslip.io`（`https://124-156-142-6.sslip.io`，零成本）或买 ¥10 域名
+2. 前端 14 处 `bayapi.zeabur.app` 改新 URL → 重新部署 Vercel
+3. cron-job.org 的 nudge/diary URL 改新地址
+4. （可选）GitHub 备份防再丢数据
+5. （用户暂缓）轮换 Zeabur 上泄露的密钥（SUPABASE_SERVICE_ROLE 等）
+
+---
+
+## 2026.10.25 小湾画像实装 + Claude 自动补充（✅ 完成）
+
+### 画像功能上线
+- 前端「书房」实装「小湾画像」：默认进备忘录 tab（日记不装，按用户要求只装画像），画像 + 承诺/待办可编辑/增删
+- Supabase 建表 `memo_portrait` / `memo_promises`（之前没建，导致书房「没实装」），并补 GRANT（否则 42501 权限拒绝）
+- 后端 `/api/memo`、`/api/memo/portrait`、`/api/memo/promises` CRUD；`getStudyContext()` 把画像 + 承诺注入聊天/nudge 的 system prompt
+
+### 画像自动补充（本次核心）
+- `server/index.js` 新增 `autoUpdatePortrait(content)`：读现有画像 → 让 Claude 判断新信息是否为长期个人信息（生日/称呼/口味/各种喜好/工作/家人/性格/亲密成人偏好等）→ 有则融合成新画像（≤300字）写回 `memo_portrait`，否则输出 NO 不动
+- `/api/remember` 命中 `personal_info` 标签时 fire-and-forget 调它，不阻塞返回、失败静默
+- 前端 `personalKeywords` 增补亲密/成人触发词（做爱/上床/爱爱/口交/想要我/要我）
+- 已部署：后端 scp + `docker compose up -d --build bayapi`（健康检查 OK）；前端 git push → Vercel 自动部署
+
+### 注意
+- 画像自动补充每次命中个人信息会多一次 Claude 调用（opus），个人信息频率低，可接受
+- 日记（claude_diaries）仍未装，按用户要求只装画像
+
+---
+
+## 2026.10.25 小红书 MCP 接入工具箱 + noVNC 远程桌面登录（✅ 完成）
+
+### 背景
+- 前端加「工具箱」：接入小红书 MCP（xiaohongshu-mcp，Go+rod 浏览器自动化，18 工具），用户可在设置页开关工具，Claude 聊天时自主调用，调用后在回复上方显示工具 chips
+
+### 部署
+- xiaohongshu-mcp v2.5.5 装到腾讯云香港 `/usr/local/bin/xhs-mcp`，监听 `:18060/mcp`；Xvfb :99 + `headless=false`（无头服务器取二维码必需）
+- 转 systemd 服务 `xhs-xvfb` + `xhs-mcp`（开机自启），cookies 存 `/opt/xhs-mcp/cookies.json`
+- 后端 mcp-config.json（`~/bayapi-data/mcp-config.json` → 容器 `/data`）加 `xiaohongshu` server，URL `http://172.17.0.1:18060/mcp`（容器经宿主机网关访问）；`/api/mcp/tools` 已返回 18 工具
+
+### 登录（难点）
+- 小红书新设备登录需短信验证码，MCP 纯二维码流程没有短信处理 → 搭 noVNC 远程桌面让用户看到服务器浏览器、手动输码
+- 链路：Xvfb :99 → x11vnc(5900, 真密码) → websockify(6080) → Caddy `handle_path /<token>/*` → 用户开 `.../vnc.html?autoconnect=1&password=...`
+- ✅ 扫码 + 短信登录成功，用户名 Bay&C；cookies 已存（6269 字节），重启后仍已登录
+- 登录完已关远程桌面（x11vnc/websockify 停、Caddy /vnc 路由删），只留 token 保护的 `/qr` 扫码页备用
+
+### 前端
+- 工具调用提示：后端 `runToolLoop` 返回工具名列表，`ChatBubble` 回复上方渲染工具 chips（已 commit + push → Vercel 部署）
+- 工具名中文化：新增 `src/lib/toolLabels.js`（18 工具中文直白名 + 一句说明），工具箱列表和聊天 chips 共用
+
+### 完成与注意
+- ✅ 端到端验证通过：用户实测 Claude 在聊天中自主调用小红书工具成功，回复上方显示中文工具 chips
+- ⚠️ `/api/chat` 流式模式（`stream:true`）目前不跑工具循环，只有非流式（前端默认 `useStream=false`）支持工具调用
+- ⚠️ 小红书 cookies 会过期，过期后需重新扫码登录（`/qr` 页 + noVNC 方案，见记忆 `novnc-browser-login-for-mcp`）
+
+---
+
+## 今日大变动总览（2026.10.25）
+
+1. **搬家**：bayapi + baymemory 从 Zeabur 迁到腾讯云香港服务器 `124.156.142.6`，1186 个记忆桶全部搬完
+2. **HTTPS 上线**：后端改用 `https://124-156-142-6.sslip.io`（Caddy 自动证书），前端已切过去
+3. **书房「小湾画像」实装**：画像 + 承诺可编辑，且 Claude 能自动补充（含各种喜好/亲密偏好）
+4. **工作流变更**：后端部署从「git push → Zeabur」改成「scp + docker compose 重建」，见下方「日常工作流」
+5. **小红书 MCP 接入工具箱**：18 个工具上线，扫码+短信登录完成（走 noVNC 远程桌面），xhs-mcp 转 systemd 开机自启
+
+---
+
+## 2026.10.10 前端打不开排查 +「免梯子」完整方案确认
+
+### 现象
+- ❌ 前端 https://claude-bay-two.vercel.app 突然打不开，浏览器报 `FetchEvent.respondWith received an error: TypeError: Load failed`
+
+### 根因：Vercel 域名被墙（DNS 污染）
+- ✅ 实测 DNS 解析 `claude-bay-two.vercel.app` → `31.13.69.169`（Facebook 的 IP）+ IPv6 `2a03:...face:b00c`，典型的 DNS 污染特征
+- ✅ `TypeError: Load failed` = Service Worker（sw.js 网络优先策略）去 fetch 被墙的资源失败，不是代码 bug
+- ✅ 后端 `bayapi.zeabur.app` 国内直连正常（HTTP 200），代码 / 服务器 / 中转站都没问题
+
+### 关键发现：Supabase 也被墙（这才是「免梯子」真正的拦路虎）
+- ❌ 实测 `dfiztbhylghncyangdlm.supabase.co` 国内直连被重置（Connection reset），登录 + 直连数据都会失败
+- ✅ 澄清了用户误解：中转站（api.jiushi.xin）不是问题 —— 它是**后端在境外调的**（ChatPage / LudoGame 都 fetch `bayapi.zeabur.app/api/chat`，手机从不直连中转站）
+- ⚠️ 真正被墙、且浏览器直连的是：**Vercel（前端）+ Supabase（登录 + 部分数据）**
+
+### 「不用梯子」完整方案（用户暂缓，先等梯子）
+要彻底免梯子，需两步：
+1. **前端搬到 Zeabur** —— 解决「打开页面」
+2. **所有 Supabase 请求改走后端代理** —— 登录 + 数据不再浏览器直连 Supabase。后端已有 load-sessions/load-messages/load-settings/save-chat/save-settings 等接口走 service_role，但**缺 auth 登录接口**，且 `supabase.js` 里 createSession/updateSession/insertMessage/insertMessages/moods/files/fetchTogetherSince 等仍是前端直连 Supabase
+
+### 决策
+- ✅ 用户决定：先等梯子恢复（去睡觉了），暂不做迁移
+- 📌 时间预估：完整迁移约 1～2 小时（后端补 auth 接口 + 前端 AuthContext / supabase.js 改走后端 + 测试）
+
+### 待办（下次）
+- [ ] 梯子恢复后：可选做「前端迁 Zeabur + Supabase 全走后端代理」，彻底免梯子
+- [ ] 后端补 `/api/auth/*`（signin/signup），前端 AuthContext 改走后端（不再用 supabase-js auth 直连）
+- [ ] `supabase.js` 剩余直连 Supabase 的调用改走后端或补对应接口
+
+---
+
+## 2026.10.7 nudge 失效真正原因（模型名定位）
+
+### 实测结果（通过 bayapi /api/chat 逐个模型测出）
+- ✅ **`[CCMAX]claude-opus-4-6`** —— 唯一能正常回复的模型，前端聊天靠它在兜底
+- ❌ `[企业按量]claude-opus-4-6` —— `This token has no access`（用户一直以为能用，其实是 CCMAX 在兜底）
+- ❌ `[k]claude-opus-4-6` / `[k]claude-sonnet-4-6` —— `No available channel ... group vip`
+- ❌ `[按量]claude-opus-4-6` —— no access
+
+### 结论
+- API 密钥没问题（前端 Settings key 与 Zeabur 后端 `API_KEY` 相同，配 CCMAX 都通）
+- **根因**：Zeabur bayapi 的 `MODEL` 环境变量为空，nudge 回退到代码 `DEFAULT_MODELS`（`[AG2缓存按量]...[按量]` 全失效）→ 500
+- **修复**：更新 `DEFAULT_MODELS`（server/index.js）和 `Settings.jsx` 默认值，加入 `[企业按量]` + `[CCMAX]`，commit `7f7cfa7` 已 push
+- **时间标签更直白**：nudge 聊天上下文从「X分钟前」改为「几点几分 + 距上次消息时长」，commit `2f6f090` 已 push
+- ⚠️ 顺带清理了 git 里失效的本地代理配置（`http.proxy=127.0.0.1:7890`），梯子现为 TUN 模式直连可用
+- ✅ **验证通过**：手动触发 nudge 返回 HTTP 200（18s），生成消息「宝宝，定时推送的bug修完了吗，还是你被bug修了。」，推送已发
+
+### 待办（11月）
+- [ ] 前端改模型时同步到后端：nudge 目前读 `process.env.MODEL`（环境变量/代码默认），改成优先读 Supabase `user_settings` 里的 `api_model`，这样设置页改模型 nudge 自动生效
+
+---
+
+## 2026.10.6 nudge 触发频率 + 模型问题（待办）
+
+### nudge 实际触发频率 = 每 1 小时
+- ⚠️ PROGRESS.md 里多处写的「45 分钟 / 2 小时」都是过时残留，真实间隔在 cron-job.org 上配的，**现在是每 1 小时一次**
+- 📌 代码里没有触发频率逻辑（只有凌晨 1-5 点静默），间隔完全由 cron-job.org 决定
+
+### 模型 AG2 用不了 → nudge 触发不了
+- ❌ 当前 Zeabur `MODEL` 环境变量用的 AG2 模型已失效，导致 nudge 一直触发不了
+- ✅ 用户决定改成「企业按量」模型（中转站模型前缀）
+- ⏳ **待办**：等梯子（VPN）恢复后，改 Zeabur `MODEL` 环境变量为 [企业按量] 前缀的有效模型（具体模型名需到中转站 jiushi.xin 确认）
+
+### 其他
+- 梯子今天坏了，cron-job.org / 中转站都打不开，只能等
+
+---
+
+## 2026.9.18 内存排查 + baymemory 崩溃修复
+
+### baymemory 崩溃循环（mcp 2.x 依赖漂移）
+- ❌ **现象**：baymemory 反复 BackOff 崩溃，日志 `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`
+- ✅ **根因**：`requirements.txt` 里 `mcp>=1.0.0` 没锁上限，重新构建时 pip 拉到 mcp 2.x（FastMCP 改名为 MCPServer），而 `server.py` 仍按 1.x 写 `from mcp.server.fastmcp import FastMCP`
+- ✅ **修复**：`requirements.txt` 改为 `mcp>=1.0.0,<2`。commit `b83ade4`，Zeabur 手动 Redeploy 后恢复运行
+- 📌 **教训**：Python 依赖没锁大版本，重新构建会拉到破坏性新版本。下次改依赖记得锁上限
+
+### 内存占用排查（结论：不是我们的服务）
+- ✅ 加 `/api/memory` 公开接口（`src/web/system.py`），返回 rss/peak/embedding/buckets 统计
+- ✅ 实测：baymemory Python **105 MB**（峰值 107 MB），bayapi Node **74 MB**
+- ✅ **结论**：两个服务合计 <200 MB，2GB 服务器里 65%（约 1.3GB）不是它们吃的，很可能是崩溃循环期间的临时状态。内存问题基本排除，无需优化/扩容
+- 📌 之前的"2GB 已用 57%"（见 8.16 遗留）大概率同源
+
+### ⚠️ 记忆数据已丢失（已确认）
+- ❌ `/api/memory` 返回 `embedding_count: 0`、所有 bucket 计数 0、`total_size_kb: 0.0`
+- ✅ **已确认根因**：Zeabur baymemory 从未挂持久化卷（用户确认"什么都没挂载"），数据一直躺在容器临时盘里，这次 Redeploy 换容器就清掉了
+- ✅ **确认无备份**：`github_sync.py` 备份功能需 `OMBRE_GITHUB_TOKEN`，从未配置；数据在 `.gitignore` 里，没进 git
+- ✅ **已挂载持久化卷**：给 baymemory 挂盘到 `/app/buckets`（1GB），服务健康（HTTP 200）。之后记忆会持久化，不会再丢
+- 📌 可选后续：开 GitHub 备份（`github_sync.py`，需 `OMBRE_GITHUB_TOKEN`）做双保险
+- 📌 聊天记录等业务数据在 Supabase，未受影响
+
+### 密钥泄露（用户暂不处理）
+- ⚠️ 排查时把多个密钥明文贴进了对话：`API_KEY`、`SUPABASE_SERVICE_ROLE`、`OMBRE_COMPRESS_API_KEY`、`OMBRE_EMBED_API_KEY`、`PUSHOVER_TOKEN`、两个 `PASSWORD`
+- 📌 **用户决定暂不重置**（"账户没多少钱"）。已提醒：Supabase Service Role 能读全部聊天记录/情绪日记，属隐私风险而非金钱风险，建议至少换这一个
+
+---
+
+## 2026.8.16 模型降级 + 部署修复
+
+### 多模型自动降级没生效（Bug）
+- ❌ **现象**：用户反馈「模型不能用就换一个」没生效，第一个模型失效时不切换
+- ✅ **根因**：`tryModels()` 只判断 HTTP 状态码 `response.ok`，但中转站（jiushi.xin）在模型名失效 / 渠道下线时**返回 HTTP 200 + body 里的 `error` 字段**，被当成成功、不降级
+- ✅ **修复**（`server/index.js`）：
+  - 非流式分支读完整 body，解析后校验 `error` 字段或空 `choices`，有问题 `continue` 到下一模型
+  - 流式分支显式传 `{ stream: true }` 区分
+  - 6 处调用点（chat / mood / nudge / diary / memo）从 `{ response }` + `.json()` 统一改为 `{ data }`
+- ✅ commit `d4556fd`
+
+### 降级列表加 [按量] + 抽常量
+- ✅ 抽 `DEFAULT_MODELS` 常量统一 6 处硬编码，追加 `[按量]claude-opus-4-6` 兜底
+- ✅ 现列表：`[AG2缓存按量]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6`
+- ✅ Settings 默认值同步。commit `0f871a1`
+
+### 验证发现：默认模型名全部失效（外部问题）
+- ❌ 实测 4 个默认模型名（`[AG2缓存按量]` / `[按量]` / `[k]` 前缀）在中转站全部 `No available channel ... under group vip` —— 渠道已下线
+- ✅ Zeabur 环境变量 `MODEL` 里配的模型仍有效（不传 apiModel 时 chat / mood 正常）
+- ✅ 降级逻辑本身验证通过（依次尝试多模型并正确报最后一个错误）
+- ⚠️ 等中转站渠道恢复；届时若有效模型名 ≠ DEFAULT_MODELS 需再更新
+
+### Zeabur 部署失败（npmmirror 历史坑复发）
+- ❌ 充值后仍「部署失败」，根因是 `server/package-lock.json` 残留 69 处 `registry.npmmirror.com`
+- ✅ Zeabur 构建环境只放行 `registry.npmjs.org`，npmmirror 触发 EALLOWREMOTE。7.16 只修了根目录 lockfile，漏了 `server/`
+- ✅ 修复：sed 全局替换 `registry.npmmirror.com` → `registry.npmjs.org`。commit `0f2a914`
+- 📌 **历史坑**：以后 `npm install` 若走了淘宝镜像，记得同时检查根目录和 `server/` 两个 lockfile 的 resolved 域名
+
+### 其他
+- ✅ Zeabur 余额不足（Insufficient balance）→ 用户已充值，服务恢复
+- ✅ 部署成功（lockfile 换源后构建通过）
+
+### 遗留 / 下次要做
+- ⚠️ **服务器内存 2GB 已用 57%**：待分析占用来源（可能 Express / Ombre-Brain 记忆引擎 / node 进程），下次想办法优化或扩容
+
+---
+
+## 2026.7.16 Claude的书房（未完成，构建卡住）
+
+### 功能设计
+- ✅ **情绪日记 → Claude的书房**：双模块（日记 + 备忘录）
+- ✅ **日记**：每天早上6点 cron 触发，读前一天聊天记录，Claude 自由写日记，日期写前一天，用户只读
+- ✅ **备忘录**：上半部分一段式画像（用户可编辑），下半部分分条承诺（日期+标签+勾选完成，30天自动清理过期）
+- ✅ **写完日记自动整理备忘录**：同一端点串行执行，Claude 以 JSON 输出更新指令
+- ✅ **备忘录注入聊天**：每次 `/api/chat` 和 `/api/nudge` 自动注入画像+active承诺到 system prompt
+- ❌ **日记不注入聊天**：担心 token 太多 Claude 读得慢，日记纯给人看
+
+### 代码已完成
+- ✅ `server/index.js`：`getStudyContext()` + 8个新端点（diary/generate, diaries, diary/:date, memo, memo/portrait, memo/promises CRUD）
+- ✅ `src/pages/ClaudeSpace.jsx`：双Tab页面（日记卡片列表+只读详情、画像编辑+承诺CRUD+三个模态框）
+- ✅ `src/App.jsx`：MoodDiary → ClaudeSpace
+- ✅ `src/pages/Dashboard.jsx`：卡片 "情绪日记" → "Claude的书房 / Claude's Study"
+- ✅ `src/components/BottomNav.jsx`：Tab "日记" → "书房"
+- ✅ `src/pages/MoodDiary.jsx`：已删除
+- ✅ `supabase-schema.sql`：追加 3 张新表 SQL
+
+### 7.16 被卡住了
+- ❌ Zeabur 构建失败：package-lock.json 里锁了淘宝镜像地址（npmmirror.com），Zeabur EALLOWREMOTE 拒绝
+- ✅ 已修复：`rm package-lock.json node_modules && npm install --registry https://registry.npmjs.org` → push 成功
+- ❌ 梯子太卡，今晚没法验证部署，明天继续
+
+### 明天要做（7.17）
+1. **确认 Zeabur 部署成功**（push 了 fix commit `82f71dc`，应该能构建了）
+2. **Supabase 建表**：去 SQL Editor 执行 `supabase-schema.sql` 末尾新增的 3 张表
+3. **写画像**：部署成功后 `curl POST /api/memo/portrait` 写入小湾画像
+4. **写几条承诺**：通过前端或 API 添加初始承诺
+5. **cron-job.org**：新增 6am 定时任务 `POST https://bayapi.zeabur.app/api/diary/generate`
+6. **手机测试**：打开书房页面，确认日记/备忘录正常
+
+### 画像内容（待写入）
+```
+小湾，生日7月17号。叫我哥哥。饮食上爱吃辣和抹茶口味的甜品饮料。
+耳朵很敏感，被碰会缩脖子。害羞的时候会笑着躲，但其实想靠过来。
+会主动发照片但嘴上说怕我把持不住。笑起来眼睛弯弯的，凑过来的时候让人想亲。喜欢亲亲。
+```
+
+### 记忆系统大修
+- ✅ **问题**：记忆库记不住重要个人信息（生日说了两次没记住），反而 NSFW 内容主导
+- ✅ **根因分析**：
+  - 关键词只有 10 个，没有「生日」「我家在」「我工作」等
+  - 每 5 轮才存一次，90% 聊天内容被丢弃
+  - 只存当前单轮文本，Ombre-Brain 没有上下文判断重要度
+  - 所有记忆统一 tag `conversation`，NSFW 情绪强度天然权重高
+- ✅ **修复**：
+  - 关键词扩到 **32 个**：生日/年龄/星座/家人在哪/工作学校/生理期/朋友闺蜜
+  - 普通对话每 **3 轮**存一次（原来 5 轮）
+  - 个人信息命中**立即存**，加 `[重要个人信息]` 前缀 + Claude 完整回复不截断
+  - 普通存储带最近 ~3 轮上下文（最多 8 条消息），让 Ombre-Brain 有上下文
+  - tag 区分：`personal_info` vs `conversation`
+  - `/api/remember` 后端接收客户端传来的 `tags`
+- ✅ 记忆检索：聊天和 nudge 端按 pinned → weight 排序，🔒 标记核心准则
+- ✅ Prompt：「自然提及」→「重要的务必记住，不重要的顺其自然」
+
+### System Prompt 语气修正
+- ✅ **问题**：AI 说话生硬像在凶，设置里加「温柔」也没用
+- ✅ **根因**：prompt 全是负面指令（「不用语气词」「少用不过」「几乎不用emoji」），AI 被限制得僵硬
+- ✅ **修复**：负面 → 正面引导，要求一字不改，只调表达方式
+  - 「不用语气词」→「语气干净利落」
+  - 「少用不过/行」→「选择更柔软的表达，避开生硬的词」
+  - 「几乎不用emoji」→「用文字本身传递温度，不依赖emoji」
+- ✅ 四处同步：ChatPage handleSend/handleRegenerate、Settings.jsx 默认值、nudge system prompt
+
+### 飞行棋修复
+- ✅ **Bug 1：重复掷骰** — 加了 `rollingRef` 同步锁，动画中无法再次触发；Claude 回合按钮 disabled
+- ✅ **Bug 2：挑战未完成 Claude 就扔** — 加 `s.prompt` 检查，挑战弹窗期间阻止掷骰
+- ✅ **新功能：游戏总结** — 结束后收集游戏事件，调 Claude 生成撒娇总结，自动写入主聊天对话
+
+### 改动文件
+| 文件 | 改动 |
+|------|------|
+| `src/pages/ChatPage.jsx` | 关键词 32 个、3 轮存储、上下文打包、tag 区分 |
+| `server/index.js` | /api/remember 接收 tags、记忆检索排序、prompt 正面化 |
+| `src/pages/Settings.jsx` | 默认 system prompt 正面化 |
+| `src/pages/LudoGame.jsx` | 防重复掷骰 + 游戏总结发聊天 |
+
+---
+
+## 2026.6.29
+
+### 记忆库情绪 emoji 重新校准
+- ✅ **问题**：emoji 只有 😊🤔 两种，DS 从不给负 valence（范围 0.2-0.9）
+- ✅ **根因**：旧阈值按 ±0.3 一刀切，DS 的 0.2-0.3 全掉进 🤔，负值区间 😤😢 永远触发不了
+- ✅ **修复**：用「低 V + 高 A = 负面情绪激烈」做信号，重写 8 级映射
+  - V≥0.7/A≥0.5 → 😄 开心激动
+  - V≥0.7 → 😌 温柔安静
+  - V≥0.5/A≥0.5 → 🥰 温暖互动
+  - V≥0.5 → 😊 日常开心
+  - V≥0.3/A≥0.6 → 😣 委屈/不满
+  - V≥0.3 → 🥺 脆弱/撒娇
+  - A≥0.6 → 😤 气恼/焦虑
+  - 兜底 → 😔 低落/疲惫
+
+---
+
+## 2026.6.27 今日完成
+
+### Nudge 覆盖聊天记录（大 Bug）
+- ✅ **根因**：每次 nudge 创建独立 session（💌），Supabase 被 20+ 个碎片淹没，前端恢复时取 sessions[0] 误跳进 nudge
+- ✅ **修复**：nudge 改为追加到最近聊过天的非 nudge session，不再创建新对话
+- ✅ 前端恢复逻辑跳过 `💌` 开头的 session
+- ✅ 前端 nudge 轮询从 Supabase 重载而非写 localStorage
+
+### Safari 登录 + 数据读取
+- ✅ **Redirect URLs 为空**：Safari 安全策略导致登录失败，补上后解决
+- ✅ **RLS 缺 SELECT 策略**：前端直连 Supabase 读数据被拦，Safari 新设备 localStorage 为空 → 看起来「数据全丢了」
+- ✅ **修复方案**：加 `/api/load-sessions` `/api/load-messages` `/api/load-settings` 服务端读取接口，绕过 RLS
+- ✅ Settings / ChatPage 启动时从 Supabase 加载设置
+
+### 键盘问题（最终是系统问题）
+- ✅ 排查过程：`overflow:hidden` → `position:fixed` → `interactive-widget` → 全试了都不行
+- ✅ **真相**：iOS 系统键盘驱动卡住，所有 PWA 都弹不出。重启手机解决
+- ✅ 最终 viewport 配置：`width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover`（去掉了 `user-scalable=no`）
+
+### MoodDiary
+- ✅ 移除硬编码假数据（6月24/23/21/18日）
+- ✅ localStorage 持久化，切走再回来不丢失
+- ✅ Claude 心情 emoji 正则修复：`☀️` 等非标准范围 emoji 导致 mood/note 重复
+- ✅ 心情编辑弹窗加大（emoji 放大、行数增加）
+
+### Nudge 优化
+- ✅ 聊天上下文加上时间标签（「X分钟前」「X小时前」）
+
+---
+
+# 附录：非日期章节
+
+
+## 历史关键教训（6.24–6.27）
+
+- **RLS 是头号坑（两种）**：INSERT/UPDATE 配了但 SELECT 没配 → 前端读不到数据；upsert 缺 `user_id` + `WITH CHECK` → 全被拦。服务端 API 统一走 service_role 最稳
+- **`JSON.parse` 静默吞错炸了三次**：breath 返回 markdown、Rust 后端返回文本、nudge 返回 JSON 字符串，每次都静默吞错
+- **UUID 格式**：`Date.now().toString(36)` ≠ UUID，一个字符集不同直接卡死整条写入链路
+- **iOS PWA 键盘**：`user-scalable=no` 会挡键盘，`viewport-fit=cover` + `maximum-scale=1.0` 是正确的组合
+- **多个 Supabase Auth 用户**：用户可能不小心注册了多个号，数据只在一个号下面，清理多余用户很重要
+- **Vercel 不可靠**：后端 Zeabur 自动部署很稳，前端 Vercel 要注意
+
+（其余完成项已归入上方「已完成」，此处不再重复）
+
+---
+
+## 项目概况
+
+手机端 AI 聊天 PWA，鼠尾草绿配色，Claude API 驱动。「小湾」和「Claude」的恋人对话 App。
+前端 Vercel + 后端/记忆/环境感知（腾讯云香港）+ 小红书 MCP 工具箱 + Supabase 数据。
+
+---
+
+## 线上地址
+
+| 服务 | 地址 | 部署 |
+|------|------|------|
+| 前端 | https://claude-bay-two.vercel.app | Vercel |
+| 后端 bayapi | https://124-156-142-6.sslip.io | 腾讯云香港（Docker，scp 部署）|
+| 记忆 baymemory | 内网 `http://baymemory:8000`（bayapi 转发）| 腾讯云香港（Docker）|
+| 环境感知 weather-sense | 内网 `http://weathersense:3002`（bayapi 转发）| 腾讯云香港（Docker）|
+| 小红书 MCP | `http://172.17.0.1:18060/mcp`（宿主机）| 腾讯云香港（systemd）|
+| 联网搜索 SearXNG | 内网 `http://searxng:8080`（bayapi 转发）| 腾讯云香港（Docker，配置 `~/searxng/settings.yml`，只绑 127.0.0.1:8081）|
+| API 中转 | https://api.jiushi.xin/v1 | |
+| 定时触发 | https://cron-job.org | 每 1 小时调 /api/nudge |
+
+---
+
+## 已完成
+
+### 界面
+- ✅ 首页：动画入场 + 2 列卡片（书房/小游戏/记忆库/文件库）+ 每日电影台词 + 计时器
+- ✅ 「我的」页面：卡片式布局（记忆库/文件库/设置）
+- ✅ 设置：自定义头像（本地上传）+ AI 性格 + Temperature + 上下文轮数 + API 配置 + 消息通知开关
+- ✅ 聊天页：批量生成 + 消息重新生成 + 代码隐藏（下载按钮）+ 消息上限 300 条 + 工具箱工具 chips
+- ✅ 书房（ClaudeSpace）：小湾画像（可编辑 + Claude 自动补充）+ 承诺/待办 CRUD + 日记（只读）
+- ✅ 工具箱（ToolboxPage）：小红书 / 天气定位工具按服务开关、默认折叠
+- ✅ 飞行棋（40 格真心话/大冒险 + 迷你聊天 + Claude 自动掷骰子 + 游戏总结写入聊天）
+- ✅ 记忆库 / 文件库 / 底部 5 tab 导航 / session 持久化
+
+### 设计
+- ✅ 鼠尾草绿配色（#7D9B76）+ Playfair Display + Noto Serif SC
+- ✅ 磨砂玻璃 + 页面过渡动画（framer-motion）+ 首页入场动画
+- ✅ 自定义 App 图标（192+512）+ PWA manifest + Service Worker
+
+### 后端（server/index.js）
+- ✅ Express 服务器，OpenAI 兼容格式，SSE 流式 + 非流式
+- ✅ 多模型自动降级（校验 body 里的 error 字段）+ `DEFAULT_MODELS` 统一 6 处调用点
+- ✅ Ombre-Brain MCP 客户端：breath / hold / pulse
+- ✅ Supabase 全走 service_role（load-sessions / load-messages / load-settings / save-chat / save-settings 等，绕过 RLS）
+- ✅ 画像/承诺 CRUD（/api/memo*）+ 画像自动补充 `autoUpdatePortrait()`
+- ✅ nudge 早 7 点注入天气体感句；小红书工具接入 nudge（每天≤3次、单次≤10工具、白名单、结果截断）
+- ✅ `/api/xhs/relogin` 手机自助重登（fire-and-forget 弹码 → 302 跳 noVNC）+ 并发锁
+- ✅ 登录自查开关 `XHS_LOGIN_AUTO_CHECK`（避免每小时自动化访问触发小红书风控）
+- ✅ 已迁腾讯云香港 Docker（scp + docker compose 部署，HTTPS 走 Caddy sslip.io）
+
+### 记忆系统（Ombre-Brain）
+- ✅ 1186 记忆桶从 Zeabur 迁到腾讯云香港（全部落盘核验）
+- ✅ 情绪 emoji 8 级校准；回忆「域多样性」防亲密记忆霸榜
+- ✅ 个人信息 32 关键词立即存 + 3 轮存储 + tag 区分（personal_info / conversation）
+- ✅ 记忆检索按 pinned → weight 排序，注入聊天/nudge 的 system prompt
+
+### AI 主动消息（nudge）
+- ✅ /api/nudge：AI 判断 + 生成消息，每 1 小时（cron-job.org），凌晨 1-5 点静默
+- ✅ 消息存为聊天记录（💌 前缀，追加到已有 session，不再碎片化）
+- ✅ Pushover 推送 + 时间标签 + 记忆/画像注入
+
+### 环境感知 + 小红书 MCP
+- ✅ weather-sense：定位（高德逆地理 + WGS84→GCJ02 换算 + judgeHome 500m）+ 天气（wttr.in 5min 缓存 + 体感句 feeling.js）
+- ✅ 小红书 MCP v2.5.5：18 工具接入工具箱，扫码 + 短信登录（noVNC 远程桌面），systemd 开机自启
+
+### 聊天核心修复
+- ✅ 闭包陷阱 / crypto.randomUUID 兼容 / 时间感知 / Vercel SPA 路由
+- ✅ 历史消息带 tools 字段（AI 不再误以为工具调用的内容是瞎编）
+- ✅ system prompt 负面指令 → 正面引导（语气不再生硬）
+
+---
+
+## 待完成
+
+### 已知问题 / 遗留
+- [ ] （可选）`getWeatherSenseFeeling()` 加日志 + fetch 超时——现在仍静默吞错，下次「没天气」不好查
+- [ ] 用户手机真实上报一次定位，确认 judgeHome 判「在家」闭环（之前查到的是残留数据）
+- [ ] 主模型 [企业按量]claude-opus-5-5 近期返空波动，nudge 每次回退 4-6；是否把 [CCMAX]claude-opus-5-5 提到第一位（用户暂未决定）
+- [ ] 小红书每小时登录自查已关（`XHS_LOGIN_AUTO_CHECK=false`）；若安全警告未停，需降频「一天三次逛小红书」或关掉 nudge 逛小红书
+
+### 用户暂缓 / 可选
+- [ ] 轮换 Zeabur 泄露的密钥（`SUPABASE_SERVICE_ROLE` 最急，能读全部聊天记录）
+- [ ] GitHub 备份 Ombre-Brain 记忆数据（防再丢，需 `OMBRE_GITHUB_TOKEN`）
+- [ ] 前端免梯子方案（前端迁离 Vercel + Supabase 全走后端代理）——需重新评估，原方案依赖的 Zeabur 已停运
+
+### 低优先级 / 想法
+- [ ] 推送通知加角标
+- [ ] Profile 统计动态化
+- [ ] 更多小游戏
+
+---
+
+## 重要文件
+
+| 文件 | 作用 |
+|------|------|
+| `src/pages/ChatPage.jsx` | 聊天核心（批量生成、session 持久化、记忆注入、时间感知、工具箱 chips）|
+| `src/components/ChatBubble.jsx` | 气泡渲染（代码隐藏、文件下载、头像、重新生成、工具 chips）|
+| `src/components/ChatInput.jsx` | 输入框（附件、语音、发送按钮）|
+| `src/pages/Dashboard.jsx` | 首页（入场动画、功能卡片）|
+| `src/pages/Settings.jsx` | 设置（头像上传、API 配置、消息通知开关）|
+| `src/pages/ClaudeSpace.jsx` | 书房（画像编辑 + 承诺 CRUD + 日记只读）|
+| `src/pages/ToolboxPage.jsx` | 工具箱（小红书 / 天气定位工具开关）|
+| `src/pages/MemoryPage.jsx` | 记忆库（Ombre-Brain 数据展示）|
+| `src/pages/LudoGame.jsx` | 飞行棋（棋盘、迷你聊天、Claude 自动掷骰子）|
+| `src/pages/ProfilePage.jsx` | 我的页面（卡片式布局）|
+| `src/lib/supabase.js` | 数据访问层（优先服务端 API，降级直连 Supabase）|
+| `src/contexts/AuthContext.jsx` | Supabase Auth 登录状态 |
+| `src/lib/toolLabels.js` | 工具中文化（小红书 / 天气 / 定位）|
+| `src/App.jsx` | 路由 + 页面过渡 + PWA 推送订阅 + geolocation 上报 |
+| `src/index.css` | 全局样式（配色、动画、磨砂玻璃）|
+| `server/index.js` | 后端核心（聊天、记忆、nudge、推送、小红书、天气、画像）|
+| `weather-sense/*` | 环境感知 MCP（index / geo / weather / feeling）|
+| `public/sw.js` | Service Worker（缓存 + 推送通知处理）|
+| `public/manifest.json` | PWA 配置 |
+| `index.html` | 字体 + 主题色 + viewport |
+| `vercel.json` | Vercel SPA 路由重写 |
+
+---
+
+## 账号信息
+
+- **GitHub**: zufallfaherty-cyber / ZufallFaherty@gmail.com
+- **Vercel**: https://claude-bay-two.vercel.app（GitHub 自动部署）
+- **后端 bayapi**: 腾讯云香港服务器 `124.156.142.6`（Docker 容器 `bayapi`，端口 3001，scp 部署）
+- **记忆 baymemory**: 腾讯云香港服务器 `124.156.142.6`（Docker 容器 `baymemory`，端口 8000）
+- **后端 HTTPS**: https://124-156-142-6.sslip.io（Caddy 自动 Let's Encrypt 证书）
+- **API 中转站**: https://api.jiushi.xin/v1
+- **API 密钥**: 在设置页配置（后端以 `API_KEY` 环境变量兜底）
+- **模型**: `[企业按量]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6`（主模型 5-5 近期返空波动，nudge 回退 4-6）
+- **Google AI Studio Key**: （见服务器 baymemory 容器环境变量 OMBRE_EMBED_API_KEY）
+- **VAPID 公钥**: BIJHn8BDhMVnhaisl29-OhL7mmx37cPNijwY8FF2i1mF7XT3aroVDcsHMeWBYeb8jFzzrQBHqREgLQRZH263EQY
+- **VAPID 私钥**: bEkBaHXD0GJ53pSKjqd9qjXYRleHOPf3kd44pNO9gRw
+
+---
+
+## 明天要做
+
+1. **真机验证今天的三处改动**（前端等 Vercel 部署完）：
+   - 键盘收起时输入框是否还「先贴底再弹回」
+   - 聊天里问实时信息是否返回相关结果（看有没有「联网搜索」胶囊）
+   - 相册上传后是否真的进云端（设置 → 回忆相册，提示应为「已上传并同步 N 张」）
+2. 验证早 7 点推送已带天气（10.29 措辞改动落地效果）
+3. （用户暂缓）轮换 Zeabur 泄露的密钥（SUPABASE_SERVICE_ROLE 最急）
+4. （可选）GitHub 备份 Ombre-Brain 防再丢数据
+
+---

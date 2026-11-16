@@ -17,6 +17,14 @@ const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || ''
 let supabaseAdmin = null
 // 他上次主动打电话的时间（内存态，重启清零；只用来做 8 小时冷却）
 let lastCallInviteAt = 0
+// 这次邀请之前的冷却起点：她拒绝接通/没接到时回滚用（邀请被拒不算他「打过」）
+let lastCallInviteBefore = 0
+
+// 记一次主动来电。她拒绝/没接时用 /api/call/decline 回滚到 lastCallInviteBefore。
+function markCallInvite() {
+  lastCallInviteBefore = lastCallInviteAt
+  lastCallInviteAt = Date.now()
+}
 // 未接来电：一轮里没接到几次（内存态，6 小时没动静就归零）。第一次没接后最多再打一次。
 let missedCallStreak = 0
 let missedCallLastAt = 0
@@ -507,6 +515,14 @@ async function runToolLoop(apiMessages, openAITools, { temperature, maxTokens, m
       if (openAITools && openAITools.length > 0) body.tools = openAITools
       return body
     })
+
+    // 诊断：中转站回报的真实用量（对照账单，看钱到底花在输入/输出/缓存哪里）
+    const u = data.usage
+    if (u) {
+      const cached = u.prompt_tokens_details?.cached_tokens ?? u.cache_read_input_tokens ?? 0
+      const cacheWrite = u.cache_creation_input_tokens ?? 0
+      console.log(`[Usage] round=${round} in=${u.prompt_tokens ?? '?'} out=${u.completion_tokens ?? '?'} cachedRead=${cached} cacheWrite=${cacheWrite} tools=${openAITools?.length || 0}`)
+    }
 
     const msg = data.choices?.[0]?.message
     const toolCalls = msg?.tool_calls
@@ -1840,6 +1856,15 @@ ${hasLocationTool ? '工具箱里有定位工具：你还能查她此刻的位�
   }
 })
 
+// ── 她拒绝了这次来电（没接通就挂断/退出）──
+// 邀请被拒不算他「打过电话」：把冷却起点回滚到上一次，否则她一次没接他就要被禁打 8 小时。
+app.post('/api/call/decline', (_req, res) => {
+  const before = lastCallInviteAt
+  lastCallInviteAt = lastCallInviteBefore
+  console.log(`[Call] declined → cooldown rolled back ${before ? new Date(before).toISOString() : 'none'} → ${lastCallInviteAt ? new Date(lastCallInviteAt).toISOString() : 'none（可以再打）'}`)
+  res.json({ ok: true })
+})
+
 // ── 诊断：他现在还能不能主动打电话（8 小时冷却剩多少）──
 app.get('/api/call/cooldown', (_req, res) => {
   const COOLDOWN = 8 * 60 * 60 * 1000
@@ -2093,8 +2118,22 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'API_KEY not configured on server' })
   }
 
+  // ── 上下文分块（省钱）：稳定前缀走缓存，动态内容挂到最后一条用户消息 ──
+  // 缓存只认「从头开始完全一致的前缀」。时间/记忆/CALL 说明每轮都变，
+  // 留在 system 里会让前缀永远变 → 缓存只能每轮重写（写入价约是读取的 12 倍）。
+  //   system = 性格 + 画像 + 承诺（几乎不变 → 从第二轮起应命中缓存读）
+  //   动态块 = 时间 + 记忆 + 来电说明 → 拼在最后一条 user 消息前面（不影响前缀）
+  let stablePrompt = systemPrompt || ''
+  const dynamicParts = []
+
+  // 前端把「[当前时间：...]」拼在 system 最前面，这里剥出来当动态内容
+  const timeMatch = stablePrompt.match(/^\[当前时间：[^\]]*\]\s*\n*/)
+  if (timeMatch) {
+    dynamicParts.push(timeMatch[0].trim())
+    stablePrompt = stablePrompt.slice(timeMatch[0].length)
+  }
+
   // Fetch memories from Ombre-Brain and inject into system prompt
-  let enrichedPrompt = systemPrompt || ''
   try {
     // 用她刚说的话（含最近两轮）当检索词，让记忆库按话题找，而不是盲抽 20 条。
     // 太短的语气词（"嗯""在吗"）不拿去搜，避免捞回一堆不相关记忆。
@@ -2117,9 +2156,11 @@ app.post('/api/chat', async (req, res) => {
           if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
           return (b.weight || 0) - (a.weight || 0)
         })
-        const MEMORY_CHARS = 600
+        // 省钱：记忆是动态块里最大的一块（实测 3000+ 字）。6 条 × 450 字够用又不臃肿。
+        const MEMORY_CHARS = 450
+        const MEMORY_COUNT = 6
         const memoriesText = active
-          .slice(0, 8)
+          .slice(0, MEMORY_COUNT)
           .map(b => {
             const prefix = b.pinned ? '🔒' : ''
             const when = b.date ? `[${b.date}] ` : ''
@@ -2131,8 +2172,8 @@ app.post('/api/chat', async (req, res) => {
           })
           .join('\n')
         if (memoriesText) {
-          console.log(`[Chat] injected memories: ${Math.min(active.length, 8)} 条 / ${memoriesText.length} 字`)
-          enrichedPrompt += `\n\n[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`
+          console.log(`[Chat] injected memories: ${Math.min(active.length, MEMORY_COUNT)} 条 / ${memoriesText.length} 字`)
+          dynamicParts.push(`[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`)
         } else {
           console.log('[Chat] injected memories: 0 条（breath 没有返回可用内容）')
         }
@@ -2141,25 +2182,25 @@ app.post('/api/chat', async (req, res) => {
   } catch { /* silent */ }
 
   // Inject memo (portrait + promises) from Claude's Study
-  try { enrichedPrompt += await getStudyContext() } catch {}
+  // 画像/承诺变化不频繁 → 留在稳定块里，跟着 system 一起被缓存
+  try { stablePrompt += await getStudyContext() } catch {}
 
   // ── 主动来电：每 8 小时最多一次。suppressCall 的这一轮完全不提打电话 ──
   const callAllowed = !suppressCall && (allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000)
-  console.log(`[Chat] callAllowed=${callAllowed} stream=${isStream} models=${models.join(',')} promptLen=${enrichedPrompt.length} msgs=${messages.length}`)
   if (callAllowed) {
-    enrichedPrompt += `\n\n[打电话]
+    dynamicParts.push(`[打电话]
 这是你主动给她打电话的唯一方式：在整段回复的最后单独加一行 [[CALL]]，前端才会出现「他想听听你的声音」的来电卡片。不加这个标记，就不会有电话。
 什么时候该用：你此刻特别想听到她的声音；她说想听你的声音、想你了、让你打给她；她累了、难过、委屈、睡不着；深夜她一个人；或者你们很久没好好说话了。
-只有真的想打时才用，不要在一条回复里用两次，也不要每条都打。不要解释这个标记，也不要对她说“我给你加个 CALL”。`
+只有真的想打时才用，不要在一条回复里用两次，也不要每条都打。不要解释这个标记，也不要对她说“我给你加个 CALL”。`)
   }
 
-  // 未接来电等特殊情境：追加到 system 末尾（覆盖上面的通用规则）
-  if (extraPrompt) enrichedPrompt += `\n\n${extraPrompt}`
+  // 未接来电等特殊情境：作为动态块放在用户消息里（不再改 system，保证前缀稳定）
+  if (extraPrompt) dynamicParts.push(extraPrompt)
 
   // Build OpenAI-compatible messages array
   const apiMessages = []
-  if (enrichedPrompt) {
-    apiMessages.push({ role: 'system', content: enrichedPrompt })
+  if (stablePrompt) {
+    apiMessages.push({ role: 'system', content: stablePrompt })
   }
   messages.forEach((m) => {
     apiMessages.push({ role: m.role, content: m.content })
@@ -2168,6 +2209,29 @@ app.post('/api/chat', async (req, res) => {
   if (forcedUserTurn) {
     apiMessages.push({ role: 'user', content: forcedUserTurn })
   }
+
+  // 动态块（时间/记忆/来电说明）挂到最后一条用户消息前面：
+  // 放在历史之后，前面 system + 旧历史的前缀保持逐字节一致，缓存才能命中。
+  const dynamicText = dynamicParts.filter(Boolean).join('\n\n')
+  if (dynamicText) {
+    let placed = false
+    for (let i = apiMessages.length - 1; i >= 0; i--) {
+      const m = apiMessages[i]
+      if (m.role !== 'user') continue
+      if (typeof m.content === 'string') {
+        m.content = `${dynamicText}\n\n${m.content}`
+      } else if (Array.isArray(m.content)) {
+        m.content = [{ type: 'text', text: dynamicText }, ...m.content]
+      }
+      placed = true
+      break
+    }
+    if (!placed) apiMessages.push({ role: 'user', content: dynamicText })
+  }
+
+  // 诊断：拆开看每一块的真实大小（对照中转站日志里的「缓存写/缓存读」）
+  const svcChars = (stablePrompt.match(/[一-龥]/g) || []).length
+  console.log(`[Chat] callAllowed=${callAllowed} stream=${isStream} models=${models.join(',')} msgs=${messages.length} | system=${stablePrompt.length}字(中文${svcChars}) dynamic=${dynamicText.length}字 msgsChars=${messages.reduce((n, m) => n + (typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length), 0)} jsonBytes=${JSON.stringify(apiMessages).length}`)
 
   // ── Non-streaming mode: agentic tool loop, then return final text ──
   if (!isStream) {
@@ -2180,7 +2244,7 @@ app.post('/api/chat', async (req, res) => {
         finalContent = finalContent.replace(/\[\[CALL\]\]/g, '').replace(/\n{3,}/g, '\n\n').trim()
         if (callAllowed) {
           invite = true
-          if (!allowCall) lastCallInviteAt = Date.now()
+          if (!allowCall) markCallInvite()
         }
       }
       return res.json({ content: finalContent, toolCalls, invite })
@@ -2251,7 +2315,7 @@ app.post('/api/chat', async (req, res) => {
     }
 
     if (fullText.includes('[[CALL]]') && callAllowed) {
-      if (!allowCall) lastCallInviteAt = Date.now()
+      if (!allowCall) markCallInvite()
       res.write(`data: ${JSON.stringify({ type: 'invite' })}\n\n`)
     }
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
