@@ -528,6 +528,19 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   // placeholders — the model reads their surrounding text instead. Re-uploading
   // every historical photo bloated each turn past 1MB of base64 on mobile
   // networks (slow uploads, relay 413s, timeouts) for very little benefit.
+  // ── 上下文按块对齐（省钱关键）──
+  // 旧逻辑永远只发最近 maxRounds*2 条，每聊一句窗口就往前滑一格 → 上下文开头
+  // 每次都变 → 前缀缓存整块失效：实测一次 4 万 token 全额重算，其中两万多还
+  // 按更贵的「缓存写」¥7/M 计费，单条 ¥0.27。
+  // 现在改为「块对齐」：不到 2 块（默认 60 条）就全发，前缀只往后追加（缓存命中）；
+  // 超过 2 块才整块前移一次，把缓存失效从「每条消息一次」降到「每 30 条一次」。
+  const pickContext = (msgs, maxRounds) => {
+    const block = Math.max(6, maxRounds * 2)
+    if (msgs.length <= block * 2) return msgs
+    const start = Math.floor((msgs.length - block) / block) * block
+    return msgs.slice(start)
+  }
+
   const keepLatestImagesOnly = (msgs) => {
     const last = msgs[msgs.length - 1]
     const hasImage = (m) => m && m.role === 'user' && (m.attachments || []).some(a => a.type === 'image')
@@ -611,7 +624,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
-    const recentMsgs = trimmed.slice(-maxRounds * 2)
+    const recentMsgs = pickContext(trimmed, maxRounds)
     const { keepId, hasImage } = keepLatestImagesOnly(recentMsgs)
     const apiMessages = recentMsgs.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
 
@@ -690,7 +703,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) { maxRounds = 15; localStorage.setItem('max_context_rounds', '15') }
     // 通话记录也进上下文，让 Claude 记得这通电话
-    const recentMessages = updatedMsgs.slice(-maxRounds * 2)
+    const recentMessages = pickContext(updatedMsgs, maxRounds)
     // Only images on the current turn are sent; earlier ones become [图片].
     const { keepId, hasImage } = keepLatestImagesOnly(recentMessages)
     const apiMessages = recentMessages.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
@@ -815,7 +828,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
 
     let maxRounds = parseInt(localStorage.getItem('max_context_rounds') || '15')
     if (maxRounds === 20) maxRounds = 15
-    const recentMessages = messagesRef.current.slice(-maxRounds * 2)
+    const recentMessages = pickContext(messagesRef.current, maxRounds)
     const { keepId, hasImage } = keepLatestImagesOnly(recentMessages)
     const apiMessages = recentMessages.map(m => buildApiMessage(m, hasImage(m) && m.id !== keepId))
 
