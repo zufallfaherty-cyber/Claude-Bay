@@ -7,6 +7,9 @@
 
 ## 目录
 
+- **2026-11-17**
+  - 单条 ¥0.27 → ¥0.11：前端上下文块对齐修缓存失效 + 记忆进稳定前缀/8 分钟复用
+  - 切到 jumengai 中转站（真 API，单条 ¥0.04~0.05）+ 设置页中转站/模型下拉、密钥服务器托管（✅ 已上线）
 - **2026-11-16**
   - 聊天输入 token 优化（system 稳定化 + 记忆减量）+ 诊断日志（✅ 已上线）
   - 工作日志重构：PROGRESS.md 速读版 + PROGRESS-DETAIL.md 详细版
@@ -98,6 +101,75 @@
   - 今日完成
 ---
 
+
+## 2026-11-17 切到 jumengai 中转站 + 设置页一键切换（✅ 已上线）
+
+### 起因
+- 用户截图账单：单条 ¥0.273410（17:37），之前优化过的 ¥0.19 又涨回去了。
+- 用户问：「到底怎么回事」；同时提出「换中转站麻不麻烦」。
+
+### 排查
+1. 拉服务器日志 `docker compose logs bayapi | grep [Usage]`，稳定态：`in=36,147~53,749`、`cachedRead=0`。
+2. 账单与日志对齐：18,797（非缓存输入）+ 21,698（缓存写 5m）+ 780 输出 = ¥0.2734。单价：输入 ¥5.6/M、缓存写 ¥7/M、输出约 ¥21/M、倍率 0.98x。
+3. 代码核查：
+   - `ChatPage.jsx` 每句 `slice(-maxRounds*2)` 只发最近 30 条 → 每句开头都变 → 前缀缓存整块失效。
+   - `server/index.js` 每句重新 `breath` 检索记忆，且拼在最后一条 user 消息前 → 永远在缓存前缀外。
+   - `getTimeAware` 把时间拼在 system 最前面，但后端 2130 行已把它剥到动态块（昨天的改动还在）。
+4. 对照实验（在容器内跑，`/tmp/probe*.js`）：
+   - 裸 `hi`：prompt=4,489、cached=3,292（CCMAX 渠道固有注入）。
+   - 同请求 5 秒内再发：缓存命中 3,292 → 缓存机制本身是好的。
+   - 带 4 个工具：5,981、cached=0；第二次起 4,579 命中。
+   - **结论**：缓存没问题，是我们的上下文开头每句都在变。
+5. 渠道实测（jiushi）：`[企业按量]claude-opus-5-5` → 500 upstream failed；`[k]claude-opus-4-6` → 无可用渠道。只剩 CCMAX。
+
+### 改动一：前端上下文块对齐（`ChatPage.jsx`）
+```js
+const pickContext = (msgs, maxRounds) => {
+  const block = Math.max(6, maxRounds * 2)          // 默认 30
+  if (msgs.length <= block * 2) return msgs          // ≤60 条全发，只追加
+  const start = Math.floor((msgs.length - block) / block) * block
+  return msgs.slice(start)                           // 每 30 条才整块前移一次
+}
+```
+替换了 3 处 `slice(-maxRounds*2)`（发送、重新生成、未接来电）。仿真 200 次请求只 5 次前缀变化。
+
+### 改动二：记忆进稳定前缀（`server/index.js`）
+- `memoryCache` + `MEMORY_MIN_REUSE`（8 分钟无条件复用）+ `MEMORY_TTL`（20 分钟强制重检）+ `querySimilar`（字符集合重叠率 ≥ 0.3）。
+- 记忆块从 `dynamicParts`（末尾）改为拼进 `stablePrompt`（画像之后）。
+- 条数 6 → 5，每条 450 字不变。
+
+### 结果一
+- 缓存命中 0 → 2.3 万；单条 ¥0.27 → **¥0.11**。
+- 已知：每段对话前两句中转站缓存还没生效（全价），第三句起稳定。
+
+### 改动三：换站
+- 候选 `api.jumengai.net`（用户提供截图，价格：输入 ¥4/M、缓存写 ¥5/M、缓存读 ¥0.2/M、输出 ¥20/M）。
+- 实测：`【CCMAX】claude-opus-5-5` 裸 `hi` 只计 **8 token**（真 API，无注入），带 2 工具 436 token，响应 1.8~2.5s。
+- 踩坑：`[K2-个人]` 渠道按次计费 ¥0.2/次，测试时连发 4 次把用户刚充的 ¥1 花光（教训：测新站每模型只发 1 次，先确认计费方式）。
+- 数据库 `user_settings` 切换：api_base → `https://api.jumengai.net/v1`、api_model → `【CCMAX】claude-opus-5-5`、api_key → `__relay__:jumengai`。
+- 实测单条 8,963/8,320 输入 → **¥0.043/条**。
+
+### 改动四：设置页下拉 + 密钥托管（✅ 已上线）
+- `Settings.jsx` 新增「中转站」「模型」两个下拉，模型列表随站点变化，都带「自定义」。
+- 安全设计（原方案被安全机制拦截：不能在无鉴权公开接口返回 key）：
+  - 真实密钥只存服务器 `~/bayapi-data/relay-presets.json`；
+  - 前端只存 `__relay__:<站点名>`；
+  - `GET /api/relay-presets` 用 `({key, ...rest})` 剥掉密钥（已 curl 验证返回无 `sk-`）；
+  - `tryModels`（index.js）与 `callLLM`（call.js）入口都调用 `resolveApiKey`。
+- 加新站：只改 `relay-presets.json`，不动代码。
+
+### 回滚
+- 设置页选 `jiushi` → 自动切回 `api.jiushi.xin/v1` + `[CCMAX]claude-opus-5-5`，密钥自动托管为 `__relay__:jiushi`。
+
+### 遗留 / 待办
+- jumengai **不做前缀缓存**（cachedRead 恒 0），缓存优化在它身上暂时吃不到；换到支持缓存的站会自动生效。
+- 用户担心中转站不稳定 → 设置页已能一键切；后续可加「测试连接」按钮。
+- 余额：用户充 ¥1，日常用建议充到 ¥10。
+
+### 边界（用户明确要求）
+- 不许代替用户测试/生成他与 AI 伴侣的私密对话和通话内容；技术验证只看状态码/日志/token，真实内容由用户自己发。
+
+---
 
 ## 2026-11-16 聊天输入 token 优化（✅ 已上线）
 

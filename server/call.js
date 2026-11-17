@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 import express from 'express'
 import crypto from 'crypto'
+import { readFileSync } from 'fs'
 import OpenCC from 'opencc-js'
 
 const DEFAULT_MODELS = '[CCMAX]claude-opus-5-5,[CCMAX]claude-opus-4-6,[企业按量]claude-opus-5-5,[k]claude-opus-4-6'
@@ -17,6 +18,19 @@ const calls = new Map()
 
 function parseModels(input) {
   return (input || DEFAULT_MODELS).split(',').map(m => m.trim()).filter(Boolean)
+}
+
+// 前端只传 `__relay__:<站点名>`，真实密钥从服务器预设里取（密钥永不离开服务器）
+function resolveApiKey(key) {
+  if (typeof key !== 'string' || !key.startsWith('__relay__:')) return key
+  try {
+    const name = key.slice('__relay__:'.length)
+    const cfg = JSON.parse(readFileSync(process.env.RELAY_PRESETS_PATH || '/data/relay-presets.json', 'utf8'))
+    const site = (cfg.sites || []).find((s) => s.name === name)
+    return site?.key || ''
+  } catch {
+    return ''
+  }
 }
 
 // 语音识别同音错字纠正：只处理明确的专有名词，避免误伤普通词
@@ -101,6 +115,7 @@ function buildToneHint(f, text) {
 
 // 精简版模型降级：失败就换下一个
 async function callLLM(messages, { apiKey, apiBase, models, temperature = 0.85, maxTokens = 400 }) {
+  apiKey = resolveApiKey(apiKey)
   let lastError
   for (const model of models) {
     try {

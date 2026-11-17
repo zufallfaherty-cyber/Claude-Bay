@@ -1,7 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
-import { promises as fsp } from 'fs'
+import { promises as fsp, readFileSync } from 'fs'
 import path from 'path'
 import webPush from 'web-push'
 import { createClient } from '@supabase/supabase-js'
@@ -41,6 +41,7 @@ function parseModels(input, fallback = DEFAULT_MODELS) {
 }
 
 async function tryModels(models, apiKey, apiBase, makeBody, opts = {}) {
+  apiKey = resolveApiKey(apiKey)
   const { stream = false } = opts
   let lastError
   for (let i = 0; i < models.length; i++) {
@@ -201,8 +202,55 @@ const XHS_NUDGE_SAFE_TOOLS = new Set([
   'get_unread_count', 'list_notifications',
 ])
 
+// ── 记忆块缓存：同一段对话内复用，让它进入稳定前缀走缓存打折 ──
+// 以前每句都重新 breath 检索、并把结果挂在最后一条消息前 → 记忆永远在缓存
+// 前缀之外，每轮全价（约 2,200 字 ≈ ¥0.037/条）。
+// 现在：10 分钟内且话题相近 → 复用上次的记忆块（内容一字不改）；
+//       话题明显切换、或久聊中断 → 重新检索一次。
+const memoryCache = { text: '', at: 0, query: '' }
+const MEMORY_MIN_REUSE = 8 * 60 * 1000   // 8 分钟内无条件复用（聊天中话题再怎么跳也不重建）
+const MEMORY_TTL = 20 * 60 * 1000        // 20 分钟还没重检，强制换一批
+
+// 粗粒度话题相似度：去空白后的字符集合重叠率。中文按字符判断足够——
+// 阈值偏低(0.3)：普通聊天每句用词差别很大，阈值高了会两句一重检、把缓存打碎。
+// 空 query（"嗯""在吗"）视为同类直接复用。
+function querySimilar(a, b) {
+  if (!a || !b) return true
+  const sa = new Set(String(a).replace(/\s+/g, ''))
+  const sb = new Set(String(b).replace(/\s+/g, ''))
+  let hit = 0
+  for (const c of sa) if (sb.has(c)) hit++
+  return hit / Math.max(1, sa.size) >= 0.3
+}
+
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
+
+// ── 中转站预设（设置页快捷切换）──
+// 存在服务器 /data/relay-presets.json（不打包进前端代码）；前端只负责展示和选择。
+app.get('/api/relay-presets', async (req, res) => {
+  try {
+    const raw = await fsp.readFile(process.env.RELAY_PRESETS_PATH || '/data/relay-presets.json', 'utf8')
+    const cfg = JSON.parse(raw)
+    // 绝不把密钥返回给前端：前端只需知道站点名/地址/模型，密钥由后端按名字取用
+    res.json({ sites: (cfg.sites || []).map(({ key, ...rest }) => rest) })
+  } catch {
+    res.json({ sites: [] })
+  }
+})
+
+// 前端传来 `__relay__:<站点名>` 时，从服务器预设里取真实密钥（密钥永不离开服务器）
+function resolveApiKey(key) {
+  if (typeof key !== 'string' || !key.startsWith('__relay__:')) return key
+  try {
+    const name = key.slice('__relay__:'.length)
+    const cfg = JSON.parse(readFileSync(process.env.RELAY_PRESETS_PATH || '/data/relay-presets.json', 'utf8'))
+    const site = (cfg.sites || []).find((s) => s.name === name)
+    return site?.key || ''
+  } catch {
+    return ''
+  }
+}
 
 // 通话功能：打字 → 语音回复
 app.use('/api/call', createCallRouter(supabaseAdmin, { callOmbreTool, parseBreathResponse, getStudyContext }))
@@ -2133,7 +2181,8 @@ app.post('/api/chat', async (req, res) => {
     stablePrompt = stablePrompt.slice(timeMatch[0].length)
   }
 
-  // Fetch memories from Ombre-Brain and inject into system prompt
+  // Fetch memories from Ombre-Brain（带 10 分钟 / 话题相似度复用 → 进稳定前缀走缓存）
+  let memoryBlock = ''
   try {
     // 用她刚说的话（含最近两轮）当检索词，让记忆库按话题找，而不是盲抽 20 条。
     // 太短的语气词（"嗯""在吗"）不拿去搜，避免捞回一堆不相关记忆。
@@ -2146,36 +2195,52 @@ app.post('/api/chat', async (req, res) => {
       .replace(/\s+/g, ' ')
     const memoryQuery = recentUserText.length >= 4 ? recentUserText.slice(-300) : ''
     console.log(`[Chat] memory query: ${memoryQuery ? memoryQuery.slice(0, 60) : '(none → surfacing)'}`)
-    const breathRaw = await callOmbreTool('breath', memoryQuery ? { query: memoryQuery } : {})
-    if (breathRaw) {
-      const buckets = parseBreathResponse(breathRaw)
-      if (buckets.length > 0) {
-        const active = buckets.filter(b => !b.resolved)
-        // Sort: pinned first, then by weight descending
-        active.sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
-          return (b.weight || 0) - (a.weight || 0)
-        })
-        // 省钱：记忆是动态块里最大的一块（实测 3000+ 字）。6 条 × 450 字够用又不臃肿。
-        const MEMORY_CHARS = 450
-        const MEMORY_COUNT = 6
-        const memoriesText = active
-          .slice(0, MEMORY_COUNT)
-          .map(b => {
-            const prefix = b.pinned ? '🔒' : ''
-            const when = b.date ? `[${b.date}] ` : ''
-            // 记忆引擎已在正文前带 [YYYY-MM-DD HH:MM]；这里不再硬切，
-            // 超长才截断并补省略号（原来切 220 字会停在半句）
-            const body = (b.content || '').trim()
-            const text = body.length > MEMORY_CHARS ? body.slice(0, MEMORY_CHARS) + '…' : body
-            return `${prefix}- ${when}${text}`
+
+    // 复用条件：8 分钟内无条件复用；8~20 分钟话题相近才复用；超过 20 分钟强制重检。
+    const now = Date.now()
+    const memAge = now - memoryCache.at
+    const canReuse = memoryCache.text && (
+      memAge < MEMORY_MIN_REUSE ||
+      (memAge < MEMORY_TTL && querySimilar(memoryQuery, memoryCache.query))
+    )
+    if (canReuse) {
+      memoryBlock = memoryCache.text
+      console.log(`[Chat] memories: reused ${Math.round(memAge / 1000)}s old, ${memoryBlock.length} 字`)
+    } else {
+      const breathRaw = await callOmbreTool('breath', memoryQuery ? { query: memoryQuery } : {})
+      if (breathRaw) {
+        const buckets = parseBreathResponse(breathRaw)
+        if (buckets.length > 0) {
+          const active = buckets.filter(b => !b.resolved)
+          // Sort: pinned first, then by weight descending
+          active.sort((a, b) => {
+            if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
+            return (b.weight || 0) - (a.weight || 0)
           })
-          .join('\n')
-        if (memoriesText) {
-          console.log(`[Chat] injected memories: ${Math.min(active.length, MEMORY_COUNT)} 条 / ${memoriesText.length} 字`)
-          dynamicParts.push(`[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`)
-        } else {
-          console.log('[Chat] injected memories: 0 条（breath 没有返回可用内容）')
+          // 省钱：5 条 × 450 字够用又不臃肿（进缓存后按打折价计费）
+          const MEMORY_CHARS = 450
+          const MEMORY_COUNT = 5
+          const memoriesText = active
+            .slice(0, MEMORY_COUNT)
+            .map(b => {
+              const prefix = b.pinned ? '🔒' : ''
+              const when = b.date ? `[${b.date}] ` : ''
+              // 记忆引擎已在正文前带 [YYYY-MM-DD HH:MM]；这里不再硬切，
+              // 超长才截断并补省略号（原来切 220 字会停在半句）
+              const body = (b.content || '').trim()
+              const text = body.length > MEMORY_CHARS ? body.slice(0, MEMORY_CHARS) + '…' : body
+              return `${prefix}- ${when}${text}`
+            })
+            .join('\n')
+          if (memoriesText) {
+            memoryBlock = `[关于她的记忆，重要的请务必记住并在合适时自然提及，不重要的顺其自然]\n${memoriesText}`
+            memoryCache.text = memoryBlock
+            memoryCache.at = now
+            memoryCache.query = memoryQuery
+            console.log(`[Chat] injected memories: ${Math.min(active.length, MEMORY_COUNT)} 条 / ${memoriesText.length} 字 (fresh)`)
+          } else {
+            console.log('[Chat] injected memories: 0 条（breath 没有返回可用内容）')
+          }
         }
       }
     }
@@ -2184,6 +2249,8 @@ app.post('/api/chat', async (req, res) => {
   // Inject memo (portrait + promises) from Claude's Study
   // 画像/承诺变化不频繁 → 留在稳定块里，跟着 system 一起被缓存
   try { stablePrompt += await getStudyContext() } catch {}
+  // 记忆块接在画像后面：内容在 10 分钟内不变 → 与 system/画像一起命中缓存
+  if (memoryBlock) stablePrompt += '\n\n' + memoryBlock
 
   // ── 主动来电：每 8 小时最多一次。suppressCall 的这一轮完全不提打电话 ──
   const callAllowed = !suppressCall && (allowCall || Date.now() - lastCallInviteAt > 8 * 60 * 60 * 1000)
