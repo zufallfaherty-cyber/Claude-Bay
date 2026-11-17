@@ -146,6 +146,28 @@ export default function Settings() {
     localStorage.getItem('api_model') || '[企业按量]claude-opus-4-6,[CCMAX]claude-opus-4-6,[k]claude-opus-4-6,[k]claude-sonnet-4-6,[按量]claude-opus-4-6'
   )
   const [saved, setSaved] = useState(false)
+  // 中转站预设（设置页快捷切换）：站点 + 模型两个下拉，选「自定义」时可手动填
+  const [presets, setPresets] = useState([])
+  const [siteName, setSiteName] = useState('')
+  const [modelName, setModelName] = useState('')
+
+  useEffect(() => {
+    fetch('https://124-156-142-6.sslip.io/api/relay-presets')
+      .then((r) => r.json())
+      .then((j) => setPresets(j.sites || []))
+      .catch(() => {})
+  }, [])
+
+  // 打开设置页时，按当前地址反查用的是哪家站
+  useEffect(() => {
+    if (!presets.length || siteName) return
+    const hit = presets.find((s) => s.base === apiBase)
+    if (hit) {
+      setSiteName(hit.name)
+      const m = (hit.models || []).find((x) => x === apiModel)
+      setModelName(m || '')
+    }
+  }, [presets, apiBase, apiModel, siteName])
 
   const handleImageUpload = (person, file) => {
     if (!file) return
@@ -330,6 +352,50 @@ export default function Settings() {
 
           <div className="space-y-4">
             <div>
+              <label className="text-xs font-medium text-warm-gray mb-1.5 block">中转站</label>
+              <select
+                value={siteName}
+                onChange={(e) => {
+                  const name = e.target.value
+                  setSiteName(name)
+                  const s = presets.find((x) => x.name === name)
+                  if (s) {
+                    setApiBase(s.base)
+                    // 密钥不落在设置页里：只写一个占位符，后端按站点名取真实密钥
+                    setApiKey(`__relay__:${s.name}`)
+                    const first = (s.models || [])[0] || ''
+                    setApiModel(first)
+                    setModelName(first)
+                  }
+                }}
+                className="w-full px-4 py-2.5 bg-white/70 rounded-xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all"
+              >
+                <option value="">自定义</option>
+                {presets.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}{s.note ? `（${s.note}）` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-warm-gray mb-1.5 block">模型</label>
+              <select
+                value={modelName}
+                onChange={(e) => {
+                  setModelName(e.target.value)
+                  if (e.target.value) setApiModel(e.target.value)
+                }}
+                disabled={!presets.find((s) => s.name === siteName)}
+                className="w-full px-4 py-2.5 bg-white/70 rounded-xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all disabled:opacity-50"
+              >
+                <option value="">自定义</option>
+                {((presets.find((s) => s.name === siteName) || {}).models || []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="text-xs font-medium text-warm-gray mb-1.5 block">接口地址</label>
               <input
                 value={apiBase}
@@ -347,6 +413,9 @@ export default function Settings() {
                 className="w-full px-4 py-2.5 bg-white/70 rounded-xl text-sm text-warm-dark border border-white/40 outline-none focus:ring-2 focus:ring-sage/30 transition-all"
                 placeholder="sk-..."
               />
+              {apiKey.startsWith('__relay__:') && (
+                <p className="text-[10px] text-warm-gray/70 mt-1">密钥由服务器托管，不用手填</p>
+              )}
             </div>
             <div>
               <label className="text-xs font-medium text-warm-gray mb-1.5 block">模型（多个用逗号分隔，失败自动切换）</label>
