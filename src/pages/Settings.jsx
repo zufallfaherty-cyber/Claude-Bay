@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { fetchSettings } from '../lib/supabase'
-import { compressImage, loadAlbum, uploadPhoto, deletePhoto, syncLocalPhotos } from '../lib/album'
+import { compressImage, loadAlbum, loadAlbumLocal, uploadPhoto, deletePhoto, syncLocalPhotos } from '../lib/album'
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -11,7 +11,7 @@ export default function Settings() {
   const claudeFileRef = useRef(null)
   const albumFileRef = useRef(null)
 
-  const [albumPhotos, setAlbumPhotos] = useState([])
+  const [albumPhotos, setAlbumPhotos] = useState(loadAlbumLocal)
   const [albumBusy, setAlbumBusy] = useState(false)
   const [albumHint, setAlbumHint] = useState('')
 

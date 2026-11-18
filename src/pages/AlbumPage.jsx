@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadAlbum, syncLocalPhotos } from '../lib/album'
+import { loadAlbum, loadAlbumLocal, syncLocalPhotos } from '../lib/album'
 import PhotoViewer from '../components/PhotoViewer'
 import { SAMPLE_PHOTOS } from '../lib/albumSamples'
 
 export default function AlbumPage() {
   const navigate = useNavigate()
-  const [photos, setPhotos] = useState([])
-  const [loaded, setLoaded] = useState(false)
+  // 本地缓存先渲染（看不到「正在打开相册…」），云端列表回来再替换
+  const [photos, setPhotos] = useState(loadAlbumLocal)
+  const [loaded, setLoaded] = useState(() => loadAlbumLocal().length > 0)
   const [active, setActive] = useState(null)
 
   useEffect(() => {

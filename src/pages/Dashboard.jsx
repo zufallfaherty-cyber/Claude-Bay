@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { getDailyQuote } from '../lib/quotes'
-import { loadAlbum } from '../lib/album'
+import { loadAlbum, loadAlbumLocal } from '../lib/album'
 import { SAMPLE_PHOTOS } from '../lib/albumSamples'
 import PhotoViewer from '../components/PhotoViewer'
 import useTiltParallax from '../hooks/useTiltParallax'
@@ -92,7 +92,8 @@ function ArrowCircle(props) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const [together, setTogether] = useState(getTogether)
-  const [photos, setPhotos] = useState([])
+  // 先用本地缓存秒出「最近的回忆」，云端列表回来后再静默替换
+  const [photos, setPhotos] = useState(loadAlbumLocal)
   const [active, setActive] = useState(null)
   const skipAnim = useSkipCardAnimation()
   useTiltParallax()

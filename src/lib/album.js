@@ -54,6 +54,12 @@ export function compressImage(file, maxSide = 1400, quality = 0.8) {
   })
 }
 
+// 同步读取本地缓存：页面首屏先用它渲染，云端列表回来后再替换，
+// 不用干等 /api/album（跨洋请求 1~4 秒）。
+export function loadAlbumLocal() {
+  return readLocal().map(normalize)
+}
+
 export async function loadAlbum() {
   try {
     const json = await api('/api/album')
@@ -68,7 +74,7 @@ export async function loadAlbum() {
       return merged
     }
   } catch {}
-  return readLocal()
+  return loadAlbumLocal()
 }
 
 // Returns { photo, synced }. synced=false means it only lives on this device.
