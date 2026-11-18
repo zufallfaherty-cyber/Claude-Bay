@@ -7,6 +7,10 @@
 
 ## 目录
 
+- **2026-11-18**
+  - 聊天页右上角「手动刷新」按钮（✅ 已上线；含转圈不停修复 + UI 微调）
+  - iOS 切回 App 后键盘挡住输入框（✅ 已上线）
+  - 相册首屏「本地优先」：首页/相册页/设置页先读本地缓存（✅ 已上线）
 - **2026-11-17**
   - 单条 ¥0.27 → ¥0.11：前端上下文块对齐修缓存失效 + 记忆进稳定前缀/8 分钟复用
   - 切到 jumengai 中转站（真 API，单条 ¥0.04~0.05）+ 设置页中转站/模型下拉、密钥服务器托管（✅ 已上线）
@@ -101,6 +105,39 @@
   - 今日完成
 ---
 
+
+## 2026-11-18 聊天页手动刷新 + iOS 键盘回前台修复 + 相册本地优先（✅ 均已上线）
+
+### 一、聊天页右上角「手动刷新」按钮
+- **背景**：聊天页自动刷新只有 nudge 轮询（`ChatPage.jsx` 的 `setInterval`，3 分钟一次，拉 `/api/nudge-messages`；该接口读一次就清空内存队列）。推送通知到了手机，聊天页最多要等 3 分钟才出现。
+- **改动**：
+  - header 右上角原来的空占位（`<div className="w-9 h-9 shrink-0" />`）换成循环箭头按钮，无文字提示（用户明确要求）。
+  - 点击 → 并行执行 `fetchMessages`（补拉当前会话、按 id 合并、cap 500）+ `fetchSessions`（刷新会话列表），先写 localStorage 再 setState。
+  - 流式回复 / 重生成中按钮置灰，避免覆盖正在生成的 assistant 占位消息。
+  - 点击后图标 `animate-spin`，最短 600ms 反馈，失败静默。
+- **上线事故**：按钮转圈不停（用户反馈转了一分钟）。
+  - 根因：`fetch` 没设超时。后端不通时 `fetchMessages` 会降级直连 Supabase（supabase.co，国内被墙），连接挂死 → `finally` 永不执行，转圈永不结束。
+  - 修复：加 4 秒 `setTimeout` 兜底强制停转；两个请求改并行（`Promise.allSettled`），一个挂死不影响另一个落地；超时后结果丢弃（`alive` 标志）。
+- **UI 微调（用户要求）**：左移 4px（`mr-1`）、透明度 80%、尺寸 36px → 32px、图标 17px → 16px。
+- **未动**：3 分钟自动轮询保留，两套并存。
+
+### 二、iOS 切回 App 后键盘挡住输入框
+- **症状**：切到别的软件再回来，键盘恢复但输入框被键盘（含 iOS 新系统键盘上方横条）盖住；正常点输入框不触发。
+- **现有机制**：`ChatPage.jsx` 的 effect 用 `visualViewport.height + offsetTop` 写 `--chat-vvh`，`.chat-shell { height: var(--chat-vvh, 100%) }`；键盘收起时移除变量。
+- **根因**：只监听 `visualViewport` 的 `resize`/`scroll`。iOS 切后台时可能先报一次全高把变量删掉，回前台键盘恢复却不触发 resize，壳停在 100dvh。
+- **修复**：补 `visibilitychange`（visible）/ `pageshow` / `window focus` 三个回前台信号，触发后按 0/120/350/700/1200ms 连测五次，覆盖键盘恢复动画。
+- **结果**：用户实测「键盘也好了」。
+- **遗留**：若 iOS 新键盘上方横条不被 `visualViewport` 计入，仍需常量补偿；用 `?diag` 看 `compBottom` 与 `vvTop+vvH` 的差值（本次未出现，先搁置）。
+
+### 三、相册首屏「本地优先」
+- **症状**：首页「最近的回忆」每次打开都慢。
+- **原因**：`loadAlbum()` 串行——先等 `/api/album`（跨洋，`api()` 超时 4.5 秒），云端回来才读本地、才渲染；本地缓存明明有却排在后面。
+- **改动**：`album.js` 新增 `loadAlbumLocal()`（同步读 localStorage、`normalize` 后返回）；`Dashboard` / `AlbumPage` / `Settings` 用 `useState(loadAlbumLocal)` 做首屏初始值。`AlbumPage` 的 `loaded` 初始值也按缓存有无设置，有缓存就不再显示「正在打开相册…」。云端返回后照旧静默替换。
+- **结果**：用户反馈「快多了」。
+- **图片本身**：仍走 `/api/album/file/<id>`，后端有 `Cache-Control: public, max-age=86400`，同一台手机一天内读浏览器缓存。
+- **后续可选**：首页 74×64 格子加载 1400px 原图 → 后端上传时多存 300px 缩略图 + 老照片批量补生成。
+
+- **部署**：前端 `git push`（`d66b825` 按钮+键盘 / `253176f` 转圈修复 / `91d8b11` 左移+透明 / `ffd3f70` 缩小 / `037a0b3` 相册本地优先）。
 
 ## 2026-11-17 切到 jumengai 中转站 + 设置页一键切换（✅ 已上线）
 
