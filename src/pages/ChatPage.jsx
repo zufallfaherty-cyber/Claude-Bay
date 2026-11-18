@@ -186,6 +186,9 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
   const [streaming, setStreaming] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [diag, setDiag] = useState(null)
+  // 手动刷新（右上角按钮）：只要转圈反馈，不加文字提示
+  const [refreshing, setRefreshing] = useState(false)
+  const refreshBusyRef = useRef(false)
   // 他的来电卡片（聊天里点一下就进通话页）
   const [callInvite, setCallInvite] = useState(
     import.meta.env.DEV && new URLSearchParams(window.location.search).has('invitedemo')
@@ -410,6 +413,44 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     const interval = setInterval(fetchNudges, 3 * 60 * 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // 右上角手动刷新：立即补拉当前会话消息 + 刷新会话列表
+  const handleRefresh = useCallback(async () => {
+    if (refreshBusyRef.current) return
+    if (streamingRef.current || regenerating) return
+    const sb = supabaseRef.current
+    const uid = userRef.current?.id
+    const sid = sidRef.current
+    if (!sb || !uid || !sid) return
+    refreshBusyRef.current = true
+    setRefreshing(true)
+    try {
+      const sbMsgs = await fetchMessages(sb, sid, uid)
+      const localIds = new Set(messagesRef.current.map(m => m.id))
+      const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
+      if (newFromSb.length > 0) {
+        const merged = [...messagesRef.current, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
+        const capped = merged.slice(-MAX_LOADED_MSGS)
+        messagesRef.current = capped
+        saveMessagesLocal(sid, capped)
+        setMessages(capped)
+      }
+      const sbSessions = await fetchSessions(sb, uid)
+      if (sbSessions.length > 0) {
+        const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
+        saveSessionsLocal(local)
+        setSessionsRef.current?.(local)
+      }
+    } catch {
+      // 静默失败：按钮转一圈即可，不打扰
+    } finally {
+      // 转圈至少停留一小会儿，让点击有反馈
+      setTimeout(() => {
+        refreshBusyRef.current = false
+        setRefreshing(false)
+      }, 500)
+    }
+  }, [regenerating])
 
   // Load settings from Supabase on mount (so ChatPage has correct settings even on new device)
   useEffect(() => {
@@ -951,9 +992,30 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     apply()
     vv.addEventListener('resize', apply)
     vv.addEventListener('scroll', apply)
+
+    // iOS：切到别的 App 再回来时，键盘会恢复，但 visualViewport 常常不触发
+    // resize/scroll——切出去时可能已经读到一次「键盘收起」的全高并把变量删掉，
+    // 回来后没人再补算，壳就停在 100dvh，输入框被键盘盖住。
+    // 回前台后连测几次，覆盖键盘恢复的动画过程。
+    let bumpTimers = []
+    const bump = () => {
+      bumpTimers.forEach(clearTimeout)
+      bumpTimers = [0, 120, 350, 700, 1200].map(ms => setTimeout(apply, ms))
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') bump()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('pageshow', bump)
+    window.addEventListener('focus', bump)
+
     return () => {
       vv.removeEventListener('resize', apply)
       vv.removeEventListener('scroll', apply)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('pageshow', bump)
+      window.removeEventListener('focus', bump)
+      bumpTimers.forEach(clearTimeout)
       root.style.removeProperty('--chat-vvh')
       root.classList.remove('kb-open')
     }
@@ -998,7 +1060,22 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
           </div>
         </div>
 
-        <div className="w-9 h-9 shrink-0" aria-hidden="true" />
+        <button
+          onClick={handleRefresh}
+          aria-label="刷新"
+          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full text-[#5D6856] active:scale-95 active:bg-white/40 transition disabled:opacity-40"
+          disabled={refreshing || streaming || regenerating}
+        >
+          <svg
+            className={refreshing ? 'animate-spin' : ''}
+            width="17" height="17" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
       </header>
 
       {/* ── Messages ── */}
