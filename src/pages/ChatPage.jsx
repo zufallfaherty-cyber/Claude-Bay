@@ -1074,7 +1074,7 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         <button
           onClick={handleRefresh}
           aria-label="刷新"
-          className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full text-[#5D6856] active:scale-95 active:bg-white/40 transition disabled:opacity-40"
+          className="w-9 h-9 shrink-0 mr-1 flex items-center justify-center rounded-full text-[#5D6856] opacity-80 active:scale-95 active:bg-white/40 transition disabled:opacity-40"
           disabled={refreshing || streaming || regenerating}
         >
           <svg
