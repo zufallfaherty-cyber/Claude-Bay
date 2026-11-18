@@ -1074,12 +1074,12 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
         <button
           onClick={handleRefresh}
           aria-label="刷新"
-          className="w-9 h-9 shrink-0 mr-1 flex items-center justify-center rounded-full text-[#5D6856] opacity-80 active:scale-95 active:bg-white/40 transition disabled:opacity-40"
+          className="w-8 h-8 shrink-0 mr-1 flex items-center justify-center rounded-full text-[#5D6856] opacity-80 active:scale-95 active:bg-white/40 transition disabled:opacity-40"
           disabled={refreshing || streaming || regenerating}
         >
           <svg
             className={refreshing ? 'animate-spin' : ''}
-            width="17" height="17" viewBox="0 0 24 24" fill="none"
+            width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
           >
             <polyline points="23 4 23 10 17 10" />
