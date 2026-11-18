@@ -424,31 +424,42 @@ export default function ChatPage({ currentSessionId, setCurrentSessionId, sessio
     if (!sb || !uid || !sid) return
     refreshBusyRef.current = true
     setRefreshing(true)
+    let alive = true
+    const stop = () => {
+      if (!alive) return
+      alive = false
+      refreshBusyRef.current = false
+      setRefreshing(false)
+    }
+    // 兜底：请求可能挂起（比如后端不通后降级直连被墙的 Supabase），
+    // 最多转 4 秒就停，绝不无限转圈。
+    const guard = setTimeout(stop, 4000)
     try {
-      const sbMsgs = await fetchMessages(sb, sid, uid)
-      const localIds = new Set(messagesRef.current.map(m => m.id))
-      const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
-      if (newFromSb.length > 0) {
+      // 两个请求并行：一个挂了不影响另一个的结果落地
+      const msgsTask = fetchMessages(sb, sid, uid).then(sbMsgs => {
+        if (!alive) return
+        const localIds = new Set(messagesRef.current.map(m => m.id))
+        const newFromSb = sbMsgs.filter(m => !localIds.has(m.id))
+        if (newFromSb.length === 0) return
         const merged = [...messagesRef.current, ...newFromSb].sort((a, b) => a.timestamp - b.timestamp)
         const capped = merged.slice(-MAX_LOADED_MSGS)
         messagesRef.current = capped
         saveMessagesLocal(sid, capped)
         setMessages(capped)
-      }
-      const sbSessions = await fetchSessions(sb, uid)
-      if (sbSessions.length > 0) {
+      }).catch(() => {})
+      const sessionsTask = fetchSessions(sb, uid).then(sbSessions => {
+        if (!alive || !sbSessions || sbSessions.length === 0) return
         const local = sbSessions.map(s => ({ id: s.id, name: s.name, updated_at: s.updated_at }))
         saveSessionsLocal(local)
         setSessionsRef.current?.(local)
-      }
+      }).catch(() => {})
+      await Promise.allSettled([msgsTask, sessionsTask])
     } catch {
       // 静默失败：按钮转一圈即可，不打扰
     } finally {
-      // 转圈至少停留一小会儿，让点击有反馈
-      setTimeout(() => {
-        refreshBusyRef.current = false
-        setRefreshing(false)
-      }, 500)
+      clearTimeout(guard)
+      // 至少停留 600ms，让点击有明确反馈
+      setTimeout(stop, 600)
     }
   }, [regenerating])
 
