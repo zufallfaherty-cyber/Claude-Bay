@@ -208,8 +208,8 @@ const XHS_NUDGE_SAFE_TOOLS = new Set([
 // 现在：10 分钟内且话题相近 → 复用上次的记忆块（内容一字不改）；
 //       话题明显切换、或久聊中断 → 重新检索一次。
 const memoryCache = { text: '', at: 0, query: '' }
-const MEMORY_MIN_REUSE = 8 * 60 * 1000   // 8 分钟内无条件复用（聊天中话题再怎么跳也不重建）
-const MEMORY_TTL = 20 * 60 * 1000        // 20 分钟还没重检，强制换一批
+const MEMORY_MIN_REUSE = 5 * 60 * 1000   // 5 分钟内无条件复用（成本已很低，刷新得更勤，新记忆更快露面）
+const MEMORY_TTL = 15 * 60 * 1000        // 15 分钟还没重检，强制换一批
 
 // 粗粒度话题相似度：去空白后的字符集合重叠率。中文按字符判断足够——
 // 阈值偏低(0.3)：普通聊天每句用词差别很大，阈值高了会两句一重检、把缓存打碎。
@@ -1376,23 +1376,41 @@ async function walkMemoryFiles(dir) {
   return out
 }
 
+// 全量列表缓存：1148 个桶文件全读一遍要几百毫秒，30 秒内复用
+let memoryAllCache = { at: 0, buckets: [] }
+const MEMORY_ALL_TTL = 30 * 1000
+const MEMORY_LIST_CHARS = 400 // 列表里单条正文上限（分页 + 截断，手机端才不卡）
+
 app.get('/api/memories/all', async (req, res) => {
   try {
-    const files = await walkMemoryFiles(MEMORY_BUCKETS_DIR)
-    const buckets = []
-    for (const f of files) {
-      try {
-        const raw = await fsp.readFile(f, 'utf8')
-        const b = parseMemoryBucket(raw, f)
-        if (b) buckets.push(b)
-      } catch {}
+    if (Date.now() - memoryAllCache.at > MEMORY_ALL_TTL) {
+      const files = await walkMemoryFiles(MEMORY_BUCKETS_DIR)
+      const buckets = []
+      for (const f of files) {
+        try {
+          const raw = await fsp.readFile(f, 'utf8')
+          const b = parseMemoryBucket(raw, f)
+          if (b) buckets.push(b)
+        } catch {}
+      }
+      buckets.sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))
+      memoryAllCache = { at: Date.now(), buckets }
     }
-    buckets.sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))
-    const limit = Math.min(parseInt(req.query.limit, 10) || 500, 2000)
+    const limit = Math.min(parseInt(req.query.limit, 10) || 60, 200)
     const offset = parseInt(req.query.offset, 10) || 0
+    const buckets = memoryAllCache.buckets.slice(offset, offset + limit).map((b) => {
+      const truncated = (b.content || '').length > MEMORY_LIST_CHARS
+      return {
+        ...b,
+        content: truncated ? b.content.slice(0, MEMORY_LIST_CHARS) : b.content,
+        truncated,
+      }
+    })
     res.json({
-      total: buckets.length,
-      buckets: buckets.slice(offset, offset + limit),
+      total: memoryAllCache.buckets.length,
+      offset,
+      limit,
+      buckets,
     })
   } catch (err) {
     console.error('Memories all error:', err)
@@ -2217,9 +2235,9 @@ app.post('/api/chat', async (req, res) => {
             if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
             return (b.weight || 0) - (a.weight || 0)
           })
-          // 省钱：5 条 × 450 字够用又不臃肿（进缓存后按打折价计费）
+          // 成本已很低：7 条 × 450 字，让更多记忆（尤其新写的）进入上下文
           const MEMORY_CHARS = 450
-          const MEMORY_COUNT = 5
+          const MEMORY_COUNT = 7
           const memoriesText = active
             .slice(0, MEMORY_COUNT)
             .map(b => {

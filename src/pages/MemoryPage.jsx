@@ -35,21 +35,43 @@ function moodEmoji(valence, arousal) {
 export default function MemoryPage() {
   const navigate = useNavigate()
   const [memories, setMemories] = useState(null)
+  const [total, setTotal] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
-  const [visibleCount, setVisibleCount] = useState(60)
+
+  // 分页加载：首屏 60 条（服务端已把正文截到 400 字），点「再看」再拉下一页。
+  // 之前一次拉 2000 条完整正文（几 MB），手机解析 JSON 会卡死。
+  const PAGE = 60
+  const BASE = 'https://124-156-142-6.sslip.io'
 
   useEffect(() => {
-    const base = 'https://124-156-142-6.sslip.io'
-    // 优先拉全量（直接读记忆桶文件）；老接口只有浮现的 50 条，作为兜底
-    fetch(`${base}/api/memories/all?limit=2000`)
+    // 优先拉分页列表（直接读记忆桶文件）；老接口只有浮现的 20 条，作为兜底
+    fetch(`${BASE}/api/memories/all?limit=${PAGE}&offset=0`)
       .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
-      .then((data) => setMemories(data.buckets || []))
-      .catch(() => fetch(`${base}/api/memories`)
+      .then((data) => {
+        setMemories(data.buckets || [])
+        if (typeof data.total === 'number') setTotal(data.total)
+        else setTotal((data.buckets || []).length)
+      })
+      .catch(() => fetch(`${BASE}/api/memories`)
         .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
-        .then((data) => setMemories(data.buckets || []))
+        .then((data) => { setMemories(data.buckets || []); setTotal((data.buckets || []).length) })
         .catch((err) => setError(err.message)))
   }, [])
+
+  const loadMore = () => {
+    if (loadingMore || !memories) return
+    setLoadingMore(true)
+    fetch(`${BASE}/api/memories/all?limit=${PAGE}&offset=${memories.length}`)
+      .then((r) => { if (!r.ok) throw new Error('加载失败'); return r.json() })
+      .then((data) => {
+        setMemories((prev) => [...prev, ...(data.buckets || [])])
+        if (typeof data.total === 'number') setTotal(data.total)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false))
+  }
 
   const isLoading = memories === null
 
@@ -101,9 +123,9 @@ export default function MemoryPage() {
         {!isLoading && !error && memories.length > 0 && (
           <div className="space-y-3">
             <p className="text-[10px] tracking-[0.25em] text-warm-gray/60 uppercase mb-3 px-1">
-              {memories.length} 条记忆
+              {total || memories.length} 条记忆
             </p>
-            {memories.slice(0, visibleCount).map((m, i) => {
+            {memories.map((m, i) => {
               const expanded = expandedId === (m.id || i)
               return (
               <motion.div
@@ -154,16 +176,18 @@ export default function MemoryPage() {
                   <p className="text-[10px] text-warm-gray/40 mt-3">
                     {String(m.created).slice(0, 10).replace(/-/g, '/')}
                     {!expanded && m.content && m.content.length > 120 && <span className="ml-2 text-warm-gray/30">点击展开</span>}
+                    {expanded && m.truncated && <span className="ml-2 text-warm-gray/30">（正文较长，已截断）</span>}
                   </p>
                 )}
               </motion.div>
             )})}
-            {memories.length > visibleCount && (
+            {total > memories.length && (
               <button
-                onClick={() => setVisibleCount((n) => n + 60)}
-                className="w-full py-3 rounded-2xl glass border border-white/30 text-[13px] text-warm-gray hover:bg-mint/30 transition-colors"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="w-full py-3 rounded-2xl glass border border-white/30 text-[13px] text-warm-gray hover:bg-mint/30 transition-colors disabled:opacity-60"
               >
-                再看 60 条（还有 {memories.length - visibleCount} 条）
+                {loadingMore ? '正在翻记忆…' : `再看 ${PAGE} 条（还有 ${total - memories.length} 条）`}
               </button>
             )}
           </div>
