@@ -1379,7 +1379,6 @@ async function walkMemoryFiles(dir) {
 // 全量列表缓存：1148 个桶文件全读一遍要几百毫秒，30 秒内复用
 let memoryAllCache = { at: 0, buckets: [] }
 const MEMORY_ALL_TTL = 30 * 1000
-const MEMORY_LIST_CHARS = 400 // 列表里单条正文上限（分页 + 截断，手机端才不卡）
 
 app.get('/api/memories/all', async (req, res) => {
   try {
@@ -1396,21 +1395,14 @@ app.get('/api/memories/all', async (req, res) => {
       buckets.sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))
       memoryAllCache = { at: Date.now(), buckets }
     }
+    // 分页加载就够轻了：每页 60 条完整正文约 200~300KB，不需要再截断。
     const limit = Math.min(parseInt(req.query.limit, 10) || 60, 200)
     const offset = parseInt(req.query.offset, 10) || 0
-    const buckets = memoryAllCache.buckets.slice(offset, offset + limit).map((b) => {
-      const truncated = (b.content || '').length > MEMORY_LIST_CHARS
-      return {
-        ...b,
-        content: truncated ? b.content.slice(0, MEMORY_LIST_CHARS) : b.content,
-        truncated,
-      }
-    })
     res.json({
       total: memoryAllCache.buckets.length,
       offset,
       limit,
-      buckets,
+      buckets: memoryAllCache.buckets.slice(offset, offset + limit),
     })
   } catch (err) {
     console.error('Memories all error:', err)

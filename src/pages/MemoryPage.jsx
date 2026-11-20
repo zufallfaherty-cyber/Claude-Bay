@@ -40,7 +40,7 @@ export default function MemoryPage() {
   const [error, setError] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
 
-  // 分页加载：首屏 60 条（服务端已把正文截到 400 字），点「再看」再拉下一页。
+  // 分页加载：首屏 60 条完整正文（约 200~300KB），点「再看」再拉下一页。
   // 之前一次拉 2000 条完整正文（几 MB），手机解析 JSON 会卡死。
   const PAGE = 60
   const BASE = 'https://124-156-142-6.sslip.io'
@@ -176,7 +176,6 @@ export default function MemoryPage() {
                   <p className="text-[10px] text-warm-gray/40 mt-3">
                     {String(m.created).slice(0, 10).replace(/-/g, '/')}
                     {!expanded && m.content && m.content.length > 120 && <span className="ml-2 text-warm-gray/30">点击展开</span>}
-                    {expanded && m.truncated && <span className="ml-2 text-warm-gray/30">（正文较长，已截断）</span>}
                   </p>
                 )}
               </motion.div>
